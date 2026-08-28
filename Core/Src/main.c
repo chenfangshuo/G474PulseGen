@@ -125,15 +125,8 @@ int main(void)
 
   TestUI_Init();
 
-  //打开12V输出 (使用语义宏，初始保持安全，后续由软启动接管)
-  LOADSW_ENABLE();
-  // Pulse_Select_Output(CH1);
-  // Pulse_dPulse_Init();
-  // Pulse_Enable_Output();
-  // PULSE_OUT_ENABLED = 1;
-  // HAL_HRTIM_WaveformCountStart(&hhrtim1,HRTIM_TIMERID_TIMER_B);
-  // HAL_HRTIM_WaveformOutputStart(&hhrtim1,HRTIM_OUTPUT_TB2);
-  // HAL_COMP_Start(&hcomp1);
+  // 默认保持 12V 负载开关关断，待供电稳定后再开启
+  LOADSW_DISABLE();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -329,6 +322,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     waiting_for_trg_flag = !waiting_for_trg_flag;
     triggered = 0;
+
+    // 毫秒级高频检测 LTC4421 供电，若掉电则毫秒级快速切断 LOADSW
+    if (!LTC_IS_ANY_PWR_VALID())
+    {
+      LOADSW_DISABLE();
+    }
+
+    // 软启动状态机 Tick 更新
+    Pulse_SoftStart_Update();
   }
   if(htim->Instance == TIM5)
   {
@@ -439,7 +441,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  LOADSW_DISABLE(); // 发生异常时紧急关断 12V 负载输出
+  Pulse_EmergencyStop(); // 发生异常时硬件级瞬间关断 HRTIM 全部发波与 12V 负载输出
   __disable_irq();
   while (1)
   {

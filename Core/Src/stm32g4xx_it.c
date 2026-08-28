@@ -22,6 +22,7 @@
 #include "stm32g4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "Pulse.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -75,7 +76,7 @@ extern TIM_HandleTypeDef htim16;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
+  Pulse_EmergencyStop(); // NMI 异常时硬件级紧急关断发波与 12V 负载输出
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
    while (1)
@@ -90,7 +91,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  Pulse_EmergencyStop(); // HardFault 异常时硬件级紧急关断发波与 12V 负载输出
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {

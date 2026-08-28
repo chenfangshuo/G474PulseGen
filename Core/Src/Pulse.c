@@ -5,13 +5,23 @@
 
 /* 全局控制器实体 */
 Pulse_Controller_t g_pulse_ctrl = {
-    .channel    = CH1,
-    .mode       = PULSE_MODE_NPULSE,
-    .timer_idx  = HRTIM_TIMERINDEX_TIMER_B,
-    .timer_id   = HRTIM_TIMERID_TIMER_B,
-    .output_ch  = HRTIM_OUTPUT_TB2,
-    .polarity   = PULSE_POLARITY_HIGH,
-    .is_enabled = false
+    .channel              = CH1,
+    .mode                 = PULSE_MODE_NPULSE,
+    .timer_idx            = HRTIM_TIMERINDEX_TIMER_B,
+    .timer_id             = HRTIM_TIMERID_TIMER_B,
+    .output_ch            = HRTIM_OUTPUT_TB2,
+    .polarity             = PULSE_POLARITY_HIGH,
+    .is_enabled           = false,
+    .deadtime_rising_val  = 0,
+    .deadtime_falling_val = 0,
+    .softstart = {
+        .state        = SOFTSTART_STATE_IDLE,
+        .current_duty = 0.0f,
+        .target_duty  = 50.0f,
+        .step_duty    = 1.0f,
+        .period_us    = 10.0f,
+        .auto_loadsw  = true
+    }
 };
 
 /* 兼容性全局变量导出 (对齐 main.c 与 WouoUI_user.c) */
@@ -186,8 +196,17 @@ void Pulse_Enable_Output(void)
     g_pulse_ctrl.is_enabled = true;
     Pulse_SyncContext();
 
-    HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch);
-    HAL_HRTIM_WaveformCountStart(&hhrtim1, g_pulse_ctrl.timer_id);
+    if (g_pulse_ctrl.mode == PULSE_MODE_INTERLEAVED_PWM)
+    {
+        /* 启动 Master Timer、Timer A 与 Timer B 双通道波形 */
+        HAL_HRTIM_WaveformOutputStart(&hhrtim1, HRTIM_OUTPUT_TA1 | HRTIM_OUTPUT_TB1);
+        HAL_HRTIM_WaveformCountStart(&hhrtim1, HRTIM_TIMERID_MASTER | HRTIM_TIMERID_TIMER_A | HRTIM_TIMERID_TIMER_B);
+    }
+    else
+    {
+        HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch);
+        HAL_HRTIM_WaveformCountStart(&hhrtim1, g_pulse_ctrl.timer_id);
+    }
 
     if (PULSE_MODE == PULSE_MODE_PWM_LONG)
     {
@@ -202,8 +221,16 @@ void Pulse_Disable_Output(void)
     g_pulse_ctrl.is_enabled = false;
     Pulse_SyncContext();
 
-    HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch);
-    HAL_HRTIM_WaveformCountStop(&hhrtim1, g_pulse_ctrl.timer_id);
+    if (g_pulse_ctrl.mode == PULSE_MODE_INTERLEAVED_PWM)
+    {
+        HAL_HRTIM_WaveformOutputStop(&hhrtim1, HRTIM_OUTPUT_TA1 | HRTIM_OUTPUT_TB1);
+        HAL_HRTIM_WaveformCountStop(&hhrtim1, HRTIM_TIMERID_MASTER | HRTIM_TIMERID_TIMER_A | HRTIM_TIMERID_TIMER_B);
+    }
+    else
+    {
+        HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch);
+        HAL_HRTIM_WaveformCountStop(&hhrtim1, g_pulse_ctrl.timer_id);
+    }
 
     if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
     {
@@ -395,7 +422,7 @@ void Pulse_nPulse_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED; // 开启预装载防抖
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
@@ -560,7 +587,7 @@ void Pulse_dPulse_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED; // 开启预装载防抖
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
@@ -626,7 +653,7 @@ void Pulse_dPulse_Init(void)
 /* PWM 相关函数 */
 bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent)
 {
-    if (period_us < 1.0f || period_us > 1500.0f || duty_cycle_percent < 1 || duty_cycle_percent > 100)
+    if (period_us < 1.0f || period_us > 1500.0f || duty_cycle_percent < 0 || duty_cycle_percent > 100)
     {
         return false;
     }
@@ -650,10 +677,10 @@ bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent)
     else if (period_value < 96)
         return false;
 
-    compare_value = (uint32_t)roundf(period_value * duty_cycle_f);
+    compare_value = (uint32_t)roundf((float)period_value * duty_cycle_f);
     if (compare_value >= period_value)
         compare_value = period_value - 1;
-    else if (compare_value < 1)
+    else if (compare_value < 1 && duty_cycle_percent > 0)
         compare_value = 1;
 
     uint32_t current_psc_reg_val = (hhrtim1.Instance->sTimerxRegs[g_pulse_ctrl.timer_idx].TIMxCR & HRTIM_TIMCR_CK_PSC);
@@ -722,14 +749,14 @@ void Pulse_PWM_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED; // 开启预装载防抖
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
     TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
     TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
     TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
-    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
+    TimerCfg.DeadTimeInsertion = (g_pulse_ctrl.deadtime_rising_val > 0) ? HRTIM_TIMDEADTIMEINSERTION_ENABLED : HRTIM_TIMDEADTIMEINSERTION_DISABLED;
     TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
     TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
     TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
@@ -771,6 +798,250 @@ void Pulse_PWM_Init(void)
 
     Pulse_PWM_SetPW(1.0f, 50);
     Pulse_SetPulsePolarity_High();
+}
+
+/* Step 3: 配置死区时间发生器 (防上下桥臂直通短路) */
+bool Pulse_SetDeadTime(uint8_t timer_idx, uint16_t rising_ns, uint16_t falling_ns)
+{
+    /* HRTIM fHRCK=5.44GHz, Resolution ≈ 0.184ns. tDT = Value * (1 / 5.44GHz) * 2^PSC */
+    /* tDT_ns = Value * 0.18382ns (当 Prescaler=DIV1 时) */
+    uint32_t rise_val = (uint32_t)roundf((float)rising_ns / 0.18382f);
+    uint32_t fall_val = (uint32_t)roundf((float)falling_ns / 0.18382f);
+
+    if (rise_val > 0x1FF) rise_val = 0x1FF;
+    if (fall_val > 0x1FF) fall_val = 0x1FF;
+
+    g_pulse_ctrl.deadtime_rising_val  = (uint16_t)rise_val;
+    g_pulse_ctrl.deadtime_falling_val = (uint16_t)fall_val;
+
+    HRTIM_DeadTimeCfgTypeDef dt_cfg = {0};
+    dt_cfg.Prescaler       = HRTIM_TIMDEADTIME_PRESCALERRATIO_DIV1;
+    dt_cfg.RisingValue     = rise_val;
+    dt_cfg.RisingSign      = HRTIM_TIMDEADTIME_RISINGSIGN_POSITIVE;
+    dt_cfg.RisingLock      = HRTIM_TIMDEADTIME_RISINGLOCK_WRITE;
+    dt_cfg.RisingSignLock  = HRTIM_TIMDEADTIME_RISINGSIGNLOCK_WRITE;
+    dt_cfg.FallingValue    = fall_val;
+    dt_cfg.FallingSign     = HRTIM_TIMDEADTIME_FALLINGSIGN_POSITIVE;
+    dt_cfg.FallingLock     = HRTIM_TIMDEADTIME_FALLINGLOCK_WRITE;
+    dt_cfg.FallingSignLock = HRTIM_TIMDEADTIME_FALLINGSIGNLOCK_WRITE;
+
+    if (HAL_HRTIM_DeadTimeConfig(&hhrtim1, timer_idx, &dt_cfg) != HAL_OK)
+    {
+        return false;
+    }
+
+    /* 使能该定时器的死区插入 */
+    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_ENABLED;
+    HAL_HRTIM_WaveformTimerConfig(&hhrtim1, timer_idx, &TimerCfg);
+
+    return true;
+}
+
+void Pulse_DisableDeadTime(uint8_t timer_idx)
+{
+    g_pulse_ctrl.deadtime_rising_val  = 0;
+    g_pulse_ctrl.deadtime_falling_val = 0;
+
+    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
+    HAL_HRTIM_WaveformTimerConfig(&hhrtim1, timer_idx, &TimerCfg);
+}
+
+/* Step 4: 180° 交错 PWM (Master Timer 同步移相) */
+void Pulse_InterleavedPWM_Init(float period_us, float initial_duty)
+{
+    g_pulse_ctrl.mode = PULSE_MODE_INTERLEAVED_PWM;
+    Pulse_SyncContext();
+
+    uint32_t prescaler_value;
+    float current_hrtim_freq;
+    uint32_t period_counts;
+
+    Pulse_CalcPrescalerAndCounts(period_us, &prescaler_value, &current_hrtim_freq, NULL);
+    period_counts = (uint32_t)roundf(US_TO_S(period_us) * current_hrtim_freq);
+    if (period_counts > 0xFFDF) period_counts = 0xFFDF;
+    else if (period_counts < 96) period_counts = 96;
+
+    /* 1. 配置 Master Timer 作为全局 180° 移相同步基准 */
+    HRTIM_TimeBaseCfgTypeDef MasterTimeBase = {0};
+    MasterTimeBase.Period = period_counts;
+    MasterTimeBase.RepetitionCounter = 0;
+    MasterTimeBase.PrescalerRatio = prescaler_value;
+    MasterTimeBase.Mode = HRTIM_MODE_CONTINUOUS;
+    HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_MASTER, &MasterTimeBase);
+
+    /* Master CMP1 触发 TA 同步 (0°), Master CMP2 触发 TB 同步 (180° 处复位) */
+    HRTIM_CompareCfgTypeDef MasterCmp = {0};
+    MasterCmp.CompareValue = 0;
+    HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_MASTER, HRTIM_COMPAREUNIT_1, &MasterCmp);
+
+    MasterCmp.CompareValue = period_counts / 2; // 180 度对称移相比较点
+    HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_MASTER, HRTIM_COMPAREUNIT_2, &MasterCmp);
+
+    /* 2. 配置 从定时器 Timer A (Phase 0°) 与 Timer B (Phase 180°) */
+    HRTIM_TimeBaseCfgTypeDef SlaveTimeBase = {0};
+    SlaveTimeBase.Period = period_counts;
+    SlaveTimeBase.RepetitionCounter = 0;
+    SlaveTimeBase.PrescalerRatio = prescaler_value;
+    SlaveTimeBase.Mode = HRTIM_MODE_CONTINUOUS;
+
+    HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_A, &SlaveTimeBase);
+    HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_B, &SlaveTimeBase);
+
+    /* Timer A 接收 Master 同步复位，Timer B 接收 Master CMP2 比较复位事件 */
+    HRTIM_TimerCfgTypeDef SlaveTimerCfg = {0};
+    SlaveTimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED;
+    SlaveTimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
+    SlaveTimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_MASTER_CMP1;
+    SlaveTimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_ENABLED;
+    HAL_HRTIM_WaveformTimerConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_A, &SlaveTimerCfg);
+
+    SlaveTimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_MASTER_CMP2;
+    HAL_HRTIM_WaveformTimerConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_B, &SlaveTimerCfg);
+
+    /* 3. 配置波形输出 (TA1 -> Y4, TB1 -> Y2) */
+    HRTIM_OutputCfgTypeDef OutCfg = {0};
+    OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+    OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+    OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+    OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+    HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_A, HRTIM_OUTPUT_TA1, &OutCfg);
+    HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_B, HRTIM_OUTPUT_TB1, &OutCfg);
+
+    HAL_HRTIM_MspPostInit(&hhrtim1);
+
+    Pulse_InterleavedPWM_SetPW(period_us, initial_duty);
+}
+
+bool Pulse_InterleavedPWM_SetPW(float period_us, float duty_percent)
+{
+    if (period_us < 1.0f || period_us > 1500.0f || duty_percent < 0.0f || duty_percent > 100.0f)
+    {
+        return false;
+    }
+
+    uint32_t prescaler_value;
+    float current_hrtim_freq;
+    uint32_t period_counts;
+
+    Pulse_CalcPrescalerAndCounts(period_us, &prescaler_value, &current_hrtim_freq, NULL);
+    period_counts = (uint32_t)roundf(US_TO_S(period_us) * current_hrtim_freq);
+    if (period_counts > 0xFFDF) period_counts = 0xFFDF;
+    else if (period_counts < 96) return false;
+
+    uint32_t cmp_duty = (uint32_t)roundf((float)period_counts * (duty_percent / 100.0f));
+    if (cmp_duty >= period_counts) cmp_duty = period_counts - 1;
+
+    HRTIM_CompareCfgTypeDef cmp_cfg = {0};
+    cmp_cfg.CompareValue = 0;
+    HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_A, HRTIM_COMPAREUNIT_1, &cmp_cfg);
+    HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_B, HRTIM_COMPAREUNIT_1, &cmp_cfg);
+
+    cmp_cfg.CompareValue = cmp_duty;
+    HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_A, HRTIM_COMPAREUNIT_2, &cmp_cfg);
+    HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_B, HRTIM_COMPAREUNIT_2, &cmp_cfg);
+
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_MASTER | HRTIM_TIMERINDEX_TIMER_A | HRTIM_TIMERINDEX_TIMER_B);
+
+    return true;
+}
+
+/* Step 4: 非阻塞软启动控制 */
+void Pulse_SoftStart_Start(float target_duty, uint32_t ramp_time_ms, bool enable_loadsw)
+{
+    if (ramp_time_ms < 10) ramp_time_ms = 10;
+    uint32_t total_ticks = ramp_time_ms / 10; // 10ms 每周期
+
+    g_pulse_ctrl.softstart.current_duty = 0.0f;
+    g_pulse_ctrl.softstart.target_duty  = target_duty;
+    g_pulse_ctrl.softstart.step_duty    = target_duty / (float)total_ticks;
+    g_pulse_ctrl.softstart.auto_loadsw  = enable_loadsw;
+    g_pulse_ctrl.softstart.state        = SOFTSTART_STATE_RAMPING;
+
+    /* 先以 0% 占空比启动输出 */
+    if (g_pulse_ctrl.mode == PULSE_MODE_INTERLEAVED_PWM)
+    {
+        Pulse_InterleavedPWM_SetPW(g_pulse_ctrl.softstart.period_us, 0.0f);
+    }
+    else
+    {
+        Pulse_PWM_SetPW(g_pulse_ctrl.softstart.period_us, 0);
+    }
+
+    Pulse_Enable_Output();
+}
+
+void Pulse_SoftStart_Stop(uint32_t ramp_time_ms)
+{
+    if (ramp_time_ms < 10)
+    {
+        Pulse_Disable_Output();
+        g_pulse_ctrl.softstart.state = SOFTSTART_STATE_IDLE;
+        return;
+    }
+
+    uint32_t total_ticks = ramp_time_ms / 10;
+    g_pulse_ctrl.softstart.step_duty = g_pulse_ctrl.softstart.current_duty / (float)total_ticks;
+    g_pulse_ctrl.softstart.state     = SOFTSTART_STATE_STOPPING;
+}
+
+/* 软启动定时更新节拍 (应放置在 10ms 定时器中断如 TIM16 中调用) */
+void Pulse_SoftStart_Update(void)
+{
+    if (g_pulse_ctrl.softstart.state == SOFTSTART_STATE_RAMPING)
+    {
+        g_pulse_ctrl.softstart.current_duty += g_pulse_ctrl.softstart.step_duty;
+        if (g_pulse_ctrl.softstart.current_duty >= g_pulse_ctrl.softstart.target_duty)
+        {
+            g_pulse_ctrl.softstart.current_duty = g_pulse_ctrl.softstart.target_duty;
+            g_pulse_ctrl.softstart.state = SOFTSTART_STATE_RUNNING;
+
+            if (g_pulse_ctrl.softstart.auto_loadsw && LTC_IS_ANY_PWR_VALID())
+            {
+                LOADSW_ENABLE(); // 软启动爬坡完成且供电稳定后安全打开 12V 负载开关
+            }
+        }
+
+        if (g_pulse_ctrl.mode == PULSE_MODE_INTERLEAVED_PWM)
+            Pulse_InterleavedPWM_SetPW(g_pulse_ctrl.softstart.period_us, g_pulse_ctrl.softstart.current_duty);
+        else
+            Pulse_PWM_SetPW(g_pulse_ctrl.softstart.period_us, (int32_t)g_pulse_ctrl.softstart.current_duty);
+    }
+    else if (g_pulse_ctrl.softstart.state == SOFTSTART_STATE_STOPPING)
+    {
+        g_pulse_ctrl.softstart.current_duty -= g_pulse_ctrl.softstart.step_duty;
+        if (g_pulse_ctrl.softstart.current_duty <= 0.0f)
+        {
+            g_pulse_ctrl.softstart.current_duty = 0.0f;
+            g_pulse_ctrl.softstart.state = SOFTSTART_STATE_IDLE;
+            Pulse_Disable_Output();
+            LOADSW_DISABLE();
+        }
+
+        if (g_pulse_ctrl.mode == PULSE_MODE_INTERLEAVED_PWM)
+            Pulse_InterleavedPWM_SetPW(g_pulse_ctrl.softstart.period_us, g_pulse_ctrl.softstart.current_duty);
+        else
+            Pulse_PWM_SetPW(g_pulse_ctrl.softstart.period_us, (int32_t)g_pulse_ctrl.softstart.current_duty);
+    }
+}
+
+/* Step 5: 硬件级与软件级紧急关断 (Safe-State 硬件保护) */
+void Pulse_EmergencyStop(void)
+{
+    /* 1. 瞬时强制拉低 PA12 (LOADSW) 切断 12V 外部供电并启动 QOD 快速放电 */
+    LOADSW_DISABLE();
+
+    /* 2. 硬件级清零 HRTIM 输出使能寄存器 (ODISR) 立即断开所有 8 路高精发波输出 */
+    HRTIM1->sCommonRegs.ODISR = 0xFFFFFFFFU; // 强制禁用全部通道输出
+    HRTIM1->sMasterRegs.MCR  &= ~(HRTIM_MCR_MCEN | HRTIM_MCR_TACEN | HRTIM_MCR_TBCEN | HRTIM_MCR_TCCEN | HRTIM_MCR_TDCEN);
+
+    /* 3. 关闭长脉冲定时器 TIM5 并拉低 GPIO */
+    __HAL_TIM_DISABLE(&htim5);
+    Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+
+    /* 4. 更新内部状态机为故障保护状态 */
+    g_pulse_ctrl.is_enabled      = false;
+    g_pulse_ctrl.softstart.state = SOFTSTART_STATE_FAULT;
+    Pulse_SyncContext();
 }
 
 /* 长时间单脉冲相关函数 (TIM5 + GPIO 软件模式) */
