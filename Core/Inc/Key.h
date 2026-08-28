@@ -1,6 +1,8 @@
 #ifndef __KEY_H
 #define __KEY_H
 
+#include "main.h"
+
 #define KEY_COUNT				7
 
 #define K_UP					0
@@ -10,6 +12,28 @@
 #define K_PRESS			    	4
 #define K_ENC				    5
 #define K_TRG				    6
+
+/* 硬件消抖 MAX6818 输出引脚语义宏映射 (严格对应 HARDWARE.md §3.1) */
+#define KEY_UP_GPIO_Port        GPIOC
+#define KEY_UP_Pin              GPIO_PIN_13
+
+#define KEY_DOWN_GPIO_Port      GPIOA
+#define KEY_DOWN_Pin            GPIO_PIN_4
+
+#define KEY_LEFT_GPIO_Port      GPIOA
+#define KEY_LEFT_Pin            GPIO_PIN_5
+
+#define KEY_RIGHT_GPIO_Port     GPIOA
+#define KEY_RIGHT_Pin           GPIO_PIN_6
+
+#define KEY_CENTER_GPIO_Port    GPIOA
+#define KEY_CENTER_Pin          GPIO_PIN_7
+
+#define KEY_ENC_GPIO_Port       GPIOB
+#define KEY_ENC_Pin             GPIO_PIN_0
+
+#define KEY_TRG_GPIO_Port       GPIOB
+#define KEY_TRG_Pin             GPIO_PIN_1
 
 #define KEY_HOLD				0x01
 #define KEY_DOWN				0x02

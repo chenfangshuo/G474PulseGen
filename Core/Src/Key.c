@@ -8,76 +8,33 @@
 #define KEY_TIME_LONG			500
 #define KEY_TIME_REPEAT			300
 
-uint8_t Key_Flag[KEY_COUNT];
+volatile uint8_t Key_Flag[KEY_COUNT];
 
 void Key_Init(void)
 {
-	// RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-	//
-	// GPIO_InitTypeDef GPIO_InitStructure;
-	// GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-	// GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_11;
-	// GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	// GPIO_Init(GPIOB, &GPIO_InitStructure);
-	//
-	// GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
-	// GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13 | GPIO_Pin_15;
-	// GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	// GPIO_Init(GPIOB, &GPIO_InitStructure);
 }
 
 uint8_t Key_GetState(uint8_t n)
 {
-	if (n == K_UP)
+	switch (n)
 	{
-		if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) == 0)
-		{
-			return KEY_PRESSED;
-		}
+		case K_UP:
+			return (HAL_GPIO_ReadPin(KEY_UP_GPIO_Port, KEY_UP_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		case K_DOWN:
+			return (HAL_GPIO_ReadPin(KEY_DOWN_GPIO_Port, KEY_DOWN_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		case K_LEFT:
+			return (HAL_GPIO_ReadPin(KEY_LEFT_GPIO_Port, KEY_LEFT_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		case K_RIGHT:
+			return (HAL_GPIO_ReadPin(KEY_RIGHT_GPIO_Port, KEY_RIGHT_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		case K_PRESS:
+			return (HAL_GPIO_ReadPin(KEY_CENTER_GPIO_Port, KEY_CENTER_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		case K_ENC:
+			return (HAL_GPIO_ReadPin(KEY_ENC_GPIO_Port, KEY_ENC_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		case K_TRG:
+			return (HAL_GPIO_ReadPin(KEY_TRG_GPIO_Port, KEY_TRG_Pin) == GPIO_PIN_RESET) ? KEY_PRESSED : KEY_UNPRESSED;
+		default:
+			return KEY_UNPRESSED;
 	}
-	else if (n == K_DOWN)
-	{
-		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == 0)
-		{
-			return KEY_PRESSED;
-		}
-	}
-	else if (n == K_LEFT)
-	{
-		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5) == 0)
-		{
-			return KEY_PRESSED;
-		}
-	}
-	else if (n == K_RIGHT)
-	{
-		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == 0)
-		{
-			return KEY_PRESSED;
-		}
-	}
-	else if (n == K_PRESS)
-	{
-		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_7) == 0)
-		{
-			return KEY_PRESSED;
-		}
-	}
-	else if (n == K_ENC)
-	{
-		if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_0) == 0)
-		{
-			return KEY_PRESSED;
-		}
-	}
-	else if (n == K_TRG)
-	{
-		if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == 0)
-		{
-			return KEY_PRESSED;
-		}
-	}
-	return KEY_UNPRESSED;
 }
 
 uint8_t Key_Check(uint8_t n, uint8_t Flag)

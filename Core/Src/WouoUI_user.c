@@ -286,7 +286,9 @@ String ch_sel_str_array[] = {
     (char *)"CH3",
     (char *)"CH4",
     (char *)"CH5",
-    (char *)"CH6"
+    (char *)"CH6",
+    (char *)"CH7",
+    (char *)"CH8"
 };
 
 String polarity_sel_str_array[] = {

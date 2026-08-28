@@ -46,7 +46,20 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+/* 12V 功率负载开关控制宏 (PA12 - TPS22810 EN, R57下拉, 1=通, 0=断+QOD泄放) */
+#define LOADSW_GPIO_Port          GPIOA
+#define LOADSW_Pin                GPIO_PIN_12
+#define LOADSW_ENABLE()           HAL_GPIO_WritePin(LOADSW_GPIO_Port, LOADSW_Pin, GPIO_PIN_SET)
+#define LOADSW_DISABLE()          HAL_GPIO_WritePin(LOADSW_GPIO_Port, LOADSW_Pin, GPIO_PIN_RESET)
 
+/* LTC4421 电源状态检测宏 (PC14/PC15 经 Q6/Q7 反相, 高电平=对应通道导通) */
+#define PWR1_DT_GPIO_Port         GPIOC
+#define PWR1_DT_Pin               GPIO_PIN_14
+#define PWR2_DT_GPIO_Port         GPIOC
+#define PWR2_DT_Pin               GPIO_PIN_15
+#define LTC_IS_PWR1_VALID()       (HAL_GPIO_ReadPin(PWR1_DT_GPIO_Port, PWR1_DT_Pin) == GPIO_PIN_SET)
+#define LTC_IS_PWR2_VALID()       (HAL_GPIO_ReadPin(PWR2_DT_GPIO_Port, PWR2_DT_Pin) == GPIO_PIN_SET)
+#define LTC_IS_ANY_PWR_VALID()    (LTC_IS_PWR1_VALID() || LTC_IS_PWR2_VALID())
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

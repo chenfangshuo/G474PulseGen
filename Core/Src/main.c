@@ -51,23 +51,9 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-HRTIM_TimeBaseCfgTypeDef TimeBaseCfg = {0};
-HRTIM_TimerCtlTypeDef TimerCtl = {0};
-HRTIM_TimerCfgTypeDef TimerCfg = {0};
-HRTIM_CompareCfgTypeDef CompareCfg = {0};
-HRTIM_OutputCfgTypeDef OutputCfg = {0};
-
 volatile bool display_update_flag = 1;
 volatile bool waiting_for_trg_flag = 0;
 volatile bool triggered = 0;
-volatile char HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_B;
-volatile unsigned long HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_B;
-volatile char HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TB2;
-volatile uint8_t PULSE_MODE = PULSE_MODE_NPULSE;
-volatile bool PULSE_OUT_ENABLED = 0;
-volatile bool PULSE_POLARITY = PULSE_POLARITY_HIGH;
-volatile uint32_t lpwm_arr = 0;
-volatile uint32_t lpwm_ccr = 0;
 
 extern Option single_pulse_option_array[];
 extern Option single_pulse_long_option_array[];
@@ -139,8 +125,8 @@ int main(void)
 
   TestUI_Init();
 
-  //打开12V输出
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
+  //打开12V输出 (使用语义宏，初始保持安全，后续由软启动接管)
+  LOADSW_ENABLE();
   // Pulse_Select_Output(CH1);
   // Pulse_dPulse_Init();
   // Pulse_Enable_Output();
@@ -157,9 +143,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    //当检测到无供电时关闭12V输出并执行QOD
-    if (!(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_14) == GPIO_PIN_SET || HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15) == GPIO_PIN_SET))
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+    //当检测到无供电时关闭12V输出并执行QOD (使用 LTC 状态检测宏)
+    if (!LTC_IS_ANY_PWR_VALID())
+      LOADSW_DISABLE();
 
     if (Key_Check(K_UP, KEY_DOWN) || Key_Check(K_UP, KEY_REPEAT))
     {
@@ -388,14 +374,16 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  if(GPIO_Pin == GPIO_PIN_1)
+  if(GPIO_Pin == KEY_TRG_Pin)
   {
     if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_B)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TBRST;  //触发TB的重置事件
+      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TBRST;  // 触发 TB 重置事件
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_A)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TARST;  //触发TB的重置事件
+      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TARST;  // 触发 TA 重置事件
+    else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_C)
+      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TCRST;  // 触发 TC 重置事件
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_D)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TDRST;  //触发TB的重置事件
+      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TDRST;  // 触发 TD 重置事件
 
     if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_SINGLE_LONG)
     {
@@ -451,6 +439,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  LOADSW_DISABLE(); // 发生异常时紧急关断 12V 负载输出
   __disable_irq();
   while (1)
   {

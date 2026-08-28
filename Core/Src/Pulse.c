@@ -1,734 +1,634 @@
-#include <stdbool.h>
-
-#include "stm32g4xx.h"
+#include "Pulse.h"
 #include "hrtim.h"
-#include "pulse.h"
+#include "tim.h"
 #include <math.h>
 
-#include "tim.h"
+/* 全局控制器实体 */
+Pulse_Controller_t g_pulse_ctrl = {
+    .channel    = CH1,
+    .mode       = PULSE_MODE_NPULSE,
+    .timer_idx  = HRTIM_TIMERINDEX_TIMER_B,
+    .timer_id   = HRTIM_TIMERID_TIMER_B,
+    .output_ch  = HRTIM_OUTPUT_TB2,
+    .polarity   = PULSE_POLARITY_HIGH,
+    .is_enabled = false
+};
 
-//CH1---TB2
-//CH2---TB1
-//CH3---TA2
-//CH4---TA1
-//CH5---TD2
-//CH6---TD1
+/* 兼容性全局变量导出 (对齐 main.c 与 WouoUI_user.c) */
+volatile uint32_t HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_B;
+volatile uint32_t HRTIM_TIMERID_TIMER_X    = HRTIM_TIMERID_TIMER_B;
+volatile uint32_t HRTIM_OUTPUT_TXX         = HRTIM_OUTPUT_TB2;
+volatile uint8_t  PULSE_MODE               = PULSE_MODE_NPULSE;
+volatile bool     PULSE_OUT_ENABLED        = false;
+volatile bool     PULSE_POLARITY           = PULSE_POLARITY_HIGH;
+volatile uint32_t lpwm_arr                 = 0;
+volatile uint32_t lpwm_ccr                 = 0;
 
-// HRTIM_HandleTypeDef hhrtim1;
-extern HRTIM_TimeBaseCfgTypeDef TimeBaseCfg;
-extern HRTIM_TimerCtlTypeDef TimerCtl;
-extern HRTIM_TimerCfgTypeDef TimerCfg;
-extern HRTIM_CompareCfgTypeDef CompareCfg;
-extern HRTIM_OutputCfgTypeDef OutputCfg;
+/* HRTIM 硬件配置结构体 */
+HRTIM_TimeBaseCfgTypeDef TimeBaseCfg = {0};
+HRTIM_TimerCtlTypeDef    TimerCtl    = {0};
+HRTIM_TimerCfgTypeDef    TimerCfg    = {0};
+HRTIM_CompareCfgTypeDef  CompareCfg  = {0};
+HRTIM_OutputCfgTypeDef   OutputCfg   = {0};
 
-extern volatile char HRTIM_TIMERINDEX_TIMER_X;
-extern volatile unsigned long HRTIM_TIMERID_TIMER_X;
-extern volatile char HRTIM_OUTPUT_TXX;
-extern volatile uint8_t PULSE_MODE;
-extern volatile bool PULSE_OUT_ENABLED;
-extern volatile bool PULSE_POLARITY;
-extern volatile uint32_t lpwm_arr;
-extern volatile uint32_t lpwm_ccr;
+/* 私有函数：根据目标微秒时间计算最优 HRTIM 分频比与计数值 */
+static bool Pulse_CalcPrescalerAndCounts(float time_us, uint32_t *out_prescaler, float *out_freq, uint32_t *out_counts)
+{
+    if (time_us <= 0.0f) return false;
 
+    uint32_t prescaler_value;
+    float current_hrtim_freq;
 
+    if (time_us <= 11.8f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_MUL32;
+        current_hrtim_freq = 170000000.0f * 32.0f;
+    }
+    else if (time_us <= 23.8f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_MUL16;
+        current_hrtim_freq = 170000000.0f * 16.0f;
+    }
+    else if (time_us <= 47.9f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_MUL8;
+        current_hrtim_freq = 170000000.0f * 8.0f;
+    }
+    else if (time_us <= 96.0f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_MUL4;
+        current_hrtim_freq = 170000000.0f * 4.0f;
+    }
+    else if (time_us <= 192.4f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_MUL2;
+        current_hrtim_freq = 170000000.0f * 2.0f;
+    }
+    else if (time_us <= 385.1f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_DIV1;
+        current_hrtim_freq = 170000000.0f * 1.0f;
+    }
+    else if (time_us <= 770.4f)
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_DIV2;
+        current_hrtim_freq = 170000000.0f / 2.0f;
+    }
+    else
+    {
+        prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
+        current_hrtim_freq = 170000000.0f / 4.0f;
+    }
+
+    if (out_prescaler) *out_prescaler = prescaler_value;
+    if (out_freq) *out_freq = current_hrtim_freq;
+
+    if (out_counts)
+    {
+        float time_s = US_TO_S(time_us);
+        uint32_t compare_value = (uint32_t)roundf(time_s * current_hrtim_freq);
+        if (compare_value > 0xFFDF) compare_value = 0xFFDF;
+        else if (compare_value < 96) compare_value = 96;
+        *out_counts = compare_value;
+    }
+
+    return true;
+}
+
+/* 同步全局兼容变量到 g_pulse_ctrl */
+static void Pulse_SyncContext(void)
+{
+    HRTIM_TIMERINDEX_TIMER_X = g_pulse_ctrl.timer_idx;
+    HRTIM_TIMERID_TIMER_X    = g_pulse_ctrl.timer_id;
+    HRTIM_OUTPUT_TXX         = g_pulse_ctrl.output_ch;
+    PULSE_MODE               = g_pulse_ctrl.mode;
+    PULSE_OUT_ENABLED        = g_pulse_ctrl.is_enabled;
+    PULSE_POLARITY           = g_pulse_ctrl.polarity;
+}
+
+/* 通道选择：严格按照 HARDWARE.md §5.1 表格映射 CH1 ~ CH8 */
 void Pulse_Select_Output(uint8_t CHx)
 {
-  Pulse_SetPulsePolarity_High();
-  if (PULSE_OUT_ENABLED)
-    Pulse_Disable_Output();
+    Pulse_SetPulsePolarity_High();
+    if (g_pulse_ctrl.is_enabled)
+        Pulse_Disable_Output();
 
-  if (CHx == 1)
-  {
-    HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_B;
-    HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_B;
-    HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TB2;
-  }
-  else if (CHx == 2)
-  {
-    HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_B;
-    HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_B;
-    HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TB1;
-  }
-  else if (CHx == 3)
-  {
-    HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_A;
-    HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_A;
-    HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TA2;
-  }
-  else if (CHx == 4)
-  {
-    HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_A;
-    HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_A;
-    HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TA1;
-  }
-  else if (CHx == 5)
-  {
-    HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_D;
-    HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_D;
-    HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TD2;
-  }
-  else if (CHx == 6)
-  {
-    HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_D;
-    HRTIM_TIMERID_TIMER_X = HRTIM_TIMERID_TIMER_D;
-    HRTIM_OUTPUT_TXX = HRTIM_OUTPUT_TD1;
-  }
+    g_pulse_ctrl.channel = CHx;
 
-  if (PULSE_MODE == PULSE_MODE_NPULSE)
-    Pulse_nPulse_Init();
-  else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
-    Pulse_slPulse_Init();
-  else if (PULSE_MODE == PULSE_MODE_DPULSE)
-    Pulse_dPulse_Init();
-  else if (PULSE_MODE == PULSE_MODE_PWM)
-    Pulse_PWM_Init();
-  else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
-    Pulse_lPWM_Init();
+    switch (CHx)
+    {
+        case CH1: /* HRTIM1_CHB2 (PA11 -> Y1) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_B;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_B;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TB2;
+            break;
+        case CH2: /* HRTIM1_CHB1 (PA10 -> Y2) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_B;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_B;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TB1;
+            break;
+        case CH3: /* HRTIM1_CHA2 (PA9 -> Y3) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_A;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_A;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TA2;
+            break;
+        case CH4: /* HRTIM1_CHA1 (PA8 -> Y4) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_A;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_A;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TA1;
+            break;
+        case CH5: /* HRTIM1_CHD2 (PB15 -> Y5) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_D;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_D;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TD2;
+            break;
+        case CH6: /* HRTIM1_CHD1 (PB14 -> Y6) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_D;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_D;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TD1;
+            break;
+        case CH7: /* HRTIM1_CHC2 (PB13 -> Y7) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_C;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_C;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TC2;
+            break;
+        case CH8: /* HRTIM1_CHC1 (PB12 -> Y8) */
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_C;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_C;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TC1;
+            break;
+        default:
+            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_B;
+            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_B;
+            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TB2;
+            break;
+    }
 
-  if (PULSE_OUT_ENABLED)
-    Pulse_Enable_Output();
+    Pulse_SyncContext();
+
+    if (PULSE_MODE == PULSE_MODE_NPULSE)
+        Pulse_nPulse_Init();
+    else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+        Pulse_slPulse_Init();
+    else if (PULSE_MODE == PULSE_MODE_DPULSE)
+        Pulse_dPulse_Init();
+    else if (PULSE_MODE == PULSE_MODE_PWM)
+        Pulse_PWM_Init();
+    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+        Pulse_lPWM_Init();
+
+    if (g_pulse_ctrl.is_enabled)
+        Pulse_Enable_Output();
 }
 
 void Pulse_Enable_Output(void)
 {
-    HAL_HRTIM_WaveformOutputStart(&hhrtim1, HRTIM_OUTPUT_TXX);
-    HAL_HRTIM_WaveformCountStart(&hhrtim1, HRTIM_TIMERID_TIMER_X);
+    g_pulse_ctrl.is_enabled = true;
+    Pulse_SyncContext();
 
-  if (PULSE_MODE == PULSE_MODE_PWM_LONG)
-  {
-    __HAL_TIM_SET_COUNTER(&htim5, 0);
-    // __HAL_TIM_ENABLE_IT(&htim5, TIM_IT_UPDATE);
-    // __HAL_TIM_ENABLE(&htim5);
-    HAL_TIM_Base_Start_IT(&htim5);
-    HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_1);
-  }
+    HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch);
+    HAL_HRTIM_WaveformCountStart(&hhrtim1, g_pulse_ctrl.timer_id);
+
+    if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    {
+        __HAL_TIM_SET_COUNTER(&htim5, 0);
+        HAL_TIM_Base_Start_IT(&htim5);
+        HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_1);
+    }
 }
 
 void Pulse_Disable_Output(void)
 {
-    HAL_HRTIM_WaveformOutputStop(&hhrtim1, HRTIM_OUTPUT_TXX);
-    HAL_HRTIM_WaveformCountStop(&hhrtim1, HRTIM_TIMERID_TIMER_X);
+    g_pulse_ctrl.is_enabled = false;
+    Pulse_SyncContext();
 
-  if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+    HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch);
+    HAL_HRTIM_WaveformCountStop(&hhrtim1, g_pulse_ctrl.timer_id);
+
+    if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
     {
-      __HAL_TIM_DISABLE(&htim5);
-      if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-        Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-      else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
-        Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+        __HAL_TIM_DISABLE(&htim5);
+        if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+            Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+        else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
+            Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
     }
-  else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
-  {
-    HAL_TIM_Base_Stop_IT(&htim5);
-    HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_1);
-    if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-      Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-    else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
-      Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
-  }
+    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    {
+        HAL_TIM_Base_Stop_IT(&htim5);
+        HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_1);
+        if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+            Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+        else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
+            Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+    }
 }
 
 void Pulse_SetPulsePolarity_High(void)
 {
-  PULSE_POLARITY = PULSE_POLARITY_HIGH;
-  HRTIM_OutputCfgTypeDef OutCfg = {0};
+    g_pulse_ctrl.polarity = PULSE_POLARITY_HIGH;
+    Pulse_SyncContext();
 
-  Pulse_Disable_Output();
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
+    HRTIM_OutputCfgTypeDef OutCfg = {0};
 
-  if (PULSE_MODE == PULSE_MODE_NPULSE || PULSE_MODE == PULSE_MODE_PWM)
-  {
-    OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
-    OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
-    OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
-    OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-    OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-    OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-    OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutCfg) != HAL_OK)
+    Pulse_Disable_Output();
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+
+    if (PULSE_MODE == PULSE_MODE_NPULSE || PULSE_MODE == PULSE_MODE_PWM)
     {
-      Error_Handler();
+        OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+        OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+        OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+        OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+        OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+        OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+        if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
+        {
+            Error_Handler();
+        }
     }
-  }
-  if (PULSE_MODE == PULSE_MODE_DPULSE)
-  {
-    OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
-    OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
-    OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
-    OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-    OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-    OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-    OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutCfg) != HAL_OK)
+    else if (PULSE_MODE == PULSE_MODE_DPULSE)
     {
-      Error_Handler();
+        OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+        OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
+        OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
+        OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+        OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+        OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+        if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
+        {
+            Error_Handler();
+        }
     }
-  }
 
-  // if (PULSE_MODE == PULSE_MODE_SINGLE_LONG || PULSE_MODE == PULSE_MODE_PWM_LONG)
-  //     Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
-  if (PULSE_OUT_ENABLED)
-    Pulse_Enable_Output();
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+    if (g_pulse_ctrl.is_enabled)
+        Pulse_Enable_Output();
 }
 
 void Pulse_SetPulsePolarity_Low(void)
 {
-  PULSE_POLARITY = PULSE_POLARITY_LOW;
-  HRTIM_OutputCfgTypeDef OutCfg = {0};
+    g_pulse_ctrl.polarity = PULSE_POLARITY_LOW;
+    Pulse_SyncContext();
 
-  Pulse_Disable_Output();
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
+    HRTIM_OutputCfgTypeDef OutCfg = {0};
 
-  if (PULSE_MODE == PULSE_MODE_NPULSE || PULSE_MODE == PULSE_MODE_PWM)
-  {
-    OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_LOW;
-    OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
-    OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
-    OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-    OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-    OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-    OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutCfg) != HAL_OK)
+    Pulse_Disable_Output();
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+
+    if (PULSE_MODE == PULSE_MODE_NPULSE || PULSE_MODE == PULSE_MODE_PWM)
     {
-      Error_Handler();
+        OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_LOW;
+        OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+        OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+        OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+        OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+        OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+        if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
+        {
+            Error_Handler();
+        }
     }
-  }
-  if (PULSE_MODE == PULSE_MODE_DPULSE)
-  {
-    OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_LOW;
-    OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
-    OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
-    OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-    OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-    OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-    OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutCfg) != HAL_OK)
+    else if (PULSE_MODE == PULSE_MODE_DPULSE)
     {
-      Error_Handler();
+        OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_LOW;
+        OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
+        OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
+        OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+        OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+        OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+        if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
+        {
+            Error_Handler();
+        }
     }
-  }
 
-  // if (PULSE_MODE == PULSE_MODE_SINGLE_LONG || PULSE_MODE == PULSE_MODE_PWM_LONG)
-  //   Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
-
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
-  if (PULSE_OUT_ENABLED)
-    Pulse_Enable_Output();
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+    if (g_pulse_ctrl.is_enabled)
+        Pulse_Enable_Output();
 }
 
-
-//单脉冲相关函数
+/* 单脉冲相关函数 */
 bool Pulse_nPulse_SetPW(float pw)
 {
-  // 范围检查：10ns (0.01us) 到 1.5ms (1500us)
-  if (pw < 0.01f || pw > 1500.0f)
-  {
-      return 0; // 脉宽超出范围
-  }
+    if (pw < 0.01f || pw > 1500.0f)
+    {
+        return false;
+    }
 
-  uint32_t prescaler_value;
-  float current_hrtim_freq;
-  uint32_t compare_value;
-  HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
-  HRTIM_CompareCfgTypeDef CmpCfg = {0};
+    uint32_t prescaler_value;
+    uint32_t compare_value;
+    HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
+    HRTIM_CompareCfgTypeDef CmpCfg = {0};
 
-  // 目标脉宽的秒数
-  float pulse_width_s = US_TO_S(pw);
+    if (!Pulse_CalcPrescalerAndCounts(pw, &prescaler_value, NULL, &compare_value))
+    {
+        return false;
+    }
 
-  // --- 动态选择分频器逻辑 ---
+    Pulse_Disable_Output();
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-  // .------------.------------------.--------.-----------.---------------.--------------.--------------.
-  // | CKPSC[2:0] | Prescaling ratio | Scaler | fHRCK/MHz | Resolution/ns | Min freq/KHz | Max Width/us |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    000     |        1         |   32   |   5440    |     0.184     |    83.008    |    12.041    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    001     |        2         |   16   |   2720    |     0.368     |    41.504    |    24.082    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    010     |        4         |   8    |   1360    |     0.735     |    20.752    |    48.164    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    011     |        8         |   4    |    680    |     1.471     |    10.376    |    96.328    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    100     |        16        |   2    |    340    |     2.941     |    5.188     |   192.656    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    101     |        32        |   1    |    170    |     5.882     |    2.594     |   385.312    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    110     |        64        |  0.5   |    85     |    11.765     |    1.297     |   770.624    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    111     |       128        |  0.25  |   42.5    |    23.529     |    0.648     |   1541.247   |
-  // '------------'------------------'--------'-----------'---------------'--------------'--------------'
+    ScalerCfg.Period = 65503;
+    ScalerCfg.RepetitionCounter = 0;
+    ScalerCfg.PrescalerRatio = prescaler_value;
+    ScalerCfg.Mode = HRTIM_MODE_SINGLESHOT;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &ScalerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
+    CmpCfg.CompareValue = compare_value;
+    CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CmpCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  if (pw <= 11.8f) // 小于等于 11.8 us，使用 x32 倍频以获得最高精度
-  {
-      prescaler_value = HRTIM_PRESCALERRATIO_MUL32;
-      current_hrtim_freq = 170000000.0f * 32.0f;
-  }
-  else if (pw > 11.8f && pw <= 23.8f)
-  {
-      prescaler_value = HRTIM_PRESCALERRATIO_MUL16;
-      current_hrtim_freq = 170000000.0f * 16.0f;
-  }
-  else if (pw > 23.8f && pw <= 47.9f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL8;
-    current_hrtim_freq = 170000000.0f * 8.0f;
-  }
-  else if (pw > 47.9f && pw <= 96.0f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL4;
-    current_hrtim_freq = 170000000.0f * 4.0f;
-  }
-  else if (pw > 96.0f && pw <= 192.4f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL2;
-    current_hrtim_freq = 170000000.0f * 2.0f;
-  }
-  else if (pw > 192.4f && pw <= 385.1f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV1;
-    current_hrtim_freq = 170000000.0f * 1.0f;
-  }
-  else if (pw > 385.1f && pw <= 770.4f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV2;
-    current_hrtim_freq = 170000000.0f / 2.0f;
-  }
-  else if (pw > 770.4f && pw <= 1500.0f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
-    current_hrtim_freq = 170000000.0f / 4.0f;
-  }
-  else
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
-    current_hrtim_freq = 170000000.0f / 4.0f;
-  }
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-  // 计算比较值 (计数值)：Counts = Time * Frequency
-  compare_value = (uint32_t)roundf(pulse_width_s * current_hrtim_freq); // 四舍五入
+    if (g_pulse_ctrl.is_enabled)
+        Pulse_Enable_Output();
 
-  // 确保计算出的值在16位寄存器的有效范围内
-  if (compare_value > 0xFFDF)
-  {
-      compare_value = 0xFFDF;
-  }
-  else if (compare_value < 96)
-  {
-      compare_value = 96; // 最小有效计数值
-  }
-
-  //关输出
-  Pulse_Disable_Output();
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
-
-  //设置分频
-  ScalerCfg.Period = 65503;
-  ScalerCfg.RepetitionCounter = 0;
-  ScalerCfg.PrescalerRatio = prescaler_value;
-  ScalerCfg.Mode = HRTIM_MODE_SINGLESHOT;
-  if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &ScalerCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-
-  //设置比较寄存器
-  CmpCfg.CompareValue = compare_value;
-  CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
-  CmpCfg.AutoDelayedTimeout = 0x0000;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  //软件更新
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
-
-  // 重新启动输出
-  if (PULSE_OUT_ENABLED)
-    Pulse_Enable_Output();
-
-  return 1;
+    return true;
 }
 
 void Pulse_nPulse_Init(void)
 {
-  PULSE_MODE = PULSE_MODE_NPULSE;
+    g_pulse_ctrl.mode = PULSE_MODE_NPULSE;
+    Pulse_SyncContext();
 
-  if (HAL_HRTIM_DLLCalibrationStart(&hhrtim1, HRTIM_CALIBRATIONRATE_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_HRTIM_PollForDLLCalibration(&hhrtim1, 10) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    TimeBaseCfg.Period = 65503;
+    TimeBaseCfg.RepetitionCounter = 0;
+    TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL32;
+    TimeBaseCfg.Mode = HRTIM_MODE_SINGLESHOT;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimeBaseCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
+    TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
+    TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
+    TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
+    TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
+    if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCtl) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  TimeBaseCfg.Period = 65503;
-  TimeBaseCfg.RepetitionCounter = 0;
-  TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL32;
-  TimeBaseCfg.Mode = HRTIM_MODE_SINGLESHOT;
-  if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimeBaseCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
+    TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
+    TimerCfg.DMASrcAddress = 0x0000;
+    TimerCfg.DMADstAddress = 0x0000;
+    TimerCfg.DMASize = 0x1;
+    TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
+    TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
+    TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
+    TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
+    TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
+    TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
+    TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
+    TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
+    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
+    TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
+    TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
+    TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
+    TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
+    TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
+    if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
-  TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
-  TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
-  TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
-  if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimerCtl) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
-  TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
-  TimerCfg.DMASrcAddress = 0x0000;
-  TimerCfg.DMADstAddress = 0x0000;
-  TimerCfg.DMASize = 0x1;
-  TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
-  TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
-  TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
-  TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
-  TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-  TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
-  TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
-  TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
-  TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
-  TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-  TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
-  TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
-  TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
-  TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
-  TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
-  TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
-  TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
-  TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
-  if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimerCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 0;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 5435;
-  CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
-  CompareCfg.AutoDelayedTimeout = 0x0000;
+    CompareCfg.CompareValue = 0;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
-  OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
-  OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
-  OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-  OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-  OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-  OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-  OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-  if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutputCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  HAL_HRTIM_MspPostInit(&hhrtim1);
+    CompareCfg.CompareValue = 5435;
+    CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CompareCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  Pulse_nPulse_SetPW(1);
-  Pulse_SetPulsePolarity_High();
+    OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+    OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+    OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+    OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+    OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+    OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    HAL_HRTIM_MspPostInit(&hhrtim1);
+
+    Pulse_nPulse_SetPW(100.0f);
+    Pulse_SetPulsePolarity_High();
 }
 
-
-//双脉冲相关函数
+/* 双脉冲相关函数 */
 bool Pulse_dPulse_SetPW(int32_t pw1, int32_t interval, int32_t pw2)
 {
-  // 范围检查：1us 到 100us
-  if (pw1 < 1 || pw1 > 200 || pw2 < 1 || pw2 > 200 || interval < 1 || interval > 200)
-  {
-      return 0; // 脉宽超出范围
-  }
+    if (pw1 < 1 || pw1 > 200 || pw2 < 1 || pw2 > 200 || interval < 1 || interval > 200)
+    {
+        return false;
+    }
 
+    float ptotal = (float)(pw1 + interval + pw2);
+    uint32_t prescaler_value;
+    float current_hrtim_freq;
+    uint32_t compare_value2, compare_value3, compare_value4;
+    HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
+    HRTIM_CompareCfgTypeDef CmpCfg = {0};
 
-  float ptotal = (float)(pw1 + interval + pw2);
-  uint32_t prescaler_value;
-  float current_hrtim_freq;
-  uint32_t compare_value2;
-  uint32_t compare_value3;
-  uint32_t compare_value4;
-  HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
-  HRTIM_CompareCfgTypeDef CmpCfg = {0};
+    Pulse_CalcPrescalerAndCounts(ptotal, &prescaler_value, &current_hrtim_freq, NULL);
 
-  // 目标脉宽的秒数
-  float pw1_s = US_TO_S(pw1);
-  float interval_s = US_TO_S(interval);
-  float pw2_s = US_TO_S(pw2);
+    float pw1_s      = US_TO_S(pw1);
+    float interval_s = US_TO_S(interval);
+    float pw2_s      = US_TO_S(pw2);
 
-  // --- 动态选择分频器逻辑 ---
+    compare_value2 = (uint32_t)roundf(pw1_s * current_hrtim_freq);
+    compare_value3 = compare_value2 + (uint32_t)roundf(interval_s * current_hrtim_freq);
+    compare_value4 = compare_value3 + (uint32_t)roundf(pw2_s * current_hrtim_freq);
 
-  // .------------.------------------.--------.-----------.---------------.--------------.--------------.
-  // | CKPSC[2:0] | Prescaling ratio | Scaler | fHRCK/MHz | Resolution/ns | Min freq/KHz | Max Width/us |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    000     |        1         |   32   |   5440    |     0.184     |    83.008    |    12.041    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    001     |        2         |   16   |   2720    |     0.368     |    41.504    |    24.082    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    010     |        4         |   8    |   1360    |     0.735     |    20.752    |    48.164    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    011     |        8         |   4    |    680    |     1.471     |    10.376    |    96.328    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    100     |        16        |   2    |    340    |     2.941     |    5.188     |   192.656    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    101     |        32        |   1    |    170    |     5.882     |    2.594     |   385.312    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    110     |        64        |  0.5   |    85     |    11.765     |    1.297     |   770.624    |
-  // :------------+------------------+--------+-----------+---------------+--------------+--------------:
-  // |    111     |       128        |  0.25  |   42.5    |    23.529     |    0.648     |   1541.247   |
-  // '------------'------------------'--------'-----------'---------------'--------------'--------------'
+    if (compare_value2 > 0xFFDF) compare_value2 = 0xFFDF;
+    else if (compare_value2 < 96) compare_value2 = 96;
 
-  if (ptotal <= 11.8f) // 小于等于 11.8 us，使用 x32 倍频以获得最高精度
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL32;
-    current_hrtim_freq = 170000000.0f * 32.0f;
-  }
-  else if (ptotal > 11.8f && ptotal <= 23.8f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL16;
-    current_hrtim_freq = 170000000.0f * 16.0f;
-  }
-  else if (ptotal > 23.8f && ptotal <= 47.9f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL8;
-    current_hrtim_freq = 170000000.0f * 8.0f;
-  }
-  else if (ptotal > 47.9f && ptotal <= 96.0f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL4;
-    current_hrtim_freq = 170000000.0f * 4.0f;
-  }
-  else if (ptotal > 96.0f && ptotal <= 192.4f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_MUL2;
-    current_hrtim_freq = 170000000.0f * 2.0f;
-  }
-  else if (ptotal > 192.4f && ptotal <= 385.1f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV1;
-    current_hrtim_freq = 170000000.0f * 1.0f;
-  }
-  else if (ptotal > 385.1f && ptotal <= 770.4f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV2;
-    current_hrtim_freq = 170000000.0f / 2.0f;
-  }
-  else if (ptotal > 770.4f && ptotal <= 1500.0f)
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
-    current_hrtim_freq = 170000000.0f / 4.0f;
-  }
-  else
-  {
-    prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
-    current_hrtim_freq = 170000000.0f / 4.0f;
-  }
+    if (compare_value3 > 0xFFDF) compare_value3 = 0xFFDF;
+    else if (compare_value3 < 96) compare_value3 = 96;
 
-  // 计算比较值 (计数值)：Counts = Time * Frequency
-  compare_value2 = (uint32_t)roundf(pw1_s * current_hrtim_freq); // 四舍五入
-  compare_value3 = compare_value2 + (uint32_t)roundf(interval_s * current_hrtim_freq);
-  compare_value4 = compare_value3 + (uint32_t)roundf(pw2_s * current_hrtim_freq);
+    if (compare_value4 > 0xFFDF) compare_value4 = 0xFFDF;
+    else if (compare_value4 < 96) compare_value4 = 96;
 
-  // 确保计算出的值在16位寄存器的有效范围内
-  if (compare_value2 > 0xFFDF)
-  {
-    compare_value2 = 0xFFDF;
-  }
-  else if (compare_value2 < 96)
-  {
-    compare_value2 = 96; // 最小有效计数值
-  }
+    Pulse_Disable_Output();
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-  if (compare_value3 > 0xFFDF)
-  {
-    compare_value3 = 0xFFDF;
-  }
-  else if (compare_value3 < 96)
-  {
-    compare_value3 = 96; // 最小有效计数值
-  }
+    ScalerCfg.Period = 65503;
+    ScalerCfg.RepetitionCounter = 0;
+    ScalerCfg.PrescalerRatio = prescaler_value;
+    ScalerCfg.Mode = HRTIM_MODE_SINGLESHOT;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &ScalerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  if (compare_value4 > 0xFFDF)
-  {
-    compare_value4 = 0xFFDF;
-  }
-  else if (compare_value4 < 96)
-  {
-    compare_value4 = 96; // 最小有效计数值
-  }
+    CmpCfg.CompareValue = 0;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_1, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  //关输出
-  Pulse_Disable_Output();
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
+    CmpCfg.CompareValue = compare_value2;
+    CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CmpCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  //设置分频
-  ScalerCfg.Period = 65503;
-  ScalerCfg.RepetitionCounter = 0;
-  ScalerCfg.PrescalerRatio = prescaler_value;
-  ScalerCfg.Mode = HRTIM_MODE_SINGLESHOT;
-  if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &ScalerCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    CmpCfg.CompareValue = compare_value3;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_3, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
+    CmpCfg.CompareValue = compare_value4;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_4, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  //设置比较寄存器
-  CmpCfg.CompareValue = 0;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_1, &CmpCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CmpCfg.CompareValue = compare_value2;
-  CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
-  CmpCfg.AutoDelayedTimeout = 0x0000;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CmpCfg.CompareValue = compare_value3;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_3, &CmpCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CmpCfg.CompareValue = compare_value4;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_4, &CmpCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
+    if (g_pulse_ctrl.is_enabled)
+        Pulse_Enable_Output();
 
-
-  //软件更新
-  HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
-
-  // 重新启动输出
-  if (PULSE_OUT_ENABLED)
-    Pulse_Enable_Output();
-
-  return 1;
+    return true;
 }
 
-void Pulse_dPulse_Init()
+void Pulse_dPulse_Init(void)
 {
-  PULSE_MODE = PULSE_MODE_DPULSE;
+    g_pulse_ctrl.mode = PULSE_MODE_DPULSE;
+    Pulse_SyncContext();
 
-  if (HAL_HRTIM_DLLCalibrationStart(&hhrtim1, HRTIM_CALIBRATIONRATE_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_HRTIM_PollForDLLCalibration(&hhrtim1, 10) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    TimeBaseCfg.Period = 65503;
+    TimeBaseCfg.RepetitionCounter = 0;
+    TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL32;
+    TimeBaseCfg.Mode = HRTIM_MODE_SINGLESHOT;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimeBaseCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  TimeBaseCfg.Period = 65503;
-  TimeBaseCfg.RepetitionCounter = 0;
-  TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL16;
-  TimeBaseCfg.Mode = HRTIM_MODE_SINGLESHOT;
-  if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimeBaseCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
-  TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
-  TimerCtl.GreaterCMP3 = HRTIM_TIMERGTCMP3_EQUAL;
-  TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
-  TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
-  if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimerCtl) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
-  TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
-  TimerCfg.DMASrcAddress = 0x0000;
-  TimerCfg.DMADstAddress = 0x0000;
-  TimerCfg.DMASize = 0x1;
-  TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
-  TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
-  TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
-  TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
-  TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-  TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
-  TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
-  TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
-  TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
-  TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-  TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
-  TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
-  TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
-  TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
-  TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
-  TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
-  TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
-  TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
-  if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimerCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 0;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 170;
-  CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
-  CompareCfg.AutoDelayedTimeout = 0x0000;
+    TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
+    TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
+    TimerCtl.GreaterCMP3 = HRTIM_TIMERGTCMP3_EQUAL;
+    TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
+    TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
+    if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCtl) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 340;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_3, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 510;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_4, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
-  OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
-  OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
-  OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-  OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-  OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-  OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-  OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-  if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutputCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  HAL_HRTIM_MspPostInit(&hhrtim1);
+    TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
+    TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
+    TimerCfg.DMASrcAddress = 0x0000;
+    TimerCfg.DMADstAddress = 0x0000;
+    TimerCfg.DMASize = 0x1;
+    TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
+    TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
+    TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
+    TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
+    TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
+    TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
+    TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
+    TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
+    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
+    TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
+    TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
+    TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
+    TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
+    TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
+    if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  Pulse_dPulse_SetPW(5, 5, 5);
-  Pulse_SetPulsePolarity_High();
+    CompareCfg.CompareValue = 0;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    CompareCfg.CompareValue = 5435;
+    CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CompareCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    CompareCfg.CompareValue = 6000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_3, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    CompareCfg.CompareValue = 510;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_4, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+    OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
+    OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
+    OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+    OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+    OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    HAL_HRTIM_MspPostInit(&hhrtim1);
+
+    Pulse_dPulse_SetPW(5, 5, 5);
+    Pulse_SetPulsePolarity_High();
 }
 
-
-//PWM相关函数
+/* PWM 相关函数 */
 bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent)
 {
-    // 范围检查：周期 1us 到 1500us，占空比 1% 到 100%
     if (period_us < 1.0f || period_us > 1500.0f || duty_cycle_percent < 1 || duty_cycle_percent > 100)
     {
-        return 0; // 周期或占空比超出范围
+        return false;
     }
 
     uint32_t prescaler_value;
@@ -737,424 +637,370 @@ bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent)
     uint32_t compare_value;
     HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
     HRTIM_CompareCfgTypeDef CmpCfg = {0};
-    bool need_reenable = 0;
+    bool need_reenable = false;
 
-    // 将百分比占空比转换为浮点数 0.0f - 1.0f
     float duty_cycle_f = (float)duty_cycle_percent / 100.0f;
+    float period_s     = US_TO_S(period_us);
 
-    // 目标周期的秒数
-    float period_s = US_TO_S(period_us);
+    Pulse_CalcPrescalerAndCounts(period_us, &prescaler_value, &current_hrtim_freq, NULL);
 
-    // --- 动态选择分频器逻辑 ---
-    // 根据目标周期选择一个能覆盖该范围且分辨率尽可能高的分频器
-    if (period_us <= 11.8f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_MUL32;
-        current_hrtim_freq = 170000000.0f * 32.0f;
-    }
-    else if (period_us > 11.8f && period_us <= 23.8f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_MUL16;
-        current_hrtim_freq = 170000000.0f * 16.0f;
-    }
-    else if (period_us > 23.8f && period_us <= 47.9f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_MUL8;
-        current_hrtim_freq = 170000000.0f * 8.0f;
-    }
-    else if (period_us > 47.9f && period_us <= 96.0f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_MUL4;
-        current_hrtim_freq = 170000000.0f * 4.0f;
-    }
-    else if (period_us > 96.0f && period_us <= 192.4f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_MUL2;
-        current_hrtim_freq = 170000000.0f * 2.0f;
-    }
-    else if (period_us > 192.4f && period_us <= 385.1f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_DIV1;
-        current_hrtim_freq = 170000000.0f * 1.0f;
-    }
-    else if (period_us > 385.1f && period_us <= 770.4f)
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_DIV2;
-        current_hrtim_freq = 170000000.0f / 2.0f;
-    }
-    else // 覆盖 770.4us 到 1500us 的范围
-    {
-        prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
-        current_hrtim_freq = 170000000.0f / 4.0f;
-    }
-
-    // 计算周期值 (计数值)：Counts = Time * Frequency
     period_value = (uint32_t)roundf(period_s * current_hrtim_freq);
-
-    // 确保计算出的周期值在16位寄存器的有效范围内（最大 0xFFFF 或 65535）
     if (period_value > 0xFFDF)
-    {
         period_value = 0xFFDF;
-    }
-    // 确保周期至少大于最小比较值，例如最小计数值96
     else if (period_value < 96)
-    {
-      return 0;
-    }
+        return false;
 
-    // 计算比较值 (占空比 * 周期计数值)
     compare_value = (uint32_t)roundf(period_value * duty_cycle_f);
-
-    // 确保比较值在合理范围内 (根据要求，1%到100%范围内)
     if (compare_value >= period_value)
-    {
-        compare_value = period_value - 1; // 100%占空比 (几乎一直高电平)
-    }
+        compare_value = period_value - 1;
     else if (compare_value < 1)
+        compare_value = 1;
+
+    uint32_t current_psc_reg_val = (hhrtim1.Instance->sTimerxRegs[g_pulse_ctrl.timer_idx].TIMxCR & HRTIM_TIMCR_CK_PSC);
+    if ((prescaler_value != current_psc_reg_val) && g_pulse_ctrl.is_enabled)
     {
-        compare_value = 1; // 1%占空比 (最小有效值，避免0导致一直低电平)
+        Pulse_Disable_Output();
+        HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+        need_reenable = true;
     }
 
-
-    // 如果分频系数改变，需要先关闭输出并重新配置时基
-    // 假设寄存器访问方式与原函数一致
-    uint32_t current_psc_reg_val = (hhrtim1.Instance->sTimerxRegs[(uint32_t)HRTIM_TIMERINDEX_TIMER_X].TIMxCR & HRTIM_TIMCR_CK_PSC);
-    if ((prescaler_value != current_psc_reg_val) && PULSE_OUT_ENABLED)
-    {
-      Pulse_Disable_Output();
-      HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
-      need_reenable = 1;
-    }
-
-    // 设置分频系数和新的周期值
     ScalerCfg.Period = period_value;
     ScalerCfg.RepetitionCounter = 0;
-    ScalerCfg.PrescalerRatio = prescaler_value; // 使用动态计算的值
+    ScalerCfg.PrescalerRatio = prescaler_value;
     ScalerCfg.Mode = HRTIM_MODE_CONTINUOUS;
-    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &ScalerCfg) != HAL_OK)
-    {
-      Error_Handler();
-    }
-
-
-    // 设置比较寄存器
-    CmpCfg.CompareValue = compare_value;
-    CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
-    CmpCfg.AutoDelayedTimeout = 0x0000;
-    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &ScalerCfg) != HAL_OK)
     {
         Error_Handler();
     }
 
-    // 软件更新，使所有更改生效
-    HAL_HRTIM_SoftwareUpdate(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X);
+    CmpCfg.CompareValue = compare_value;
+    CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CmpCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-    // 重新启动输出（如果之前禁用了）
+    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+
     if (need_reenable)
         Pulse_Enable_Output();
 
-    return 1;
+    return true;
 }
 
 void Pulse_PWM_Init(void)
 {
-  PULSE_MODE = PULSE_MODE_PWM;
+    g_pulse_ctrl.mode = PULSE_MODE_PWM;
+    Pulse_SyncContext();
 
-  if (HAL_HRTIM_DLLCalibrationStart(&hhrtim1, HRTIM_CALIBRATIONRATE_3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_HRTIM_PollForDLLCalibration(&hhrtim1, 10) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    TimeBaseCfg.Period = 65503;
+    TimeBaseCfg.RepetitionCounter = 0;
+    TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL32;
+    TimeBaseCfg.Mode = HRTIM_MODE_CONTINUOUS;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimeBaseCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
+    TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
+    TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
+    TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
+    TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
+    if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCtl) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  TimeBaseCfg.Period = 65503;
-  TimeBaseCfg.RepetitionCounter = 0;
-  TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL32;
-  TimeBaseCfg.Mode = HRTIM_MODE_CONTINUOUS;
-  if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimeBaseCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
+    TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
+    TimerCfg.DMASrcAddress = 0x0000;
+    TimerCfg.DMADstAddress = 0x0000;
+    TimerCfg.DMASize = 0x1;
+    TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
+    TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
+    TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
+    TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
+    TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
+    TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
+    TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
+    TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
+    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
+    TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
+    TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
+    TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
+    TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
+    TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
+    if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
-  TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
-  TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
-  TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
-  if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimerCtl) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
-  TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
-  TimerCfg.DMASrcAddress = 0x0000;
-  TimerCfg.DMADstAddress = 0x0000;
-  TimerCfg.DMASize = 0x1;
-  TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
-  TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
-  TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
-  TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
-  TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-  TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
-  TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
-  TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
-  TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
-  TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-  TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
-  TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
-  TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
-  TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
-  TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
-  TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
-  TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
-  TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
-  if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, &TimerCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 0;
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  CompareCfg.CompareValue = 5435;
-  CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
-  CompareCfg.AutoDelayedTimeout = 0x0000;
+    CompareCfg.CompareValue = 0;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
-  OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
-  OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
-  OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
-  OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-  OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
-  OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
-  OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
-  if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_X, HRTIM_OUTPUT_TXX, &OutputCfg) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  HAL_HRTIM_MspPostInit(&hhrtim1);
+    CompareCfg.CompareValue = 5435;
+    CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CompareCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  Pulse_PWM_SetPW(1, 50);
-  Pulse_SetPulsePolarity_High();
+    OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+    OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+    OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+    OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+    OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+    OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    HAL_HRTIM_MspPostInit(&hhrtim1);
+
+    Pulse_PWM_SetPW(1.0f, 50);
+    Pulse_SetPulsePolarity_High();
 }
 
-//长时间单脉冲相关函数
+/* 长时间单脉冲相关函数 (TIM5 + GPIO 软件模式) */
 void Pulse_slPulse_SetPW(float pw)
 {
-  uint32_t target_psc = 0;
-  uint32_t target_arr = 0;
+    if (pw <= 0.0f) pw = 0.001f;
 
-  if (pw <= 20.0f)
-  {
-    // 高精度量程：170MHz
-    target_psc = 0;
-    target_arr = (uint32_t)(pw * (float)170000000);
-  }
-  else
-  {
-    // 长脉冲量程：分频至 1MHz (170/170)
-    target_psc = (170000000 / 1000000) - 1;
-    target_arr = (uint32_t)(pw * 1000000.0f);
-  }
+    uint32_t target_psc = 0;
+    uint32_t target_arr = 0;
 
-  __HAL_TIM_SET_PRESCALER(&htim5, target_psc);
-  __HAL_TIM_SET_AUTORELOAD(&htim5, target_arr - 1);
-  __HAL_TIM_SET_COUNTER(&htim5, 0);
+    if (pw <= 20.0f)
+    {
+        target_psc = 0;
+        target_arr = (uint32_t)(pw * 170000000.0f);
+    }
+    else
+    {
+        target_psc = (170000000 / 1000000) - 1;
+        target_arr = (uint32_t)(pw * 1000000.0f);
+    }
 
-  // 强制更新
-  TIM5->EGR = TIM_EGR_UG;
-  TIM5->SR &= ~TIM_SR_UIF;
+    if (target_arr == 0) target_arr = 1;
+
+    __HAL_TIM_SET_PRESCALER(&htim5, target_psc);
+    __HAL_TIM_SET_AUTORELOAD(&htim5, target_arr - 1);
+    __HAL_TIM_SET_COUNTER(&htim5, 0);
+
+    TIM5->EGR = TIM_EGR_UG;
+    TIM5->SR &= ~TIM_SR_UIF;
 }
 
 void Pulse_slPulse_Init(void)
 {
-  PULSE_MODE = PULSE_MODE_SINGLE_LONG;
+    g_pulse_ctrl.mode = PULSE_MODE_SINGLE_LONG;
+    Pulse_SyncContext();
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
+    TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+    TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 0;
-  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 4294967295;
-  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  // if (HAL_TIM_OnePulse_Init(&htim5, TIM_OPMODE_SINGLE) != HAL_OK)
-  // {
-  //   Error_Handler();
-  // }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    htim5.Instance = TIM5;
+    htim5.Init.Prescaler = 0;
+    htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim5.Init.Period = 4294967295;
+    htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+    if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_14|GPIO_PIN_15);
-  HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11);
+    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+    if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    /* 将所有 8 路 HRTIM 输出引脚配置为推挽输出 (包含 Timer C: PB12/PB13) */
+    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin);
+    HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
-  Pulse_slPulse_SetPW(1.0f);
-  Pulse_SetPulsePolarity_High();
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    Pulse_slPulse_SetPW(1.0f);
+    Pulse_SetPulsePolarity_High();
 }
 
-//长时间PWM相关函数
+/* 长时间 PWM 相关函数 (TIM5 + GPIO 软件模式) */
 void Pulse_lPWM_SetPW(float period_s, float duty_cycle_percent)
 {
-  const uint32_t f_clk = 170000000;
-  uint32_t psc;
+    if (period_s <= 0.0f) period_s = 0.001f;
+    if (duty_cycle_percent < 0.0f) duty_cycle_percent = 0.0f;
+    if (duty_cycle_percent > 100.0f) duty_cycle_percent = 100.0f;
 
-  //动态分频决策
-  if (period_s <= 20.0f)
-  {
-    psc = 0; // 170MHz
-    lpwm_arr = (uint32_t)(period_s * (float)f_clk);
-  }
-  else
-  {
-    psc = (f_clk / 1000000) - 1; // 1MHz (PSC=169)
-    lpwm_arr = (uint32_t)(period_s * 1000000.0f);
-  }
+    const uint32_t f_clk = 170000000;
+    uint32_t psc;
 
-  //计算占空比对应 Tick 数
-  lpwm_ccr = (uint32_t)((float)lpwm_arr * ((100.0f - duty_cycle_percent) / 100.0f));
+    if (period_s <= 20.0f)
+    {
+        psc = 0;
+        lpwm_arr = (uint32_t)(period_s * (float)f_clk);
+    }
+    else
+    {
+        psc = (f_clk / 1000000) - 1;
+        lpwm_arr = (uint32_t)(period_s * 1000000.0f);
+    }
 
-  TIM5->PSC = psc;
-  TIM5->ARR = lpwm_arr - 1;
-  TIM5->CCR1 = lpwm_ccr;
+    if (lpwm_arr == 0) lpwm_arr = 1;
 
+    lpwm_ccr = (uint32_t)((float)lpwm_arr * ((100.0f - duty_cycle_percent) / 100.0f));
 
-  //如果已经在运行中，靠定时器自身的溢出自然更新，不要手动重置 CNT
-  if (!(TIM5->CR1 & TIM_CR1_CEN)) {
-    TIM5->EGR = TIM_EGR_UG;
-    TIM5->SR &= ~(TIM_SR_UIF | TIM_SR_CC1IF);
-  }
+    TIM5->PSC = psc;
+    TIM5->ARR = lpwm_arr - 1;
+    TIM5->CCR1 = lpwm_ccr;
+
+    if (!(TIM5->CR1 & TIM_CR1_CEN)) {
+        TIM5->EGR = TIM_EGR_UG;
+        TIM5->SR &= ~(TIM_SR_UIF | TIM_SR_CC1IF);
+    }
 }
 
 void Pulse_lPWM_Init(void)
 {
-  PULSE_MODE = PULSE_MODE_PWM_LONG;
+    g_pulse_ctrl.mode = PULSE_MODE_PWM_LONG;
+    Pulse_SyncContext();
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
+    TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+    TIM_MasterConfigTypeDef sMasterConfig = {0};
+    TIM_OC_InitTypeDef sConfigOC = {0};
 
-  htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 0;
-  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 4294967295;
-  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    htim5.Instance = TIM5;
+    htim5.Init.Prescaler = 0;
+    htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim5.Init.Period = 4294967295;
+    htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+    if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+    if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  if (HAL_TIM_OC_Init(&htim5) != HAL_OK) {
-    Error_Handler();
-  }
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
 
-  sConfigOC.OCMode = TIM_OCMODE_TIMING; // 仅作为计时使用，不输出到引脚
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) {
-    Error_Handler();
-  }
-  __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
+    if (HAL_TIM_OC_Init(&htim5) != HAL_OK) {
+        Error_Handler();
+    }
 
-  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_14|GPIO_PIN_15);
-  HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11);
+    sConfigOC.OCMode = TIM_OCMODE_TIMING;
+    sConfigOC.Pulse = 0;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK) {
+        Error_Handler();
+    }
+    __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
 
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    /* 将所有 8 路 HRTIM 输出引脚配置为推挽输出 (包含 Timer C: PB12/PB13) */
+    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin);
+    HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
-  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  Pulse_lPWM_SetPW(1.0f, 50.0f);
-  Pulse_SetPulsePolarity_High();
+    GPIO_InitStruct.Pin = HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    Pulse_lPWM_SetPW(1.0f, 50.0f);
+    Pulse_SetPulsePolarity_High();
 }
 
+/* 获取长脉冲模式对应的 GPIO 端口 (严格对齐 HARDWARE.md §5.1) */
 GPIO_TypeDef *Pulse_GetLongPulsePort(void)
 {
-  switch (HRTIM_OUTPUT_TXX)
-  {
-    case HRTIM_OUTPUT_TB2:
-    case HRTIM_OUTPUT_TB1:
-    case HRTIM_OUTPUT_TA2:
-    case HRTIM_OUTPUT_TA1:
-      return GPIOA;
-    case HRTIM_OUTPUT_TD2:
-    case HRTIM_OUTPUT_TD1:
-      return GPIOB;
-    default: return GPIOA;
-  }
+    switch (g_pulse_ctrl.output_ch)
+    {
+        case HRTIM_OUTPUT_TB2:
+        case HRTIM_OUTPUT_TB1:
+        case HRTIM_OUTPUT_TA2:
+        case HRTIM_OUTPUT_TA1:
+            return GPIOA;
+
+        case HRTIM_OUTPUT_TD2:
+        case HRTIM_OUTPUT_TD1:
+        case HRTIM_OUTPUT_TC2:
+        case HRTIM_OUTPUT_TC1:
+            return GPIOB;
+
+        default:
+            return GPIOA;
+    }
 }
 
+/* 获取长脉冲模式对应的 GPIO 引脚 (严格对齐 HARDWARE.md §5.1) */
 uint16_t Pulse_GetLongPulsePin(void)
 {
-  switch (HRTIM_OUTPUT_TXX)
-  {
-    case HRTIM_OUTPUT_TB2:
-      return GPIO_PIN_11;
-    case HRTIM_OUTPUT_TB1:
-      return GPIO_PIN_10;
-    case HRTIM_OUTPUT_TA2:
-      return GPIO_PIN_9;
-    case HRTIM_OUTPUT_TA1:
-      return GPIO_PIN_8;
-    case HRTIM_OUTPUT_TD2:
-      return GPIO_PIN_15;
-    case HRTIM_OUTPUT_TD1:
-      return GPIO_PIN_14;
-    default: return GPIO_PIN_11;
-  }
+    switch (g_pulse_ctrl.output_ch)
+    {
+        case HRTIM_OUTPUT_TB2:
+            return HRT_CHB2_Pin;    /* PA11 -> Y1 */
+        case HRTIM_OUTPUT_TB1:
+            return HRT_CHB1_Pin;    /* PA10 -> Y2 */
+        case HRTIM_OUTPUT_TA2:
+            return HRT_CHA2_Pin;    /* PA9  -> Y3 */
+        case HRTIM_OUTPUT_TA1:
+            return HRT_CHA1_Pin;    /* PA8  -> Y4 */
+        case HRTIM_OUTPUT_TD2:
+            return HRT_CHD2_Pin;    /* PB15 -> Y5 */
+        case HRTIM_OUTPUT_TD1:
+            return HRT_CHD1_Pin;    /* PB14 -> Y6 */
+        case HRTIM_OUTPUT_TC2:
+            return HRT_CHC2_Pin;    /* PB13 -> Y7 */
+        case HRTIM_OUTPUT_TC1:
+            return HRT_CHC1_Pin;    /* PB12 -> Y8 */
+        default:
+            return HRT_CHB2_Pin;
+    }
 }
