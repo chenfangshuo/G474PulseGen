@@ -1028,7 +1028,7 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
         {
             pwm_long_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
             pwm_long_option_array[2].content = polarity_sel_str_array[0];
-            pwm_long_option_array[3].val = 1;
+            pwm_long_option_array[3].val = 1000;
         }
 
     }
