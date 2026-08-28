@@ -1,0 +1,993 @@
+Wire List
+
+<<< Component List >>>
+J5                              BLE            HDR_F_1X6
+J2                              BOOT0_SEL      HDR_M_1X3
+Capacitor                       C1             1206
+Capacitor                       C2             1206
+Capacitor                       C3             1206
+Capacitor                       C4             1206
+Capacitor                       C5             1206
+Capacitor                       C6             1206
+Capacitor                       C7             1206
+Capacitor                       C8             0603
+Capacitor                       C9             0603
+Capacitor                       C10            0603
+220uF                           C11            Electrolytic-Cap-D10.0-L10.3-
+Capacitor                       C12            1206
+Capacitor                       C13            0603
+Capacitor                       C14            0603
+Capacitor                       C15            1206
+Capacitor                       C16            1206
+Capacitor                       C17            1210
+Capacitor                       C18            1210
+Capacitor                       C19            1206
+Capacitor                       C20            1206
+Capacitor                       C21            1210
+Capacitor                       C22            1206
+Capacitor                       C23            1206
+Capacitor                       C24            0603
+Capacitor                       C25            0603
+Capacitor                       C26            0603
+Capacitor                       C27            0603
+Capacitor                       C28            0603
+Capacitor                       C29            0603
+Capacitor                       C30            0402
+Capacitor                       C31            0402
+Capacitor                       C32            0603
+Capacitor                       C33            0603
+Capacitor                       C34            1206
+Capacitor                       C35            1206
+Capacitor                       C36            0603
+Capacitor                       C37            0603
+Capacitor                       C38            0603
+Capacitor                       C39            0603
+Capacitor                       C40            0603
+Capacitor                       C41            0603
+Capacitor                       C42            0603
+Capacitor                       C43            1206
+Capacitor                       C44            1206
+Capacitor                       C45            0603
+Capacitor                       C46            0603
+Capacitor                       C47            1206
+Capacitor                       C48            1206
+Capacitor                       C49            1206
+WJ2EDGRC-5.08-2P                CN1            CONN-TH_2P-P5.08_WJ2EDGRC-5.0
+SMBJ18CA                        D1             SMB
+SMBJ18CA                        D2             SMB
+SMBJ18CA                        D3             SMB
+SMBJ18CA                        D4             SMB
+Light-Emitting Diode            D5             1206
+Light-Emitting Diode            D6             1206
+Light-Emitting Diode            D7             1206
+Light-Emitting Diode            D8             1206
+Light-Emitting Diode            D9             1206
+Light-Emitting Diode            D10            1206
+BV400SMJA12A                    D11            SMB_Uni
+SMBJ5.0CA                       D12            SMB
+BV400SMJA12A                    D13            SMB_Uni
+B340AXF-13                      D14            SMB_Uni
+B340AXF-13                      D15            SMB_Uni
+SMLVT3V3                        D16            SMB_Uni
+EC12D1524403                    Encoder        EC12D1524403
+J6                              Expansion      HDR_F_1X5
+J7                              Expansion      HDR_F_1X5
+J3                              EXT_TRG        HDR_M_1X2
+J4                              OLED           HDR_F_1X7
+SPPH420100                      PWR            SPPH420100
+J8                              PWR_OUT        HDRR_F_2X4
+BMS013TN4D                      Q1             PDFN56
+BMS013TN4D                      Q2             PDFN56
+BMS013TN4D                      Q3             PDFN56
+BMS013TN4D                      Q4             PDFN56
+BMS013TN4D                      Q5             PDFN56
+AO3406                          Q6             SOT-23-3_L2.9-W1.6-P1.90-LS2.
+AO3406                          Q7             SOT-23-3_L2.9-W1.6-P1.90-LS2.
+Resistor                        R1             1206
+Resistor                        R2             1206
+Resistor                        R3             1206
+Resistor                        R4             1206
+Resistor                        R5             2512
+Resistor                        R6             1206
+Resistor                        R7             2512
+Resistor                        R8             1206
+Resistor                        R9             0603
+Resistor                        R10            0603
+Resistor                        R11            0603
+Resistor                        R12            0603
+Resistor                        R13            0603
+Resistor                        R14            0603
+Resistor                        R15            0603
+Resistor                        R16            0603
+Resistor                        R17            0603
+Resistor                        R18            0603
+Resistor                        R19            0603
+Resistor                        R20            0603
+Resistor                        R21            0603
+Resistor                        R22            0603
+Resistor                        R23            0603
+Resistor                        R24            0603
+Resistor                        R25            0603
+Resistor                        R26            1206
+Resistor                        R27            1206
+Resistor                        R28            1206
+Resistor                        R29            1206
+Resistor                        R30            1206
+Resistor                        R31            1206
+Resistor                        R32            1206
+Resistor                        R33            0603
+Resistor                        R34            1206
+Resistor                        R35            1206
+Resistor                        R36            0603
+Resistor                        R37            1206
+Resistor                        R38            1206
+Resistor                        R39            0603
+Resistor                        R40            0603
+Resistor                        R41            0603
+Resistor                        R42            0603
+Resistor                        R43            1206
+Resistor                        R44            1206
+Resistor                        R45            1206
+Resistor                        R46            1206
+Resistor                        R47            1206
+Resistor                        R48            1206
+Resistor                        R49            0603
+Resistor                        R50            0603
+Resistor                        R51            0603
+Resistor                        R52            0603
+Resistor                        R53            0603
+Resistor                        R54            0603
+Resistor                        R55            0603
+Resistor                        R56            0603
+Resistor                        R57            1206
+Resistor                        R58            1206
+Resistor                        R59            1206
+Resistor                        R60            0603
+Resistor                        R61            0603
+Resistor                        R62            0603
+Resistor                        R63            0603
+Resistor                        R64            1206
+Resistor                        R65            1206
+SKRPABE010                      RESET          SKRPABE010
+HDRM3                           RS232          HDR_M_1X3
+Resistor                        Rsense1        2512
+Resistor                        Rsense2        2512
+SKRHADE011                      SW1            SKRHADE010
+SKHHQYA010                      SW_TRG         SKHHQYA010
+J1                              SWD            HDR_M_1X3
+IP2721_MAX12                    U1             TSSOP-16
+LTC4421CG                       U2             SSOP-36_L12.8-W5.6-P0.65-LS7.
+NCV7805                         U3             TO-263
+TLV76133                        U4             NCV1117-TO-252
+STM32G474CET6                   U5             FP-STM32G474CET6-MFG
+MAX6818EAP+T                    U6             SSOP-20_L7.2-W5.3-P0.65-LS7.8
+MAX3232EIPWR                    U7             TSSOP-16
+74LVCH8T245PW                   U8             TSSOP-24_L7.8-W4.4-P0.65-LS6.
+TPS22810DBVR                    U9             SOT-23-6_L2.9-W1.6-P0.95-LS2.
+TPS22810DBVR                    U10            SOT-23-6_L2.9-W1.6-P0.95-LS2.
+TYPE-C 6P QT073                 USB1           USB-C-SMD_TYPE-C-6P-QT073
+24MHz                           X1             CRYSTAL-SMD_4P-L3.2-W2.5-BL
+SMA_Conn                        Y1             SMA_PCBbolder_Conn
+SMA_Conn                        Y2             SMA_PCBbolder_Conn
+SMA_Conn                        Y3             SMA_PCBbolder_Conn
+SMA_Conn                        Y4             SMA_PCBbolder_Conn
+SMA_Conn                        Y5             SMA_PCBbolder_Conn
+SMA_Conn                        Y6             SMA_PCBbolder_Conn
+SMA-KE                          Y7             SMA-TH-KE
+SMA-KE                          Y8             SMA-TH-KE
+
+<<< Wire List >>>
+
+  NODE  REFERENCE  PIN #   PIN NAME       PIN TYPE    PART VALUE
+
+[00001] 3.3V
+        BLE        6       6              PASSIVE     J5
+        BOOT0_SEL  1       1              PASSIVE     J2
+        C21        2       2              PASSIVE     Capacitor
+        C22        2       2              PASSIVE     Capacitor
+        C23        2       2              PASSIVE     Capacitor
+        C24        2       2              PASSIVE     Capacitor
+        C25        2       2              PASSIVE     Capacitor
+        C26        2       2              PASSIVE     Capacitor
+        C27        2       2              PASSIVE     Capacitor
+        C28        2       2              PASSIVE     Capacitor
+        C29        2       2              PASSIVE     Capacitor
+        C33        2       2              PASSIVE     Capacitor
+        C37        2       2              PASSIVE     Capacitor
+        C41        2       2              PASSIVE     Capacitor
+        C49        2       2              PASSIVE     Capacitor
+        D15        2       A              PASSIVE     B340AXF-13
+        D16        1       K              PASSIVE     SMLVT3V3
+        Expansion  1       1              PASSIVE     J6
+        Expansion  3       3              PASSIVE     J7
+        Expansion  4       4              PASSIVE     J7
+        OLED       6       6              PASSIVE     J4
+        R27        1       1              PASSIVE     Resistor
+        R28        1       1              PASSIVE     Resistor
+        R29        1       1              PASSIVE     Resistor
+        R31        2       2              PASSIVE     Resistor
+        R34        2       2              PASSIVE     Resistor
+        R35        2       2              PASSIVE     Resistor
+        R37        2       2              PASSIVE     Resistor
+        R38        2       2              PASSIVE     Resistor
+        R43        2       2              PASSIVE     Resistor
+        R44        2       2              PASSIVE     Resistor
+        R45        2       2              PASSIVE     Resistor
+        R65        2       2              PASSIVE     Resistor
+        U4         2       Output         PASSIVE     TLV76133
+        U5         1       VBAT           POWER       STM32G474CET6
+        U5         20      VREF+          POWER       STM32G474CET6
+        U5         21      VDDA           POWER       STM32G474CET6
+        U5         24      VDD            POWER       STM32G474CET6
+        U5         36      VDD            POWER       STM32G474CET6
+        U5         48      VDD            POWER       STM32G474CET6
+        U6         20      VCC            PASSIVE     MAX6818EAP+T
+        U7         16      VCC            PASSIVE     MAX3232EIPWR
+        U8         1       VCCA           PASSIVE     74LVCH8T245PW
+        U8         2       DIR            PASSIVE     74LVCH8T245PW
+
+[00002] 5V
+        C17        2       2              PASSIVE     Capacitor
+        C18        2       2              PASSIVE     Capacitor
+        C19        2       2              PASSIVE     Capacitor
+        C20        2       2              PASSIVE     Capacitor
+        D12        2       A              PASSIVE     SMBJ5.0CA
+        D14        2       A              PASSIVE     B340AXF-13
+        D15        1       K              PASSIVE     B340AXF-13
+        Expansion  1       1              PASSIVE     J7
+        Expansion  2       2              PASSIVE     J7
+        R26        1       1              PASSIVE     Resistor
+        R64        2       2              PASSIVE     Resistor
+        U3         3       Output         PASSIVE     NCV7805
+        U4         3       Input          PASSIVE     TLV76133
+
+[00003] 12V_OUT
+        C47        2       2              PASSIVE     Capacitor
+        D13        1       K              PASSIVE     BV400SMJA12A
+        PWR_OUT    5       5              PASSIVE     J8
+        PWR_OUT    6       6              PASSIVE     J8
+        PWR_OUT    7       7              PASSIVE     J8
+        PWR_OUT    8       8              PASSIVE     J8
+        R58        2       2              PASSIVE     Resistor
+        R59        2       2              PASSIVE     Resistor
+        U9         6       VOUT           PASSIVE     TPS22810DBVR
+        U10        6       VOUT           PASSIVE     TPS22810DBVR
+
+[00004] CH1#
+        D7         2       K              PASSIVE     Light-Emitting Diode
+        Q6         1       G              PASSIVE     AO3406
+        R33        1       1              PASSIVE     Resistor
+        U2         13      CH1#           PASSIVE     LTC4421CG
+
+[00005] CH2#
+        D10        2       K              PASSIVE     Light-Emitting Diode
+        Q7         1       G              PASSIVE     AO3406
+        R36        1       1              PASSIVE     Resistor
+        U2         24      CH2#           PASSIVE     LTC4421CG
+
+[00006] FAULT1#
+        D5         2       K              PASSIVE     Light-Emitting Diode
+        U2         15      FAULT1#        PASSIVE     LTC4421CG
+
+[00007] FAULT2#
+        D8         2       K              PASSIVE     Light-Emitting Diode
+        U2         22      FAULT2#        PASSIVE     LTC4421CG
+
+[00008] GND
+        BLE        4       4              PASSIVE     J5
+        BOOT0_SEL  3       3              PASSIVE     J2
+        C1         1       1              PASSIVE     Capacitor
+        C2         1       1              PASSIVE     Capacitor
+        C3         1       1              PASSIVE     Capacitor
+        C4         1       1              PASSIVE     Capacitor
+        C5         1       1              PASSIVE     Capacitor
+        C7         1       1              PASSIVE     Capacitor
+        C10        1       1              PASSIVE     Capacitor
+        C11        2       2              PASSIVE     220uF
+        C12        1       1              PASSIVE     Capacitor
+        C13        1       1              PASSIVE     Capacitor
+        C14        1       1              PASSIVE     Capacitor
+        C15        2       2              PASSIVE     Capacitor
+        C16        1       1              PASSIVE     Capacitor
+        C17        1       1              PASSIVE     Capacitor
+        C18        1       1              PASSIVE     Capacitor
+        C19        1       1              PASSIVE     Capacitor
+        C20        1       1              PASSIVE     Capacitor
+        C21        1       1              PASSIVE     Capacitor
+        C22        1       1              PASSIVE     Capacitor
+        C23        1       1              PASSIVE     Capacitor
+        C24        1       1              PASSIVE     Capacitor
+        C25        1       1              PASSIVE     Capacitor
+        C26        1       1              PASSIVE     Capacitor
+        C27        1       1              PASSIVE     Capacitor
+        C28        1       1              PASSIVE     Capacitor
+        C29        1       1              PASSIVE     Capacitor
+        C30        1       1              PASSIVE     Capacitor
+        C31        1       1              PASSIVE     Capacitor
+        C32        1       1              PASSIVE     Capacitor
+        C33        1       1              PASSIVE     Capacitor
+        C34        1       1              PASSIVE     Capacitor
+        C35        1       1              PASSIVE     Capacitor
+        C37        1       1              PASSIVE     Capacitor
+        C38        2       2              PASSIVE     Capacitor
+        C40        2       2              PASSIVE     Capacitor
+        C41        1       1              PASSIVE     Capacitor
+        C42        1       1              PASSIVE     Capacitor
+        C43        1       1              PASSIVE     Capacitor
+        C44        1       1              PASSIVE     Capacitor
+        C45        1       1              PASSIVE     Capacitor
+        C46        1       1              PASSIVE     Capacitor
+        C47        1       1              PASSIVE     Capacitor
+        C48        1       1              PASSIVE     Capacitor
+        C49        1       1              PASSIVE     Capacitor
+        CN1        1       GND            PASSIVE     WJ2EDGRC-5.08-2P
+        D1         1       K              PASSIVE     SMBJ18CA
+        D2         1       K              PASSIVE     SMBJ18CA
+        D11        2       A              PASSIVE     BV400SMJA12A
+        D12        1       K              PASSIVE     SMBJ5.0CA
+        D13        2       A              PASSIVE     BV400SMJA12A
+        D16        2       A              PASSIVE     SMLVT3V3
+        Encoder    6       6              PASSIVE     EC12D1524403
+        Encoder    7       7              PASSIVE     EC12D1524403
+        Encoder    C       C              PASSIVE     EC12D1524403
+        Encoder    D       D              PASSIVE     EC12D1524403
+        Expansion  5       5              PASSIVE     J6
+        Expansion  5       5              PASSIVE     J7
+        EXT_TRG    2       2              PASSIVE     J3
+        OLED       7       7              PASSIVE     J4
+        PWR        1       1              PASSIVE     SPPH420100
+        PWR        4       4              PASSIVE     SPPH420100
+        PWR_OUT    1       1              PASSIVE     J8
+        PWR_OUT    2       2              PASSIVE     J8
+        PWR_OUT    3       3              PASSIVE     J8
+        PWR_OUT    4       4              PASSIVE     J8
+        Q6         2       S              PASSIVE     AO3406
+        Q7         2       S              PASSIVE     AO3406
+        R1         1       1              PASSIVE     Resistor
+        R2         1       1              PASSIVE     Resistor
+        R12        1       1              PASSIVE     Resistor
+        R16        1       1              PASSIVE     Resistor
+        R26        2       2              PASSIVE     Resistor
+        R27        2       2              PASSIVE     Resistor
+        R28        2       2              PASSIVE     Resistor
+        R32        1       1              PASSIVE     Resistor
+        R33        2       2              PASSIVE     Resistor
+        R36        2       2              PASSIVE     Resistor
+        R46        1       1              PASSIVE     Resistor
+        R47        1       1              PASSIVE     Resistor
+        R48        1       1              PASSIVE     Resistor
+        R57        2       2              PASSIVE     Resistor
+        RESET      3       3              PASSIVE     SKRPABE010
+        RESET      4       4              PASSIVE     SKRPABE010
+        RS232      1       1              PASSIVE     HDRM3
+        SW1        5       COM            PASSIVE     SKRHADE011
+        SW1        7       7              PASSIVE     SKRHADE011
+        SW1        8       8              PASSIVE     SKRHADE011
+        SW_TRG     3       3              PASSIVE     SKHHQYA010
+        SW_TRG     4       4              PASSIVE     SKHHQYA010
+        SW_TRG     5       5              PASSIVE     SKHHQYA010
+        SWD        1       1              PASSIVE     J1
+        U1         5       GND            PASSIVE     IP2721_MAX12
+        U2         20      RETRY          PASSIVE     LTC4421CG
+        U2         35      GND            PASSIVE     LTC4421CG
+        U2         36      EXTVCC         PASSIVE     LTC4421CG
+        U3         2       Ground         PASSIVE     NCV7805
+        U4         1       Ground         PASSIVE     TLV76133
+        U5         19      VSSA           POWER       STM32G474CET6
+        U5         23      VSS            POWER       STM32G474CET6
+        U5         35      VSS            POWER       STM32G474CET6
+        U5         47      VSS            POWER       STM32G474CET6
+        U6         1       EN#            PASSIVE     MAX6818EAP+T
+        U6         10      GND            PASSIVE     MAX6818EAP+T
+        U7         15      GND            PASSIVE     MAX3232EIPWR
+        U8         11      GND            PASSIVE     74LVCH8T245PW
+        U8         12      GND            PASSIVE     74LVCH8T245PW
+        U8         13      GND            PASSIVE     74LVCH8T245PW
+        U8         22      OE#            PASSIVE     74LVCH8T245PW
+        U9         2       GND            PASSIVE     TPS22810DBVR
+        U10        2       GND            PASSIVE     TPS22810DBVR
+        USB1       7       EH             PASSIVE     TYPE-C 6P QT073
+        USB1       A12     GND            PASSIVE     TYPE-C 6P QT073
+        USB1       B12     GND            PASSIVE     TYPE-C 6P QT073
+        X1         2       Gnd            PASSIVE     24MHz
+        X1         4       Gnd            PASSIVE     24MHz
+        Y1         1                      PASSIVE     SMA_Conn
+        Y2         1                      PASSIVE     SMA_Conn
+        Y3         1                      PASSIVE     SMA_Conn
+        Y4         1                      PASSIVE     SMA_Conn
+        Y5         1                      PASSIVE     SMA_Conn
+        Y6         1                      PASSIVE     SMA_Conn
+        Y7         1       1              PASSIVE     SMA-KE
+        Y7         2       2              PASSIVE     SMA-KE
+        Y7         3       3              PASSIVE     SMA-KE
+        Y7         4       4              PASSIVE     SMA-KE
+        Y8         1       1              PASSIVE     SMA-KE
+        Y8         2       2              PASSIVE     SMA-KE
+        Y8         3       3              PASSIVE     SMA-KE
+        Y8         4       4              PASSIVE     SMA-KE
+
+[00009] INTVCC
+        C7         2       2              PASSIVE     Capacitor
+        R23        1       1              PASSIVE     Resistor
+        R24        2       2              PASSIVE     Resistor
+        R25        2       2              PASSIVE     Resistor
+        U2         16      CASIN          PASSIVE     LTC4421CG
+        U2         17      INTVCC         PASSIVE     LTC4421CG
+
+[00010] KEY_CENTER
+        SW1        2       CEN            PASSIVE     SKRHADE011
+        U6         6       IN5            PASSIVE     MAX6818EAP+T
+
+[00011] KEY_DOWN
+        SW1        3       C              PASSIVE     SKRHADE011
+        U6         3       IN2            PASSIVE     MAX6818EAP+T
+
+[00012] KEY_ENC
+        Encoder    E       E              PASSIVE     EC12D1524403
+        U6         7       IN6            PASSIVE     MAX6818EAP+T
+
+[00013] KEY_LEFT
+        SW1        1       A              PASSIVE     SKRHADE011
+        U6         4       IN3            PASSIVE     MAX6818EAP+T
+
+[00014] KEY_RIGHT
+        SW1        6       D              PASSIVE     SKRHADE011
+        U6         5       IN4            PASSIVE     MAX6818EAP+T
+
+[00015] KEY_TRG
+        EXT_TRG    1       1              PASSIVE     J3
+        SW_TRG     1       1              PASSIVE     SKHHQYA010
+        SW_TRG     2       2              PASSIVE     SKHHQYA010
+        U6         8       IN7            PASSIVE     MAX6818EAP+T
+
+[00016] KEY_UP
+        SW1        4       B              PASSIVE     SKRHADE011
+        U6         2       IN1            PASSIVE     MAX6818EAP+T
+
+[00017] MUXED_12V
+        C6         1       1              PASSIVE     Capacitor
+        C11        1       1              PASSIVE     220uF
+        C12        2       2              PASSIVE     Capacitor
+        C13        2       2              PASSIVE     Capacitor
+        C14        2       2              PASSIVE     Capacitor
+        C43        2       2              PASSIVE     Capacitor
+        C44        2       2              PASSIVE     Capacitor
+        D11        1       K              PASSIVE     BV400SMJA12A
+        D14        1       K              PASSIVE     B340AXF-13
+        Rsense1    2       2              PASSIVE     Resistor
+        Rsense2    2       2              PASSIVE     Resistor
+        U2         2       CPOREF         PASSIVE     LTC4421CG
+        U2         3       OUT1           PASSIVE     LTC4421CG
+        U2         34      OUT2           PASSIVE     LTC4421CG
+        U3         1       Input          PASSIVE     NCV7805
+        U9         1       VIN            PASSIVE     TPS22810DBVR
+        U10        1       VIN            PASSIVE     TPS22810DBVR
+
+[00020] NetBOOT0_SEL_2
+        BOOT0_SEL  2       2              PASSIVE     J2
+        R30        2       2              PASSIVE     Resistor
+
+[00021] NetC1_2
+        C1         2       2              PASSIVE     Capacitor
+        Q1         2       D              PASSIVE     BMS013TN4D
+        R3         2       2              PASSIVE     Resistor
+        U1         2       VIN            PASSIVE     IP2721_MAX12
+        USB1       A9      VBUS           PASSIVE     TYPE-C 6P QT073
+        USB1       B9      VBUS           PASSIVE     TYPE-C 6P QT073
+
+[00022] NetC4_2
+        C4         2       2              PASSIVE     Capacitor
+        R6         1       1              PASSIVE     Resistor
+
+[00023] NetC5_2
+        C5         2       2              PASSIVE     Capacitor
+        R8         1       1              PASSIVE     Resistor
+
+[00024] NetC6_2
+        C6         2       2              PASSIVE     Capacitor
+        U2         1       CPO            PASSIVE     LTC4421CG
+
+[00025] NetC8_1
+        C8         1       1              PASSIVE     Capacitor
+        D3         1       K              PASSIVE     SMBJ18CA
+        Q2         3       S              PASSIVE     BMS013TN4D
+        Q3         3       S              PASSIVE     BMS013TN4D
+        U2         5       SOURCE1        PASSIVE     LTC4421CG
+
+[00026] NetC8_2
+        C8         2       2              PASSIVE     Capacitor
+        D3         2       A              PASSIVE     SMBJ18CA
+        Q2         1       G              PASSIVE     BMS013TN4D
+        Q3         1       G              PASSIVE     BMS013TN4D
+        U2         6       GATE1          PASSIVE     LTC4421CG
+
+[00027] NetC9_1
+        C9         1       1              PASSIVE     Capacitor
+        D4         1       K              PASSIVE     SMBJ18CA
+        Q4         3       S              PASSIVE     BMS013TN4D
+        Q5         3       S              PASSIVE     BMS013TN4D
+        U2         32      SOURCE2        PASSIVE     LTC4421CG
+
+[00028] NetC9_2
+        C9         2       2              PASSIVE     Capacitor
+        D4         2       A              PASSIVE     SMBJ18CA
+        Q4         1       G              PASSIVE     BMS013TN4D
+        Q5         1       G              PASSIVE     BMS013TN4D
+        U2         31      GATE2          PASSIVE     LTC4421CG
+
+[00029] NetC10_2
+        C10        2       2              PASSIVE     Capacitor
+        U2         19      QUAL           PASSIVE     LTC4421CG
+
+[00030] NetC15_1
+        C15        1       1              PASSIVE     Capacitor
+        U2         11      TMR1           PASSIVE     LTC4421CG
+
+[00031] NetC16_2
+        C16        2       2              PASSIVE     Capacitor
+        U2         26      TMR2           PASSIVE     LTC4421CG
+
+[00032] NetC30_2
+        C30        2       2              PASSIVE     Capacitor
+        U5         5       PF0-OSC IN     I/O         STM32G474CET6
+        X1         1       In/Out         PASSIVE     24MHz
+
+[00033] NetC31_2
+        C31        2       2              PASSIVE     Capacitor
+        U5         6       PF1-OSC OUT    I/O         STM32G474CET6
+        X1         3       Out/In         PASSIVE     24MHz
+
+[00034] NetC32_2
+        C32        2       2              PASSIVE     Capacitor
+        R29        2       2              PASSIVE     Resistor
+        RESET      1       1              PASSIVE     SKRPABE010
+        RESET      2       2              PASSIVE     SKRPABE010
+        U5         7       PG10/R\S\T\    I/O         STM32G474CET6
+
+[00035] NetC36_1
+        C36        1       1              PASSIVE     Capacitor
+        U7         1       C1+            PASSIVE     MAX3232EIPWR
+
+[00036] NetC36_2
+        C36        2       2              PASSIVE     Capacitor
+        U7         3       C1?            PASSIVE     MAX3232EIPWR
+
+[00037] NetC38_1
+        C38        1       1              PASSIVE     Capacitor
+        U7         2       V+             PASSIVE     MAX3232EIPWR
+
+[00038] NetC39_1
+        C39        1       1              PASSIVE     Capacitor
+        U7         4       C2+            PASSIVE     MAX3232EIPWR
+
+[00039] NetC39_2
+        C39        2       2              PASSIVE     Capacitor
+        U7         5       C2?            PASSIVE     MAX3232EIPWR
+
+[00040] NetC40_1
+        C40        1       1              PASSIVE     Capacitor
+        U7         6       V?             PASSIVE     MAX3232EIPWR
+
+[00041] NetC42_2
+        C42        2       2              PASSIVE     Capacitor
+        C48        2       2              PASSIVE     Capacitor
+        R64        1       1              PASSIVE     Resistor
+        R65        1       1              PASSIVE     Resistor
+        U8         23      VCCB           PASSIVE     74LVCH8T245PW
+        U8         24      VCCB           PASSIVE     74LVCH8T245PW
+
+[00042] NetC45_2
+        C45        2       2              PASSIVE     Capacitor
+        U9         4       CT             PASSIVE     TPS22810DBVR
+
+[00043] NetC46_2
+        C46        2       2              PASSIVE     Capacitor
+        U10        4       CT             PASSIVE     TPS22810DBVR
+
+[00044] NetCN1_2
+        CN1        2       12V            PASSIVE     WJ2EDGRC-5.08-2P
+        R7         1       1              PASSIVE     Resistor
+
+[00045] NetD5_1
+        D5         1       A              PASSIVE     Light-Emitting Diode
+        R17        1       1              PASSIVE     Resistor
+
+[00046] NetD6_1
+        D6         1       A              PASSIVE     Light-Emitting Diode
+        R18        1       1              PASSIVE     Resistor
+
+[00047] NetD7_1
+        D7         1       A              PASSIVE     Light-Emitting Diode
+        R19        1       1              PASSIVE     Resistor
+
+[00048] NetD8_1
+        D8         1       A              PASSIVE     Light-Emitting Diode
+        R20        1       1              PASSIVE     Resistor
+
+[00049] NetD9_1
+        D9         1       A              PASSIVE     Light-Emitting Diode
+        R21        1       1              PASSIVE     Resistor
+
+[00050] NetD10_1
+        D10        1       A              PASSIVE     Light-Emitting Diode
+        R22        1       1              PASSIVE     Resistor
+
+[00051] NetPWR_3
+        PWR        3       3              PASSIVE     SPPH420100
+        PWR        6       6              PASSIVE     SPPH420100
+
+[00052] NetQ1_1
+        Q1         1       G              PASSIVE     BMS013TN4D
+        R4         2       2              PASSIVE     Resistor
+
+[00053] NetQ1_3
+        Q1         3       S              PASSIVE     BMS013TN4D
+        R5         1       1              PASSIVE     Resistor
+        U1         16      VBUS           PASSIVE     IP2721_MAX12
+
+[00054] NetQ3_2
+        Q3         2       D              PASSIVE     BMS013TN4D
+        Rsense1    1       1              PASSIVE     Resistor
+        U2         4       SENSE1         PASSIVE     LTC4421CG
+
+[00055] NetQ5_2
+        Q5         2       D              PASSIVE     BMS013TN4D
+        Rsense2    1       1              PASSIVE     Resistor
+        U2         33      SENSE2         PASSIVE     LTC4421CG
+
+[00056] NetR1_2
+        R1         2       2              PASSIVE     Resistor
+        U1         12      CC2            PASSIVE     IP2721_MAX12
+        USB1       B5      CC2            PASSIVE     TYPE-C 6P QT073
+
+[00057] NetR2_2
+        R2         2       2              PASSIVE     Resistor
+        U1         13      CC1            PASSIVE     IP2721_MAX12
+        USB1       A5      CC1            PASSIVE     TYPE-C 6P QT073
+
+[00058] NetR3_1
+        R3         1       1              PASSIVE     Resistor
+        U1         11      SEL            PASSIVE     IP2721_MAX12
+
+[00059] NetR4_1
+        R4         1       1              PASSIVE     Resistor
+        U1         1       VBUSG          PASSIVE     IP2721_MAX12
+
+[00060] NetR24_1
+        R24        1       1              PASSIVE     Resistor
+        U2         12      DISABLE1#      PASSIVE     LTC4421CG
+
+[00061] NetR25_1
+        R25        1       1              PASSIVE     Resistor
+        U2         25      DISABLE2#      PASSIVE     LTC4421CG
+
+[00062] NetR39_1
+        R39        1       1              PASSIVE     Resistor
+        U7         10      DIN2           PASSIVE     MAX3232EIPWR
+
+[00063] NetR40_1
+        R40        1       1              PASSIVE     Resistor
+        U7         9       ROUT2          PASSIVE     MAX3232EIPWR
+
+[00064] NetR41_1
+        R41        1       1              PASSIVE     Resistor
+        RS232      3       3              PASSIVE     HDRM3
+
+[00065] NetR41_2
+        R41        2       2              PASSIVE     Resistor
+        U7         7       DOUT2          PASSIVE     MAX3232EIPWR
+
+[00066] NetR42_1
+        R42        1       1              PASSIVE     Resistor
+        RS232      2       2              PASSIVE     HDRM3
+
+[00067] NetR42_2
+        R42        2       2              PASSIVE     Resistor
+        U7         8       RIN2           PASSIVE     MAX3232EIPWR
+
+[00068] NetR49_1
+        R49        1       1              PASSIVE     Resistor
+        U8         21      B1             PASSIVE     74LVCH8T245PW
+
+[00069] NetR49_2
+        R49        2       2              PASSIVE     Resistor
+        Y1         2                      PASSIVE     SMA_Conn
+
+[00070] NetR50_1
+        R50        1       1              PASSIVE     Resistor
+        U8         20      B2             PASSIVE     74LVCH8T245PW
+
+[00071] NetR50_2
+        R50        2       2              PASSIVE     Resistor
+        Y2         2                      PASSIVE     SMA_Conn
+
+[00072] NetR51_1
+        R51        1       1              PASSIVE     Resistor
+        U8         19      B3             PASSIVE     74LVCH8T245PW
+
+[00073] NetR51_2
+        R51        2       2              PASSIVE     Resistor
+        Y3         2                      PASSIVE     SMA_Conn
+
+[00074] NetR52_1
+        R52        1       1              PASSIVE     Resistor
+        U8         18      B4             PASSIVE     74LVCH8T245PW
+
+[00075] NetR52_2
+        R52        2       2              PASSIVE     Resistor
+        Y4         2                      PASSIVE     SMA_Conn
+
+[00076] NetR53_1
+        R53        1       1              PASSIVE     Resistor
+        U8         17      B5             PASSIVE     74LVCH8T245PW
+
+[00077] NetR53_2
+        R53        2       2              PASSIVE     Resistor
+        Y5         2                      PASSIVE     SMA_Conn
+
+[00078] NetR54_1
+        R54        1       1              PASSIVE     Resistor
+        U8         16      B6             PASSIVE     74LVCH8T245PW
+
+[00079] NetR54_2
+        R54        2       2              PASSIVE     Resistor
+        Y6         2                      PASSIVE     SMA_Conn
+
+[00080] NetR55_1
+        R55        1       1              PASSIVE     Resistor
+        U8         15      B7             PASSIVE     74LVCH8T245PW
+
+[00081] NetR55_2
+        R55        2       2              PASSIVE     Resistor
+        R62        1       1              PASSIVE     Resistor
+        Y7         5       5              PASSIVE     SMA-KE
+
+[00082] NetR56_1
+        R56        1       1              PASSIVE     Resistor
+        U8         14      B8             PASSIVE     74LVCH8T245PW
+
+[00083] NetR56_2
+        R56        2       2              PASSIVE     Resistor
+        R63        1       1              PASSIVE     Resistor
+        Y8         5       5              PASSIVE     SMA-KE
+
+[00084] NetR58_1
+        R58        1       1              PASSIVE     Resistor
+        R59        1       1              PASSIVE     Resistor
+        U9         5       QOD            PASSIVE     TPS22810DBVR
+        U10        5       QOD            PASSIVE     TPS22810DBVR
+
+[00085] NetR60_2
+        R60        2       2              PASSIVE     Resistor
+        U8         9       A7             PASSIVE     74LVCH8T245PW
+
+[00086] NetR61_2
+        R61        2       2              PASSIVE     Resistor
+        U8         10      A8             PASSIVE     74LVCH8T245PW
+
+[00104] OV1
+        R11        1       1              PASSIVE     Resistor
+        R12        2       2              PASSIVE     Resistor
+        U2         10      OV1            PASSIVE     LTC4421CG
+
+[00105] OV2
+        R15        1       1              PASSIVE     Resistor
+        R16        2       2              PASSIVE     Resistor
+        U2         27      OV2            PASSIVE     LTC4421CG
+
+[00106] PA0/ENC_A
+        C34        2       2              PASSIVE     Capacitor
+        Encoder    A       A              PASSIVE     EC12D1524403
+        R37        1       1              PASSIVE     Resistor
+        U5         8       PA0            I/O         STM32G474CET6
+
+[00107] PA1/ENC_B
+        C35        2       2              PASSIVE     Capacitor
+        Encoder    B       B              PASSIVE     EC12D1524403
+        R38        1       1              PASSIVE     Resistor
+        U5         9       PA1            I/O         STM32G474CET6
+
+[00108] PA2/RS232_TX
+        R39        2       2              PASSIVE     Resistor
+        U5         10      PA2            I/O         STM32G474CET6
+
+[00109] PA3/RS232_RX
+        R40        2       2              PASSIVE     Resistor
+        U5         11      PA3            I/O         STM32G474CET6
+
+[00110] PA4/K_DOWN
+        U5         12      PA4            I/O         STM32G474CET6
+        U6         18      OUT2           PASSIVE     MAX6818EAP+T
+
+[00111] PA5/K_LEFT
+        U5         13      PA5            I/O         STM32G474CET6
+        U6         17      OUT3           PASSIVE     MAX6818EAP+T
+
+[00112] PA6/K_RIGHT
+        U5         14      PA6            I/O         STM32G474CET6
+        U6         16      OUT4           PASSIVE     MAX6818EAP+T
+
+[00113] PA7/K_CENTER
+        U5         15      PA7            I/O         STM32G474CET6
+        U6         15      OUT5           PASSIVE     MAX6818EAP+T
+
+[00114] PA8/HRT_A1
+        U5         30      PA8            I/O         STM32G474CET6
+        U8         6       A4             PASSIVE     74LVCH8T245PW
+
+[00115] PA9/HRT_A2
+        U5         31      PA9            I/O         STM32G474CET6
+        U8         5       A3             PASSIVE     74LVCH8T245PW
+
+[00116] PA10/HRT_B1
+        U5         32      PA10           I/O         STM32G474CET6
+        U8         4       A2             PASSIVE     74LVCH8T245PW
+
+[00117] PA11/HRT_B2
+        U5         33      PA11           I/O         STM32G474CET6
+        U8         3       A1             PASSIVE     74LVCH8T245PW
+
+[00118] PA12/LOADSW
+        R57        1       1              PASSIVE     Resistor
+        U5         34      PA12           I/O         STM32G474CET6
+        U9         3       EN/UVLO        PASSIVE     TPS22810DBVR
+        U10        3       EN/UVLO        PASSIVE     TPS22810DBVR
+
+[00119] PA13/SWDIO
+        R31        1       1              PASSIVE     Resistor
+        SWD        3       3              PASSIVE     J1
+        U5         37      PA13           I/O         STM32G474CET6
+
+[00120] PA14/SWCLK
+        R32        2       2              PASSIVE     Resistor
+        SWD        2       2              PASSIVE     J1
+        U5         38      PA14           I/O         STM32G474CET6
+
+[00121] PA15/I2C1_SCL
+        Expansion  2       2              PASSIVE     J6
+        R43        1       1              PASSIVE     Resistor
+        R46        2       2              PASSIVE     Resistor
+        U5         39      PA15           I/O         STM32G474CET6
+
+[00122] PB0/K_ENC
+        U5         16      PB0            I/O         STM32G474CET6
+        U6         14      OUT6           PASSIVE     MAX6818EAP+T
+
+[00123] PB1/K_TRG
+        U5         17      PB1            I/O         STM32G474CET6
+        U6         13      OUT7           PASSIVE     MAX6818EAP+T
+
+[00124] PB2
+        Expansion  4       4              PASSIVE     J6
+        R45        1       1              PASSIVE     Resistor
+        R48        2       2              PASSIVE     Resistor
+        U5         18      PB2            I/O         STM32G474CET6
+
+[00125] PB3/SPI1_SCK
+        OLED       5       5              PASSIVE     J4
+        U5         40      PB3            I/O         STM32G474CET6
+
+[00126] PB4/SPI1_CS
+        OLED       1       1              PASSIVE     J4
+        U5         41      PB4            I/O         STM32G474CET6
+
+[00127] PB5/SPI1_MOSI
+        OLED       4       4              PASSIVE     J4
+        U5         42      PB5            I/O         STM32G474CET6
+
+[00128] PB6/SPI1_DC
+        OLED       2       2              PASSIVE     J4
+        U5         43      PB6            I/O         STM32G474CET6
+
+[00129] PB7/SPI1_RES
+        OLED       3       3              PASSIVE     J4
+        U5         44      PB7            I/O         STM32G474CET6
+
+[00130] PB8/BOOT0
+        R30        1       1              PASSIVE     Resistor
+        U5         45      PB8-BOOT0      I/O         STM32G474CET6
+
+[00131] PB9/I2C1_SDA
+        Expansion  3       3              PASSIVE     J6
+        R44        1       1              PASSIVE     Resistor
+        R47        2       2              PASSIVE     Resistor
+        U5         46      PB9            I/O         STM32G474CET6
+
+[00132] PB10/BLE_TX
+        BLE        2       2              PASSIVE     J5
+        U5         22      PB10           I/O         STM32G474CET6
+
+[00133] PB11/BLE_RX
+        BLE        3       3              PASSIVE     J5
+        U5         25      PB11           I/O         STM32G474CET6
+
+[00134] PB12/HRT_C1
+        R61        1       1              PASSIVE     Resistor
+        R63        2       2              PASSIVE     Resistor
+        U5         26      PB12           I/O         STM32G474CET6
+
+[00135] PB13/HRT_C2
+        R60        1       1              PASSIVE     Resistor
+        R62        2       2              PASSIVE     Resistor
+        U5         27      PB13           I/O         STM32G474CET6
+
+[00136] PB14/HRT_D1
+        U5         28      PB14           I/O         STM32G474CET6
+        U8         8       A6             PASSIVE     74LVCH8T245PW
+
+[00137] PB15/HRT_D2
+        U5         29      PB15           I/O         STM32G474CET6
+        U8         7       A5             PASSIVE     74LVCH8T245PW
+
+[00138] PC13/K_UP
+        U5         2       PC13           I/O         STM32G474CET6
+        U6         19      OUT1           PASSIVE     MAX6818EAP+T
+
+[00139] PC14/PWR1_DT
+        Q6         3       D              PASSIVE     AO3406
+        R34        1       1              PASSIVE     Resistor
+        U5         3       PC14-OSC32 IN  I/O         STM32G474CET6
+
+[00140] PC15/PWR2_DT
+        Q7         3       D              PASSIVE     AO3406
+        R35        1       1              PASSIVE     Resistor
+        U5         4       PC15-OSC32 OUT I/O         STM32G474CET6
+
+[00141] PWR1_TRIGD_12V
+        C2         2       2              PASSIVE     Capacitor
+        D1         2       A              PASSIVE     SMBJ18CA
+        Q2         2       D              PASSIVE     BMS013TN4D
+        R5         2       2              PASSIVE     Resistor
+        R6         2       2              PASSIVE     Resistor
+        R9         2       2              PASSIVE     Resistor
+        R17        2       2              PASSIVE     Resistor
+        R18        2       2              PASSIVE     Resistor
+        R19        2       2              PASSIVE     Resistor
+        U2         7       V1             PASSIVE     LTC4421CG
+
+[00142] PWR2_2EDG_12V
+        C3         2       2              PASSIVE     Capacitor
+        D2         2       A              PASSIVE     SMBJ18CA
+        Q4         2       D              PASSIVE     BMS013TN4D
+        R7         2       2              PASSIVE     Resistor
+        R8         2       2              PASSIVE     Resistor
+        R13        2       2              PASSIVE     Resistor
+        R20        2       2              PASSIVE     Resistor
+        R21        2       2              PASSIVE     Resistor
+        R22        2       2              PASSIVE     Resistor
+        U2         30      V2             PASSIVE     LTC4421CG
+
+[00143] SHDN#
+        PWR        2       2              PASSIVE     SPPH420100
+        PWR        5       5              PASSIVE     SPPH420100
+        R23        2       2              PASSIVE     Resistor
+        U2         21      SHDN#          PASSIVE     LTC4421CG
+
+[00144] UVF1
+        R9         1       1              PASSIVE     Resistor
+        R10        2       2              PASSIVE     Resistor
+        U2         8       UVF1           PASSIVE     LTC4421CG
+
+[00145] UVF2
+        R13        1       1              PASSIVE     Resistor
+        R14        2       2              PASSIVE     Resistor
+        U2         29      UVF2           PASSIVE     LTC4421CG
+
+[00146] UVR1
+        R10        1       1              PASSIVE     Resistor
+        R11        2       2              PASSIVE     Resistor
+        U2         9       UVR1           PASSIVE     LTC4421CG
+
+[00147] UVR2
+        R14        1       1              PASSIVE     Resistor
+        R15        2       2              PASSIVE     Resistor
+        U2         28      UVR2           PASSIVE     LTC4421CG
+
+[00148] VALID1#
+        D6         2       K              PASSIVE     Light-Emitting Diode
+        U2         14      VALID1#        PASSIVE     LTC4421CG
+
+[00149] VALID2#
+        D9         2       K              PASSIVE     Light-Emitting Diode
+        U2         23      VALID2#        PASSIVE     LTC4421CG
+
