@@ -204,9 +204,8 @@ void WouoUI_TitlePageLastItem(TitlePage *tp)
         WouoUI_CanvasSlideStrReset(&(p_cur_ui->tp_var.title_ss));
         tp->select_item--;
         p_cur_ui->tp_var.iconX.pos_tgt += TILE_ICON_S;
-        // p_cur_ui->indicator.x.pos_cur += (TILE_ICON_W >> 3); //图标移动时从上一个中心移动到这一次的边角 //我改了，原来是1
     } else {                                        // 是第一个选项
-        p_cur_ui->indicator.x.pos_cur -= (TILE_ICON_W >> 4); //我改了，原来是1
+        p_cur_ui->indicator.x.pos_cur -= (TILE_ICON_W >> 4);
         if (p_cur_ui->upara->loop_param[TILE_LOOP]) // 开启循环的话
         {
             tp->select_item = tp->item_num - 1;
@@ -226,9 +225,8 @@ void WouoUI_TItlePageNextItem(TitlePage *tp)
         WouoUI_CanvasSlideStrReset(&(p_cur_ui->tp_var.title_ss));
         tp->select_item++;
         p_cur_ui->tp_var.iconX.pos_tgt -= TILE_ICON_S;
-        // p_cur_ui->indicator.x.pos_cur -= (TILE_ICON_W >> 3); //我改了，原来是1
     } else { // 是最后一个选项
-        p_cur_ui->indicator.x.pos_cur += (TILE_ICON_W >> 4); //我改了，原来是1
+        p_cur_ui->indicator.x.pos_cur += (TILE_ICON_W >> 4);
         if (p_cur_ui->upara->loop_param[TILE_LOOP]) {
             tp->select_item = 0;
             p_cur_ui->tp_var.iconX.pos_tgt = 0;
@@ -280,7 +278,7 @@ static void WouoUI_ListDrawText_CheckBox(int16_t start_y, Option *item, uint8_t 
     if(NULL != strchr(LIST_LINETAIL_VAL_PREFIX, item->text[0])){
         ui_itoa_str(item->val, val_buff); //这儿应该加上长度警告！！！
         WouoUI_ListAuotCanvasDrawLineTailValTxt(item, &canvas_txt, &canvas_val,val_buff,select_order);
-    }else if(NULL != strchr(LIST_LINETAIL_PW_VAL_PREFIX, item->text[0])){    //我改了
+    }else if(NULL != strchr(LIST_LINETAIL_PW_VAL_PREFIX, item->text[0])){
         ui_itoa_str_pw(item->val, val_buff); //这儿应该加上长度警告！！！
         WouoUI_ListAuotCanvasDrawLineTailValTxt(item, &canvas_txt, &canvas_val,val_buff,select_order);
     }else if(NULL != strchr(LIST_LINETAIL_SPIN_PREFIX, item->text[0])){

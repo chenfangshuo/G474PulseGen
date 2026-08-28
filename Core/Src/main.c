@@ -426,11 +426,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 //     HAL_HRTIM_WaveformCountStop_IT(&hhrtim1, HRTIM_TIMERID_TIMER_X);
 //   }
 // }
-// void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
-// {
-//     OLED_CS_Set();    // 取消选中OLED
-//     OLED_UPDATE_DONE = true;
-// }
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    OLED_SPI_TxCpltCallback(hspi);
+}
 /* USER CODE END 4 */
 
 /**

@@ -311,6 +311,11 @@ Option setting_option_array[] ={
     {.text = (char *)"> Val win gb blur"},
     {.text = (char *)"> Spin win gb blur"},
     {.text = (char *)"> List win gb blur"},
+    {.text = (char *)"~ DT Rise(ns)"},
+    {.text = (char *)"~ DT Fall(ns)"},
+    {.text = (char *)"@ Interleave"},
+    {.text = (char *)"~ SoftStart(ms)"},
+    {.text = (char *)"@ SS Ramp Run"},
 };
 
 String bg_blur_sel_str_array[] = {
@@ -796,6 +801,37 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
             case 12:
                 WouoUI_JumpToPage((PageAddr)cur_page_addr,&bg_blur_sel_page);
             break;
+            case 13: // 死区上升沿时间调节
+            case 14: // 死区下降沿时间调节
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 5, 200);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+            break;
+            case 15: // 180度交错模式切换开关
+                if (select_item->val)
+                {
+                    Pulse_InterleavedPWM_Init(10.0f, 50.0f);
+                    PULSE_OUT_ENABLED = 1;
+                }
+                else
+                {
+                    Pulse_Disable_Output();
+                    PULSE_OUT_ENABLED = 0;
+                }
+            break;
+            case 16: // 软启动爬升时间调节
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 10, 500);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+            break;
+            case 17: // 软启动触发测试开关
+                if (select_item->val)
+                {
+                    Pulse_SoftStart_Start(50.0f, (uint32_t)setting_option_array[16].val, true);
+                }
+                else
+                {
+                    Pulse_SoftStart_Stop(100);
+                }
+            break;
             default:
                 break;
         }
@@ -862,6 +898,14 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
             g_default_ui_para.ani_param[TILE_ANI] = common_val_page.val;
         } else if (!strcmp(common_val_page.bg_opt->text, "~ IND Ani")) {
             g_default_ui_para.ani_param[IND_ANI] = common_val_page.val;
+        } else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)")) {
+            setting_option_array[13].val = common_val_page.val;
+            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
+        } else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)")) {
+            setting_option_array[14].val = common_val_page.val;
+            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
+        } else if (!strcmp(common_val_page.bg_opt->text, "~ SoftStart(ms)")) {
+            setting_option_array[16].val = common_val_page.val;
         }
     }
     if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
@@ -881,6 +925,20 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             pwm_option_array[4].val = common_val_page.val;
             Pulse_PWM_SetPW((float)pwm_option_array[3].val, pwm_option_array[4].val);
+        }
+        else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)"))
+        {
+            setting_option_array[13].val = common_val_page.val;
+            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
+        }
+        else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)"))
+        {
+            setting_option_array[14].val = common_val_page.val;
+            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
+        }
+        else if (!strcmp(common_val_page.bg_opt->text, "~ SoftStart(ms)"))
+        {
+            setting_option_array[16].val = common_val_page.val;
         }
     }
     return false;
@@ -1122,6 +1180,11 @@ void TestUI_Init(void) {
     setting_option_array[10].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[VAL_WBB]];
     setting_option_array[11].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[SPIN_WBB]];
     setting_option_array[12].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[LIST_WBB]];
+    setting_option_array[13].val = 0;   // DT Rise: 默认0ns
+    setting_option_array[14].val = 0;   // DT Fall: 默认0ns
+    setting_option_array[15].val = 0;   // Interleave: 默认关闭
+    setting_option_array[16].val = 100; // SoftStart: 默认100ms
+    setting_option_array[17].val = 0;   // SS Ramp Run: 默认未启动
 
     single_pulse_option_array[1].content = ch_sel_str_array[0];
     single_pulse_option_array[2].content = polarity_sel_str_array[0];

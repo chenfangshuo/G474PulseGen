@@ -513,13 +513,13 @@ bool WouoUI_ValWinPageReact(PageAddr page_addr)
         switch (msg)
         {
             case msg_left:
-                WouoUI_ValWinPageValDecrease(vw); //我改了
+                WouoUI_ValWinPageValDecrease(vw);
             break;
             case msg_up:
                 WouoUI_ValWinPageValIncrease(vw);
             break;
             case msg_right:
-                WouoUI_ValWinPageValIncrease(vw); //我改了
+                WouoUI_ValWinPageValIncrease(vw);
             break;
             case msg_down:
                 WouoUI_ValWinPageValDecrease(vw);
@@ -632,30 +632,14 @@ static void _WouoUI_SpinWinPageDraw(SpinWin * spw)
     // 绘制value range
     p_cur_ui->spw_var.min_ss.canvas.h = GET_FNOT_H(Font_6_8);
     p_cur_ui->spw_var.min_ss.canvas.start_y = p_cur_ui->spw_var.win_y.pos_cur + SPIN_WIN_MMVAL_Y_OFS;
-    // ui_ftoa_g_str(spw->min, spw->dec_num, temp_str_buff);
-    if (spw->max == 150000)
-        ui_itoa_str_pw(spw->min, temp_str_buff); //我改了
-    else if (spw->max == 1000000)
-        ui_itoa_str_lpw(spw->min, temp_str_buff);
-    else if (spw->max == 10000)
-        ui_itoa_str_pw(spw->min, temp_str_buff);
-    else
-        ui_itoa_str(spw->min, temp_str_buff); //我改了
+    ui_ftoa_f_str(spw->min, spw->dec_num, temp_str_buff);
     p_cur_ui->spw_var.min_ss.str = temp_str_buff;
     p_cur_ui->spw_var.min_ss.canvas.w = MIN(WouoUI_GetStrWidth(temp_str_buff,Font_6_8),SPIN_WIN_MIN_W_MAX);
     p_cur_ui->spw_var.min_ss.canvas.start_x = SPIN_WIN_MMVAL_MID_LX - SPIN_WIN_MMVAL_S - p_cur_ui->spw_var.min_ss.canvas.w; //靠近中间放置
     WouoUI_CanvasDrawASCII(&(p_cur_ui->w_all),SPIN_WIN_MMVAL_MID_LX,p_cur_ui->spw_var.min_ss.canvas.start_y,Font_6_8, '~'); //绘制最大最小值间的字符(居中)
     WouoUI_CanvasDrawSlideStr(&(p_cur_ui->spw_var.min_ss), 0, Font_6_8);
     p_cur_ui->spw_var.max_ss.canvas = p_cur_ui->spw_var.min_ss.canvas;
-    // ui_ftoa_g_str(spw->max, spw->dec_num, temp_str_buff);
-    if (spw->max == 150000)
-        ui_itoa_str(spw->max/100, temp_str_buff); //我改了
-    else if (spw->max == 1000000)
-        ui_itoa_str(spw->max/1000, temp_str_buff); //我改了
-    else if (spw->max == 10000)
-        ui_itoa_str(spw->max/100, temp_str_buff); //我改了
-    else
-        ui_itoa_str(spw->max, temp_str_buff); //我改了
+    ui_ftoa_f_str(spw->max, spw->dec_num, temp_str_buff);
     p_cur_ui->spw_var.max_ss.str = temp_str_buff;
     p_cur_ui->spw_var.max_ss.canvas.w = MIN(WouoUI_GetStrWidth(temp_str_buff,Font_6_8),SPIN_WIN_MAX_W_MAX);
     p_cur_ui->spw_var.max_ss.canvas.start_x = SPIN_WIN_MMVAL_MID_RX + SPIN_WIN_MMVAL_S; //靠近中间放置
@@ -757,14 +741,14 @@ bool WouoUI_SpinWinPageReact(PageAddr page_addr)
             case msg_up:
             case msg_left:
                 if(spw->sel_flag) //选中状态
-                    WouoUI_SpinWinPageChangeSelbit(spw,-1); //增加 我改了
+                    WouoUI_SpinWinPageChangeSelbit(spw,-1); //增加
                 else  //未选中状态
                     WouoUI_SpinWinPageShiftSelbit(spw, 0);
             break;
             case msg_down:
             case msg_right:
                 if(spw->sel_flag) //选中状态
-                    WouoUI_SpinWinPageChangeSelbit(spw,1); //减少 我改了
+                    WouoUI_SpinWinPageChangeSelbit(spw,1); //减少
                 else  //未选中状态
                     WouoUI_SpinWinPageShiftSelbit(spw, 1);
             break;
@@ -800,9 +784,9 @@ void WouoUI_SpinWinPageIndicatorCtrl(PageAddr page_addr)
     p_cur_ui->indicator.w.pos_tgt = GET_FNOT_W(SPIN_WIN_NUM_FONT)+(SPIN_WIN_NUM_S);
     if(spw->sel_bit < (int16_t)spw->dec_num)
         p_cur_ui->indicator.x.pos_tgt = ((WOUOUI_BUFF_WIDTH-p_cur_ui->spw_var.num_w_temp) >>1 ) + \
-                                        p_cur_ui->indicator.w.pos_tgt*(7-spw->sel_bit) + GET_FNOT_W(SPIN_WIN_NUM_FONT)-SPIN_WIN_NUM_S-(SPIN_WIN_NUM_S>>1) ;    //我改了 加了括号
+                                        p_cur_ui->indicator.w.pos_tgt*(7-spw->sel_bit) + GET_FNOT_W(SPIN_WIN_NUM_FONT)-SPIN_WIN_NUM_S-(SPIN_WIN_NUM_S>>1) ;
     else p_cur_ui->indicator.x.pos_tgt = ((WOUOUI_BUFF_WIDTH-p_cur_ui->spw_var.num_w_temp) >>1 ) + \
-                                        p_cur_ui->indicator.w.pos_tgt*(7-spw->sel_bit) - (SPIN_WIN_NUM_S>>1) ;    //我改了 加了括号
+                                        p_cur_ui->indicator.w.pos_tgt*(7-spw->sel_bit) - (SPIN_WIN_NUM_S>>1) ;
     if(spw->sel_flag){
         p_cur_ui->indicator.y.pos_tgt = SPIN_WIN_Y+SPIN_WIN_NUM_Y_OFS-(SPIN_WIN_V_S>>1);
         p_cur_ui->indicator.h.pos_tgt = GET_FNOT_H(SPIN_WIN_NUM_FONT) + SPIN_WIN_BOX_H + (SPIN_WIN_V_S>>1);

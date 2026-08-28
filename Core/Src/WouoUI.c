@@ -124,7 +124,7 @@ WouoUI default_ui = {
     .home_page = NULL,         // 初始化当前页面和主页面均是NULL
     .current_page = NULL,
     .pen = {.color_mode = PEN_MODE_NORMAL, .color = PEN_COLOR_BLACK, .rev_color_flag = 0},   // 全局画笔变量清零
-    .screen_buff = {{0}},                             // 屏幕缓冲区对象清零 我改了，加了一组括号
+    .screen_buff = {{0}},                             // 屏幕缓冲区对象清零
     .pfun_sendbuff = NULL,                          //这个函数指针必须要外界赋值
     .w_all = {0, 0, WOUOUI_BUFF_WIDTH, WOUOUI_BUFF_HEIGHT},       // 全局画布变量清零
     .state = ui_page_in,         // 从没页面进入主页面，所以是lay_in
@@ -267,65 +267,44 @@ WouoUI *p_cur_ui = &default_ui; // 当前操作的ui对象的指针(默认使用
  * @return char* 转换后的字符串
  */
 char *ui_itoa(uint32_t num, char *str) {
-    memset(str, 0, strlen(str)); // 将字符数组清零(用sizeof对指针是取指针大小)
-    sprintf(str, "%lu", num);     // 将无符号32位整数转换为字符串
-    return str;                  // 返回转换后的字符串
+    if (str == NULL) return NULL;
+    sprintf(str, "%lu", (unsigned long)num);
+    return str;
 }
 
 char *ui_itoa_str(uint32_t num, char *str) {
-    memset(str, 0, strlen(str)); // 将字符数组清零
-    sprintf(str, "%lu", num);     // 将无符号32位整数转换为字符串
-    return str;                  // 返回转换后的字符串
+    if (str == NULL) return NULL;
+    sprintf(str, "%lu", (unsigned long)num);
+    return str;
 }
 
 char *ui_itoa_str_pw(uint32_t num, char *str) {
-    memset(str, 0, strlen(str)); // 将字符数组清零
-
+    if (str == NULL) return NULL;
     uint32_t integer_part = num / 100;
     uint32_t decimal_part = num % 100;
-    sprintf(str, "%u.%02u", (unsigned int)integer_part, (unsigned int)decimal_part);
-
-    return str;                  // 返回转换后的字符串
+    sprintf(str, "%lu.%02lu", (unsigned long)integer_part, (unsigned long)decimal_part);
+    return str;
 }
 
 char *ui_itoa_str_lpw(uint32_t num, char *str) {
-    memset(str, 0, strlen(str)); // 将字符数组清零
-
+    if (str == NULL) return NULL;
     uint32_t integer_part = num / 1000;
     uint32_t decimal_part = num % 1000;
-    sprintf(str, "%u.%03u", (unsigned int)integer_part, (unsigned int)decimal_part);
-
-    return str;                  // 返回转换后的字符串
+    sprintf(str, "%lu.%03lu", (unsigned long)integer_part, (unsigned long)decimal_part);
+    return str;
 }
 
 /**
- * @brief 将浮点数转换为字符串
+ * @brief 将浮点数转换为字符串（通用格式）
  *
  * @param num 要转换的数
  * @param decimalNum 小数点位数
  * @return char* 转换后的字符串
  */
 char *ui_ftoa_g(int32_t num, DecimalNum decimalNum) {
-    static char str[16] = {0};   // 定义一个静态字符数组，用于存储转换后的字符串
-    memset(str, 0, strlen(str)); // 将字符数组清零
-    switch (decimalNum) {
-    case DecimalNum_0:
-        sprintf(str, "%lu", num);
-        break;
-    case DecimalNum_1:
-        sprintf(str, "%g", num / 10.0f);
-        break;
-    case DecimalNum_2:
-        sprintf(str, "%g", num / 100.0f);
-        break;
-    case DecimalNum_3:
-        sprintf(str, "%g", num / 1000.0f);
-        break;
-    default:
-        sprintf(str, "%lu", num);
-        break;
-    }
-    return str; // 返回转换后的字符串
+    static char str[16] = {0};
+    ui_ftoa_f_str(num, decimalNum, str);
+    return str;
 }
 
 /**
@@ -337,54 +316,76 @@ char *ui_ftoa_g(int32_t num, DecimalNum decimalNum) {
  * @return char* 转换后的字符串
  */
 char *ui_ftoa_g_str(int32_t num, DecimalNum decimalNum, char *str) {
-    memset(str, 0, strlen(str));               // 将字符数组清零
-    char *result = ui_ftoa_g(num, decimalNum); // 返回转换后的字符串
-    strcpy(str, result);
-    return str;
+    return ui_ftoa_f_str(num, decimalNum, str);
 }
 
 /**
- * @brief 将浮点数转换为字符串
+ * @brief 将定点整数转换为浮点字符串（支持正负数及0/1/2/3位小数）
  *
- * @param num 要转换的数
+ * @param num 要转换的数（定点缩放整数）
  * @param decimalNum 小数点位数
  * @return char* 转换后的字符串
  */
 char *ui_ftoa_f(int32_t num, DecimalNum decimalNum) {
-    static char str[16] = {0};   // 定义一个静态字符数组，用于存储转换后的字符串
-    memset(str, 0, strlen(str)); // 将字符数组清零
-    switch (decimalNum) {
-    case DecimalNum_0:
-        sprintf(str, "%lu", num);
-        break;
-    case DecimalNum_1:
-        sprintf(str, "%.1f", num / 10.0f);
-        break;
-    case DecimalNum_2:
-        sprintf(str, "%.2f", num / 100.0f);
-        break;
-    case DecimalNum_3:
-        sprintf(str, "%.3f", num / 1000.0f);
-        break;
-    default:
-        sprintf(str, "%lu", num);
-        break;
-    }
-    return str; // 返回转换后的字符串
+    static char str[16] = {0};
+    return ui_ftoa_f_str(num, decimalNum, str);
 }
 
 /**
- * @brief 将浮点数转换为字符串
+ * @brief 将定点整数转换为浮点字符串（健壮通用实现）
  *
  * @param num 要转换的数
  * @param decimalNum 小数点位数
- * @param str 转换后的字符串
+ * @param str 转换后的目标缓冲区
  * @return char* 转换后的字符串
  */
 char *ui_ftoa_f_str(int32_t num, DecimalNum decimalNum, char *str) {
-    memset(str, 0, sizeof(*str));               // 将字符数组清零 我改了，加了个"*"
-    char *result = ui_ftoa_f(num, decimalNum); // 返回转换后的字符串
-    strcpy(str, result);
+    if (str == NULL) return NULL;
+
+    bool negative = (num < 0);
+    uint32_t abs_num = (uint32_t)(negative ? -num : num);
+
+    switch (decimalNum) {
+    case DecimalNum_0:
+        if (negative)
+            sprintf(str, "-%lu", (unsigned long)abs_num);
+        else
+            sprintf(str, "%lu", (unsigned long)abs_num);
+        break;
+    case DecimalNum_1: {
+        uint32_t int_part = abs_num / 10;
+        uint32_t frac_part = abs_num % 10;
+        if (negative)
+            sprintf(str, "-%lu.%01lu", (unsigned long)int_part, (unsigned long)frac_part);
+        else
+            sprintf(str, "%lu.%01lu", (unsigned long)int_part, (unsigned long)frac_part);
+        break;
+    }
+    case DecimalNum_2: {
+        uint32_t int_part = abs_num / 100;
+        uint32_t frac_part = abs_num % 100;
+        if (negative)
+            sprintf(str, "-%lu.%02lu", (unsigned long)int_part, (unsigned long)frac_part);
+        else
+            sprintf(str, "%lu.%02lu", (unsigned long)int_part, (unsigned long)frac_part);
+        break;
+    }
+    case DecimalNum_3: {
+        uint32_t int_part = abs_num / 1000;
+        uint32_t frac_part = abs_num % 1000;
+        if (negative)
+            sprintf(str, "-%lu.%03lu", (unsigned long)int_part, (unsigned long)frac_part);
+        else
+            sprintf(str, "%lu.%03lu", (unsigned long)int_part, (unsigned long)frac_part);
+        break;
+    }
+    default:
+        if (negative)
+            sprintf(str, "-%lu", (unsigned long)abs_num);
+        else
+            sprintf(str, "%lu", (unsigned long)abs_num);
+        break;
+    }
     return str;
 }
 
