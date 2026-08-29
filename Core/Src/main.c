@@ -348,24 +348,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   {
     if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_SINGLE_LONG)
     {
-      //拉低 GPIO
       if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
         Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
       else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
         Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
 
-      //停止定时器
       __HAL_TIM_DISABLE(htim);
       __HAL_TIM_DISABLE_IT(htim, TIM_IT_UPDATE);
     }
     else if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_PWM_LONG)
     {
+      /* 周期起点：拉高置为有效电平 */
       if (lpwm_ccr > 0)
       {
         if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-          Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-        else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
           Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+        else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
+          Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
       }
     }
   }
@@ -375,13 +374,13 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM5 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
   {
-    // 占空比为 100% 时不拉低
+    /* 比较匹配点：拉低置为无效电平 */
     if (lpwm_ccr < lpwm_arr)
     {
       if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-        Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
-      else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
         Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+      else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
+        Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
     }
   }
 }
@@ -391,13 +390,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   if(GPIO_Pin == KEY_TRG_Pin)
   {
     if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_B)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TBRST;  // 触发 TB 重置事件
+      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TBRST;
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_A)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TARST;  // 触发 TA 重置事件
+      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TARST;
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_C)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TCRST;  // 触发 TC 重置事件
+      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TCRST;
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_D)
-      HRTIM1->sCommonRegs.CR2 |= HRTIM_CR2_TDRST;  // 触发 TD 重置事件
+      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TDRST;
 
     if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_SINGLE_LONG)
     {

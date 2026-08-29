@@ -1149,7 +1149,7 @@ void Pulse_lPWM_SetPW(float period_s, float duty_cycle_percent)
 
     if (lpwm_arr == 0) lpwm_arr = 1;
 
-    lpwm_ccr = (uint32_t)((float)lpwm_arr * ((100.0f - duty_cycle_percent) / 100.0f));
+    lpwm_ccr = (uint32_t)((float)lpwm_arr * (duty_cycle_percent / 100.0f));
 
     TIM5->PSC = psc;
     TIM5->ARR = lpwm_arr - 1;
