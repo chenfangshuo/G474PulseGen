@@ -120,6 +120,18 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim7); //打开为按键定时刷新的定时器中断
   HAL_TIM_Base_Start_IT(&htim16); //打开为输出状态刷新的定时器中断
   HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+  // 触发中断拉到最高优先级 0
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  // 长脉冲软件翻转次之
+  HAL_NVIC_SetPriority(TIM5_IRQn, 1, 0);
+  // 按键与状态检测
+  HAL_NVIC_SetPriority(TIM7_DAC_IRQn, 2, 0);
+  HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, 2, 1);
+  // 刷屏与 DMA 降至最低优先级 3，绝不阻塞发波
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 3, 0);
+  HAL_NVIC_SetPriority(SPI1_IRQn, 3, 1);
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 3, 2);
+
   OLED_Init();
   WouoUI_AttachSendBuffFun(OLED_Update_DisplayBuf);
 

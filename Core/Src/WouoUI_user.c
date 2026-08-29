@@ -1143,9 +1143,9 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg){
             }
             else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
             {
-                if(!strcmp(pw_spin_page.bg_opt->text,"% Period(S)"))
+                if (strstr(pw_spin_page.bg_opt->text, "Period"))
                     pwm_long_option_array[3].val = pw_spin_page.val;
-                else if(!strcmp(pw_spin_page.bg_opt->text,"= Duty Cycle(%)"))
+                else if (strstr(pw_spin_page.bg_opt->text, "Duty"))
                     pwm_long_option_array[4].val = pw_spin_page.val;
 
 
