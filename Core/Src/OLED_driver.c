@@ -97,15 +97,36 @@ void OLED_SetCursor(uint8_t Page, uint8_t X)
     OLED_CS_Set();
 }
 
+static void OLED_SetCursor_ISR(uint8_t page, uint8_t x)
+{
+    const uint8_t c[3] = {(uint8_t)(0xB0 | (page & 0x0F)),
+                          (uint8_t)(0x10 | ((x & 0xF0) >> 4)),
+                          (uint8_t)(0x00 |  (x & 0x0F))};
+    OLED_DC_Clr(); OLED_CS_Clr();
+    for (uint8_t i = 0; i < 3; i++) {
+        uint32_t g = 0;
+        while (!(SPI1->SR & SPI_SR_TXE)) { if (++g > 20000u) goto abort; }   /* 有界，绝不死等 */
+        *(volatile uint8_t *)&SPI1->DR = c[i];
+    }
+    { uint32_t g = 0; while (SPI1->SR & SPI_SR_BSY) { if (++g > 20000u) break; } }
+    abort:
+        OLED_CS_Set();
+}
+
 /* DMA 异步状态机发送一页 */
 static void OLED_SendPage_DMA(uint8_t page)
 {
-    OLED_SetCursor(page, 0);
-
+    OLED_SetCursor_ISR(page, 0);
     OLED_DC_Set();
     OLED_CS_Clr();
+    if (HAL_SPI_Transmit_DMA(&hspi1, OLED_DisplayBuf[page], 128) != HAL_OK) {
+        OLED_CS_Set(); // 发送启动失败时立即回滚状态，防止 CS 永久挂起低电平
+        s_oled_dma_busy = false;
+        s_oled_updating = false;
+        s_oled_current_page = 0;
+        return;
+    }
     s_oled_dma_busy = true;
-    HAL_SPI_Transmit_DMA(&hspi1, OLED_DisplayBuf[page], 128);
 }
 
 /* SPI DMA 发送完成中断回调：非阻塞流水线触发下一页 */
@@ -153,8 +174,9 @@ void OLED_Update(void)
     OLED_SendPage_DMA(0);
 }
 
-void OLED_Update_DisplayBuf(uint8_t DisplayBuf[128/8][128])
+void OLED_Update_DisplayBuf(uint8_t DisplayBuf[16][128])
 {
+    if (s_oled_dma_busy || s_oled_updating) return; // 先判忙，DMA 传输中绝不 memcpy 显存
     memcpy(OLED_DisplayBuf, DisplayBuf, sizeof(OLED_DisplayBuf));
     OLED_Update();
 }

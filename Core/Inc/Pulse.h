@@ -74,16 +74,16 @@ typedef struct {
 
 /* Pulse 控制器上下文结构体 (重构全局状态机，消除类型溢出隐患) */
 typedef struct {
-    uint8_t          channel;               /* 当前选中的逻辑通道 CH1 ~ CH8 */
-    uint8_t          mode;                  /* PULSE_MODE_* */
-    uint8_t          timer_idx;             /* HRTIM_TIMERINDEX_TIMER_A/B/C/D */
-    uint32_t         timer_id;              /* HRTIM_TIMERID_TIMER_A/B/C/D */
-    uint32_t         output_ch;             /* HRTIM_OUTPUT_TA1/TA2/TB1/TB2/TC1/TC2/TD1/TD2 */
-    uint8_t          polarity;              /* PULSE_POLARITY_HIGH / LOW */
-    bool             is_enabled;            /* 输出使能标志 */
-    uint16_t         deadtime_rising_val;   /* 死区上升沿计数值 (0=禁用死区) */
-    uint16_t         deadtime_falling_val;  /* 死区下降沿计数值 (0=禁用死区) */
-    SoftStart_Ctrl_t softstart;             /* 软启动控制器 */
+    volatile uint8_t          channel;               /* 当前选中的逻辑通道 CH1 ~ CH8 */
+    volatile uint8_t          mode;                  /* PULSE_MODE_* */
+    volatile uint8_t          timer_idx;             /* HRTIM_TIMERINDEX_TIMER_A/B/C/D */
+    volatile uint32_t         timer_id;              /* HRTIM_TIMERID_TIMER_A/B/C/D */
+    volatile uint32_t         output_ch;             /* HRTIM_OUTPUT_TA1/TA2/TB1/TB2/TC1/TC2/TD1/TD2 */
+    volatile uint8_t          polarity;              /* PULSE_POLARITY_HIGH / LOW */
+    volatile bool             is_enabled;            /* 输出使能标志 */
+    volatile uint16_t         deadtime_rising_val;   /* 死区上升沿计数值 (0=禁用死区) */
+    volatile uint16_t         deadtime_falling_val;  /* 死区下降沿计数值 (0=禁用死区) */
+    volatile SoftStart_Ctrl_t softstart;             /* 软启动控制器 */
 } Pulse_Controller_t;
 
 extern Pulse_Controller_t g_pulse_ctrl;

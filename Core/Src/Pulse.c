@@ -111,7 +111,7 @@ static void Pulse_SyncContext(void)
     HRTIM_TIMERINDEX_TIMER_X = g_pulse_ctrl.timer_idx;
     HRTIM_TIMERID_TIMER_X    = g_pulse_ctrl.timer_id;
     HRTIM_OUTPUT_TXX         = g_pulse_ctrl.output_ch;
-    PULSE_MODE               = g_pulse_ctrl.mode;
+    /* 彻底删除此行：PULSE_MODE = g_pulse_ctrl.mode; */
     PULSE_OUT_ENABLED        = g_pulse_ctrl.is_enabled;
     PULSE_POLARITY           = g_pulse_ctrl.polarity;
 }
@@ -119,9 +119,12 @@ static void Pulse_SyncContext(void)
 /* 通道选择：严格按照 HARDWARE.md §5.1 表格映射 CH1 ~ CH8 */
 void Pulse_Select_Output(uint8_t CHx)
 {
-    Pulse_SetPulsePolarity_High();
-    if (g_pulse_ctrl.is_enabled)
-        Pulse_Disable_Output();
+    bool was_enabled = g_pulse_ctrl.is_enabled;
+    if (was_enabled) Pulse_Disable_Output(); // 先关断旧通道，严禁打出寄生脉冲
+
+    g_pulse_ctrl.mode = PULSE_MODE; // 同步当前 UI 所选模式
+
+    uint32_t _pm = __get_PRIMASK(); __disable_irq();
 
     g_pulse_ctrl.channel = CHx;
 
@@ -176,6 +179,8 @@ void Pulse_Select_Output(uint8_t CHx)
 
     Pulse_SyncContext();
 
+    __set_PRIMASK(_pm);
+
     if (PULSE_MODE == PULSE_MODE_NPULSE)
         Pulse_nPulse_Init();
     else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
@@ -187,8 +192,9 @@ void Pulse_Select_Output(uint8_t CHx)
     else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
         Pulse_lPWM_Init();
 
-    if (g_pulse_ctrl.is_enabled)
-        Pulse_Enable_Output();
+    Pulse_SetPulsePolarity_High();
+
+    if (was_enabled) Pulse_Enable_Output();
 }
 
 void Pulse_Enable_Output(void)
@@ -211,6 +217,12 @@ void Pulse_Enable_Output(void)
     if (PULSE_MODE == PULSE_MODE_PWM_LONG)
     {
         __HAL_TIM_SET_COUNTER(&htim5, 0);
+        if (lpwm_ccr > 0) { // 首周期立即输出有效电平，无需等待漫长的第一个溢出周期
+            if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+                Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+            else
+                Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+        }
         HAL_TIM_Base_Start_IT(&htim5);
         HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_1);
     }

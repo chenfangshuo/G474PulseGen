@@ -776,7 +776,7 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
             break;
             case 1: //设置数组弹窗调整的min step max 并跳转
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 500);
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 1, 500); break;
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
             break;
             case 2:
@@ -784,7 +784,7 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_spin_page);
             break;
             case 3:
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 500);
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 1, 500); break;
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
             break;
             //@二值选项框的值直接取出赋给我们想要的变量即可

@@ -31,15 +31,14 @@ uint8_t Key_GetState(uint8_t n)
 
 uint8_t Key_Check(uint8_t n, uint8_t Flag)
 {
-	if (Key_Flag[n] & Flag)
-	{
-		if (Flag != KEY_HOLD)
-		{
-			Key_Flag[n] &= ~Flag;
-		}
-		return 1;
+	uint8_t ret = 0;
+	uint32_t pm = __get_PRIMASK(); __disable_irq();
+	if (Key_Flag[n] & Flag) {
+		if (Flag != KEY_HOLD) Key_Flag[n] &= (uint8_t)~Flag;
+		ret = 1;
 	}
-	return 0;
+	__set_PRIMASK(pm);
+	return ret;
 }
 
 void Key_Tick(void)
