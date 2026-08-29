@@ -665,65 +665,111 @@ void Pulse_dPulse_Init(void)
 /* PWM 相关函数 */
 bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent)
 {
-    if (period_us < 1.0f || period_us > 1500.0f || duty_cycle_percent < 0 || duty_cycle_percent > 100)
+    /* ---------- 1. 入参合法性 ---------- */
+    if (period_us < 1.0f || period_us > 1500.0f ||
+        duty_cycle_percent < 0 || duty_cycle_percent > 100)
     {
         return false;
     }
 
-    uint32_t prescaler_value;
-    float current_hrtim_freq;
+    /* CMP 最小值随分频档变化 (RM0440: CK_PSC=0->0x60, 1->0x30, 2->0x18, 3->0x0C, 4->0x06, >=5->0x03)
+       低于该值的比较事件可能被硬件漏掉 -> Reset 不发生 -> 输出被卡在有效电平(等效 100% 占空) */
+    static const uint16_t cmp_min_tab[8] =
+        {0x60U, 0x30U, 0x18U, 0x0CU, 0x06U, 0x03U, 0x03U, 0x03U};
+
+    const uint8_t idx         = (uint8_t)g_pulse_ctrl.timer_idx;
+    const bool    was_enabled = g_pulse_ctrl.is_enabled;
+    bool          must_realign = false;
+
+    uint32_t prescaler_value    = 0U;
+    float    current_hrtim_freq = 0.0f;
     uint32_t period_value;
     uint32_t compare_value;
+    uint16_t cmp_min;
     HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
-    HRTIM_CompareCfgTypeDef CmpCfg = {0};
-    bool need_reenable = false;
+    HRTIM_CompareCfgTypeDef  CmpCfg    = {0};
 
-    float duty_cycle_f = (float)duty_cycle_percent / 100.0f;
-    float period_s     = US_TO_S(period_us);
-
-    Pulse_CalcPrescalerAndCounts(period_us, &prescaler_value, &current_hrtim_freq, NULL);
-
-    period_value = (uint32_t)roundf(period_s * current_hrtim_freq);
-    if (period_value > 0xFFDF)
-        period_value = 0xFFDF;
-    else if (period_value < 96)
+    /* ---------- 2. 计算分频比 / PER / CMP2 ---------- */
+    if (!Pulse_CalcPrescalerAndCounts(period_us, &prescaler_value, &current_hrtim_freq, NULL))
+    {
         return false;
-
-    compare_value = (uint32_t)roundf((float)period_value * duty_cycle_f);
-    if (compare_value >= period_value)
-        compare_value = period_value - 1;
-    else if (compare_value < 1 && duty_cycle_percent > 0)
-        compare_value = 1;
-
-    uint32_t current_psc_reg_val = (hhrtim1.Instance->sTimerxRegs[g_pulse_ctrl.timer_idx].TIMxCR & HRTIM_TIMCR_CK_PSC);
-    if ((prescaler_value != current_psc_reg_val) && g_pulse_ctrl.is_enabled)
-    {
-        Pulse_Disable_Output();
-        HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
-        need_reenable = true;
     }
 
-    ScalerCfg.Period = period_value;
+    period_value = (uint32_t)roundf(US_TO_S(period_us) * current_hrtim_freq);
+    if (period_value > 0xFFDFU)  period_value = 0xFFDFU;
+    else if (period_value < 96U) return false;
+
+    cmp_min = cmp_min_tab[prescaler_value & 0x07U];
+
+    compare_value = (uint32_t)roundf((float)period_value * ((float)duty_cycle_percent / 100.0f));
+    if (duty_cycle_percent == 0)
+    {
+        compare_value = 0U;                        /* 0%: CMP2 与 CMP1 同点, Reset 优先 -> 恒无效电平 */
+    }
+    else
+    {
+        if (compare_value < cmp_min)      compare_value = cmp_min;          /* 防漏掉 Reset 事件 */
+        if (compare_value >= period_value) compare_value = period_value - 1U; /* 100%: 周期末仍有 Reset */
+    }
+
+    /* ---------- 3. 确定性重对齐判据 (用旧 PER, 不用会变化的 CNT) ---------- */
+    {
+        uint32_t cur_psc = hhrtim1.Instance->sTimerxRegs[idx].TIMxCR & HRTIM_TIMCR_CK_PSC;
+        uint32_t old_per = hhrtim1.Instance->sTimerxRegs[idx].PERxR  & 0xFFFFU;
+
+        if (prescaler_value != cur_psc) must_realign = true; /* 换分频档: 时基不连续 */
+        if (period_value    <  old_per) must_realign = true; /* PER 收缩: CNT 可能已越过新 PER -> 冲到 0xFFFF */
+        if (!was_enabled)               must_realign = true; /* 停机态: CNT 残留旧值, 必须清零 */
+        /* PER 增大或不变且 PSC 不变: CNT < old_PER <= new_PER 恒成立, 任意相位 SWU 均安全, 无需停机 */
+    }
+
+    if (must_realign && was_enabled)
+    {
+        Pulse_Disable_Output();      /* 先停计数器与输出, 从根上杜绝畸变周期 */
+    }
+
+    /* ---------- 4. 写入新时基与占空比 ---------- */
+    ScalerCfg.Period            = period_value;
     ScalerCfg.RepetitionCounter = 0;
-    ScalerCfg.PrescalerRatio = prescaler_value;
-    ScalerCfg.Mode = HRTIM_MODE_CONTINUOUS;
-    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &ScalerCfg) != HAL_OK)
+    ScalerCfg.PrescalerRatio    = prescaler_value;
+    ScalerCfg.Mode              = HRTIM_MODE_CONTINUOUS;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, idx, &ScalerCfg) != HAL_OK)
     {
         Error_Handler();
     }
 
-    CmpCfg.CompareValue = compare_value;
-    CmpCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CmpCfg.CompareValue       = compare_value;
+    CmpCfg.AutoDelayedMode    = HRTIM_AUTODELAYEDMODE_REGULAR;
     CmpCfg.AutoDelayedTimeout = 0x0000;
-    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, idx, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
     {
         Error_Handler();
     }
 
-    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+    // /* ---------- 5. 预装载搬移 + 计数器对齐 ---------- */
+    // HAL_HRTIM_SoftwareUpdate(&hhrtim1, idx);
+    //
+    // if (must_realign)
+    // {
+    //     /* 计数器此刻确定处于停止状态, 可安全写 CNT;
+    //        保证重启后首周期完整, 且绝不会从残留大值冲向 0xFFFF */
+    //     hhrtim1.Instance->sTimerxRegs[idx].CNTxR = 0U;
+    // }
 
-    if (need_reenable)
+    /* ---------- 5'. 仅在停机态立即生效; 运行态交由 TxRSTU 在周期边界搬移 ---------- */
+    if (must_realign)
+    {
+        HAL_HRTIM_SoftwareUpdate(&hhrtim1, idx);
+        hhrtim1.Instance->sTimerxRegs[idx].CNTxR = 0U;
+    }
+
+
+
+    /* ---------- 6. 恢复输出 ---------- */
+    if (must_realign && was_enabled)
+    {
         Pulse_Enable_Output();
+    }
 
     return true;
 }

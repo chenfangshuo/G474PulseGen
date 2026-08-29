@@ -806,32 +806,22 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 5, 200);
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
             break;
-            case 15: // 180度交错模式切换开关
-                if (select_item->val)
-                {
-                    Pulse_InterleavedPWM_Init(10.0f, 50.0f);
-                    PULSE_OUT_ENABLED = 1;
-                }
-                else
-                {
-                    Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
-                }
-            break;
+            case 15: /* SS Ramp Run — SoftStart Tick 已停用，锁定 */
+                select_item->val = 0;                                     /* 复选框强制回弹 */
+                WouoUI_MsgWinPageSetContent(&common_msg_page,
+                    (char*)"Locked in this build.\nNot validated yet.");
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+                break;
             case 16: // 软启动爬升时间调节
                 WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 10, 500);
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
             break;
-            case 17: // 软启动触发测试开关
-                if (select_item->val)
-                {
-                    Pulse_SoftStart_Start(50.0f, (uint32_t)setting_option_array[16].val, true);
-                }
-                else
-                {
-                    Pulse_SoftStart_Stop(100);
-                }
-            break;
+            case 17: /* SS Ramp Run — SoftStart Tick 已停用，锁定 */
+                select_item->val = 0;                                     /* 复选框强制回弹 */
+                WouoUI_MsgWinPageSetContent(&common_msg_page,
+                    (char*)"Locked in this build.\nNot validated yet.");
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+                break;
             default:
                 break;
         }
