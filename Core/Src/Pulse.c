@@ -265,6 +265,7 @@ void Pulse_Disable_Output(void)
 
 void Pulse_SetPulsePolarity_High(void)
 {
+    const bool was_enabled = g_pulse_ctrl.is_enabled;
     g_pulse_ctrl.polarity = PULSE_POLARITY_HIGH;
     Pulse_SyncContext();
 
@@ -305,12 +306,12 @@ void Pulse_SetPulsePolarity_High(void)
     }
 
     HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
-    if (g_pulse_ctrl.is_enabled)
-        Pulse_Enable_Output();
+    if (was_enabled) Pulse_Enable_Output();
 }
 
 void Pulse_SetPulsePolarity_Low(void)
 {
+    const bool was_enabled = g_pulse_ctrl.is_enabled;
     g_pulse_ctrl.polarity = PULSE_POLARITY_LOW;
     Pulse_SyncContext();
 
@@ -351,8 +352,7 @@ void Pulse_SetPulsePolarity_Low(void)
     }
 
     HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
-    if (g_pulse_ctrl.is_enabled)
-        Pulse_Enable_Output();
+    if (was_enabled) Pulse_Enable_Output();
 }
 
 /* 单脉冲相关函数 */
@@ -363,6 +363,7 @@ bool Pulse_nPulse_SetPW(float pw)
         return false;
     }
 
+    const bool was_enabled = g_pulse_ctrl.is_enabled; // 暂存使能状态
     uint32_t prescaler_value;
     uint32_t compare_value;
     HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
@@ -373,8 +374,10 @@ bool Pulse_nPulse_SetPW(float pw)
         return false;
     }
 
-    Pulse_Disable_Output();
-    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+    hhrtim1.Instance->sMasterRegs.MCR &= ~g_pulse_ctrl.timer_id;
+
+    // Pulse_Disable_Output();
+    // HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
     ScalerCfg.Period = 65503;
     ScalerCfg.RepetitionCounter = 0;
@@ -393,10 +396,12 @@ bool Pulse_nPulse_SetPW(float pw)
         Error_Handler();
     }
 
+    hhrtim1.Instance->sTimerxRegs[g_pulse_ctrl.timer_idx].CNTxR = 0;
     HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-    if (g_pulse_ctrl.is_enabled)
-        Pulse_Enable_Output();
+    if (was_enabled) {
+        hhrtim1.Instance->sMasterRegs.MCR |= g_pulse_ctrl.timer_id;
+    }
 
     return true;
 }
@@ -434,7 +439,7 @@ void Pulse_nPulse_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED; // 开启预装载防抖
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED; // 开启预装载防抖
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
@@ -481,7 +486,7 @@ void Pulse_nPulse_Init(void)
 
     HAL_HRTIM_MspPostInit(&hhrtim1);
 
-    Pulse_nPulse_SetPW(100.0f);
+    Pulse_nPulse_SetPW(1.0f);
     Pulse_SetPulsePolarity_High();
 }
 
@@ -493,6 +498,7 @@ bool Pulse_dPulse_SetPW(int32_t pw1, int32_t interval, int32_t pw2)
         return false;
     }
 
+    const bool was_enabled = g_pulse_ctrl.is_enabled; // 暂存使能状态
     float ptotal = (float)(pw1 + interval + pw2);
     uint32_t prescaler_value;
     float current_hrtim_freq;
@@ -519,8 +525,10 @@ bool Pulse_dPulse_SetPW(int32_t pw1, int32_t interval, int32_t pw2)
     if (compare_value4 > 0xFFDF) compare_value4 = 0xFFDF;
     else if (compare_value4 < 96) compare_value4 = 96;
 
-    Pulse_Disable_Output();
-    HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
+    hhrtim1.Instance->sMasterRegs.MCR &= ~g_pulse_ctrl.timer_id;
+
+    // Pulse_Disable_Output();
+    // HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
     ScalerCfg.Period = 65503;
     ScalerCfg.RepetitionCounter = 0;
@@ -557,10 +565,12 @@ bool Pulse_dPulse_SetPW(int32_t pw1, int32_t interval, int32_t pw2)
         Error_Handler();
     }
 
+    hhrtim1.Instance->sTimerxRegs[g_pulse_ctrl.timer_idx].CNTxR = 0;
     HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-    if (g_pulse_ctrl.is_enabled)
-        Pulse_Enable_Output();
+    if (was_enabled) {
+        hhrtim1.Instance->sMasterRegs.MCR |= g_pulse_ctrl.timer_id;
+    }
 
     return true;
 }
@@ -599,7 +609,7 @@ void Pulse_dPulse_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED; // 开启预装载防抖
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED; // 开启预装载防抖
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;

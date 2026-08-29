@@ -148,9 +148,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    //当检测到无供电时关闭12V输出并执行QOD (使用 LTC 状态检测宏)
-    if (!LTC_IS_ANY_PWR_VALID())
+    /* 12V 供电闭环管理：LTC4421 检测到供电正常则开启负载开关，掉电微秒级瞬间切断 */
+    if (LTC_IS_ANY_PWR_VALID())
+    {
+      LOADSW_ENABLE();
+    }
+    else
+    {
       LOADSW_DISABLE();
+    }
 
     if (Key_Check(K_UP, KEY_DOWN) || Key_Check(K_UP, KEY_REPEAT))
     {
@@ -334,12 +340,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     waiting_for_trg_flag = !waiting_for_trg_flag;
     triggered = 0;
-
-    // 毫秒级高频检测 LTC4421 供电，若掉电则毫秒级快速切断 LOADSW
-    if (!LTC_IS_ANY_PWR_VALID())
-    {
-      LOADSW_DISABLE();
-    }
 
     // 软启动状态机 Tick 更新
     // Pulse_SoftStart_Update();

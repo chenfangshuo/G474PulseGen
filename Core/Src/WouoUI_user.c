@@ -882,20 +882,24 @@ bool CommonConfPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     return false;
 }
 
-bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
-    if (msg_click == msg) {
+bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
+{
+    if (msg_click == msg)
+    {
         if (!strcmp(common_val_page.bg_opt->text, "~ Title Ani")) {
             g_default_ui_para.ani_param[TILE_ANI] = common_val_page.val;
         } else if (!strcmp(common_val_page.bg_opt->text, "~ IND Ani")) {
             g_default_ui_para.ani_param[IND_ANI] = common_val_page.val;
-        } else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)")) {
-            setting_option_array[13].val = common_val_page.val;
-            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
-        } else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)")) {
-            setting_option_array[14].val = common_val_page.val;
-            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
-        } else if (!strcmp(common_val_page.bg_opt->text, "~ SoftStart(ms)")) {
-            setting_option_array[16].val = common_val_page.val;
+        } else if (PULSE_MODE == PULSE_MODE_DPULSE) {
+            // 点击确认时同步保存并刷新双脉冲参数
+            if (!strcmp(common_val_page.bg_opt->text, "~ 1nd PW(uS)"))
+                double_pulse_option_array[3].val = common_val_page.val;
+            else if (!strcmp(common_val_page.bg_opt->text, "~ Interval(uS)"))
+                double_pulse_option_array[4].val = common_val_page.val;
+            else if (!strcmp(common_val_page.bg_opt->text, "~ 2nd PW(uS)"))
+                double_pulse_option_array[5].val = common_val_page.val;
+
+            Pulse_dPulse_SetPW(double_pulse_option_array[3].val, double_pulse_option_array[4].val, double_pulse_option_array[5].val);
         }
     }
     if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
@@ -915,20 +919,6 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             pwm_option_array[4].val = common_val_page.val;
             Pulse_PWM_SetPW((float)pwm_option_array[3].val, pwm_option_array[4].val);
-        }
-        else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)"))
-        {
-            setting_option_array[13].val = common_val_page.val;
-            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
-        }
-        else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)"))
-        {
-            setting_option_array[14].val = common_val_page.val;
-            Pulse_SetDeadTime(g_pulse_ctrl.timer_idx, (uint16_t)setting_option_array[13].val, (uint16_t)setting_option_array[14].val);
-        }
-        else if (!strcmp(common_val_page.bg_opt->text, "~ SoftStart(ms)"))
-        {
-            setting_option_array[16].val = common_val_page.val;
         }
     }
     return false;
@@ -1110,21 +1100,22 @@ bool PolaritySelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
     // return res;
 }
 
-bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg){
-    if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg) {
-        if(pw_spin_page.sel_flag) //选中状态
+bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
+{
+    if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
+    {
+        if (pw_spin_page.sel_flag) // 处于数字调节状态
         {
             if (PULSE_MODE == PULSE_MODE_NPULSE)
             {
-                Option* select_item = WouoUI_ListTitlePageGetSelectOpt((PageAddr)&single_pulse_page);
                 single_pulse_option_array[3].val = pw_spin_page.val;
-                Pulse_nPulse_SetPW(WouoUI_GetOptionFloatVal(select_item));
+                // 解决指针错位：直接按 2 位小数精确除以 100.0f
+                Pulse_nPulse_SetPW((float)single_pulse_option_array[3].val / 100.0f);
             }
             else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
             {
-                Option* select_item = WouoUI_ListTitlePageGetSelectOpt((PageAddr)&single_pulse_long_page);
                 single_pulse_long_option_array[3].val = pw_spin_page.val;
-                Pulse_slPulse_SetPW(WouoUI_GetOptionFloatVal(select_item));
+                Pulse_slPulse_SetPW((float)single_pulse_long_option_array[3].val / 1000.0f);
             }
             else if (PULSE_MODE == PULSE_MODE_PWM)
             {
@@ -1138,11 +1129,7 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg){
                 else if (strstr(pw_spin_page.bg_opt->text, "Duty"))
                     pwm_long_option_array[4].val = pw_spin_page.val;
 
-
-                // Option* select_item = WouoUI_ListTitlePageGetSelectOpt((PageAddr)&pwm_long_page);
-                // Pulse_lPWM_SetPW(WouoUI_GetOptionFloatVal(select_item), (float)pwm_long_option_array[4].val);
                 Pulse_lPWM_SetPW((pwm_long_option_array[3].val / 1000.0f), (pwm_long_option_array[4].val / 100.0f));
-                // Pulse_lPWM_SetPW(2.0f, 50.0f);
             }
         }
     }
