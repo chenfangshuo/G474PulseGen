@@ -342,7 +342,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 
     // 软启动状态机 Tick 更新
-    Pulse_SoftStart_Update();
+    // Pulse_SoftStart_Update();
   }
   if(htim->Instance == TIM5)
   {

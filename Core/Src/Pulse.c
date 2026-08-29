@@ -772,7 +772,7 @@ void Pulse_PWM_Init(void)
     TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
     TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
     TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
-    TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
+    TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_ENABLED;
     TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
     if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCfg) != HAL_OK)
     {
@@ -1039,16 +1039,21 @@ void Pulse_SoftStart_Update(void)
 /* Step 5: 硬件级与软件级紧急关断 (Safe-State 硬件保护) */
 void Pulse_EmergencyStop(void)
 {
-    /* 1. 瞬时强制拉低 PA12 (LOADSW) 切断 12V 外部供电并启动 QOD 快速放电 */
+    /* 1. 瞬时强制拉低 PA12 (LOADSW) 切断 12V（零依赖，必须第一句执行） */
     LOADSW_DISABLE();
 
-    /* 2. 硬件级清零 HRTIM 输出使能寄存器 (ODISR) 立即断开所有 8 路高精发波输出 */
-    HRTIM1->sCommonRegs.ODISR = 0xFFFFFFFFU; // 强制禁用全部通道输出
-    HRTIM1->sMasterRegs.MCR  &= ~(HRTIM_MCR_MCEN | HRTIM_MCR_TACEN | HRTIM_MCR_TBCEN | HRTIM_MCR_TCCEN | HRTIM_MCR_TDCEN);
+    /* 2. 检查 HRTIM 时钟是否使能，安全关断全部 8 路高精发波输出 */
+    if (RCC->APB2ENR & RCC_APB2ENR_HRTIM1EN) {
+        HRTIM1->sCommonRegs.ODISR = 0xFFFFFFFFU;
+        HRTIM1->sMasterRegs.MCR &= ~(HRTIM_MCR_MCEN | HRTIM_MCR_TACEN |
+                                     HRTIM_MCR_TBCEN | HRTIM_MCR_TCCEN | HRTIM_MCR_TDCEN);
+    }
 
-    /* 3. 关闭长脉冲定时器 TIM5 并拉低 GPIO */
-    __HAL_TIM_DISABLE(&htim5);
-    Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+    /* 3. 检查 TIM5 句柄与时钟，防止解引用 NULL 指针引发 HardFault 递归锁死 */
+    if ((htim5.Instance != NULL) && (RCC->APB1ENR1 & RCC_APB1ENR1_TIM5EN)) {
+        htim5.Instance->CR1 &= ~TIM_CR1_CEN;
+        Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+    }
 
     /* 4. 更新内部状态机为故障保护状态 */
     g_pulse_ctrl.is_enabled      = false;
