@@ -10,6 +10,8 @@ Pulse_Controller_t g_pulse_ctrl = {
     .timer_idx            = HRTIM_TIMERINDEX_TIMER_B,
     .timer_id             = HRTIM_TIMERID_TIMER_B,
     .output_ch            = HRTIM_OUTPUT_TB2,
+    .output_ch2           = HRTIM_OUTPUT_TB1,
+    .pair_idx             = COMP_PAIR_CH1_CH2,
     .polarity             = PULSE_POLARITY_HIGH,
     .is_enabled           = false
 };
@@ -112,6 +114,54 @@ static void Pulse_SyncContext(void)
     PULSE_POLARITY           = g_pulse_ctrl.polarity;
 }
 
+/* 互补通道对 GPIO 映射 (严格遵循 HARDWARE.md §5.1:
+   同一定时器 Tx1(主路/参考) 与 Tx2(互补) 由 HRTIM 死区硬件生成) */
+typedef struct {
+    GPIO_TypeDef *port;
+    uint16_t      pin_main;   /* Tx1 主路引脚 */
+    uint16_t      pin_comp;   /* Tx2 互补引脚 */
+} Pulse_CompPinMap_t;
+
+static const Pulse_CompPinMap_t s_comp_pin_map[4] = {
+    /* pair0: CH1&CH2 -> Timer B: TB1(PA10,CH2)=主路, TB2(PA11,CH1)=互补 */
+    { GPIOA, HRT_CHB1_Pin, HRT_CHB2_Pin },
+    /* pair1: CH3&CH4 -> Timer A: TA1(PA8,CH4)=主路, TA2(PA9,CH3)=互补 */
+    { GPIOA, HRT_CHA1_Pin, HRT_CHA2_Pin },
+    /* pair2: CH5&CH6 -> Timer D: TD1(PB14,CH6)=主路, TD2(PB15,CH5)=互补 */
+    { GPIOB, HRT_CHD1_Pin, HRT_CHD2_Pin },
+    /* pair3: CH7&CH8 -> Timer C: TC1(PB12,CH8)=主路, TC2(PB13,CH7)=互补 */
+    { GPIOB, HRT_CHC1_Pin, HRT_CHC2_Pin },
+};
+
+static const Pulse_CompPinMap_t *Pulse_CompPinGet(void)
+{
+    uint8_t p = g_pulse_ctrl.pair_idx;
+    if (p > 3U) p = 0U;
+    return &s_comp_pin_map[p];
+}
+
+/* 互补引脚电平控制 (TIM5 超长互补模式软件死区使用, BSRR 原子写杜绝共态导通) */
+static void Pulse_CompPinMainSetActive(void)
+{
+    const Pulse_CompPinMap_t *m = Pulse_CompPinGet();
+    m->port->BSRR = m->pin_main;
+}
+static void Pulse_CompPinMainSetInactive(void)
+{
+    const Pulse_CompPinMap_t *m = Pulse_CompPinGet();
+    m->port->BSRR = (uint32_t)m->pin_main << 16U;
+}
+static void Pulse_CompPinCompSetActive(void)
+{
+    const Pulse_CompPinMap_t *m = Pulse_CompPinGet();
+    m->port->BSRR = m->pin_comp;
+}
+static void Pulse_CompPinCompSetInactive(void)
+{
+    const Pulse_CompPinMap_t *m = Pulse_CompPinGet();
+    m->port->BSRR = (uint32_t)m->pin_comp << 16U;
+}
+
 /* 通道选择：严格按照 HARDWARE.md §5.1 表格映射 CH1 ~ CH8 */
 void Pulse_Select_Output(uint8_t CHx)
 {
@@ -207,6 +257,12 @@ void Pulse_Enable_Output(void)
     HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch);
     HAL_HRTIM_WaveformCountStart(&hhrtim1, g_pulse_ctrl.timer_id);
 
+    if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+    {
+        /* 互补模式: 同时使能 Tx1(主路) 与 Tx2(互补) 两路输出 */
+        HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch2);
+    }
+
     if (PULSE_MODE == PULSE_MODE_PWM_LONG)
     {
         __HAL_TIM_SET_COUNTER(&htim5, 0);
@@ -218,6 +274,17 @@ void Pulse_Enable_Output(void)
         }
         HAL_TIM_Base_Start_IT(&htim5);
         HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_1);
+    }
+    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    {
+        /* 超长互补: 两路均先拉低, 启动 TIM5 后由 CC3 死区点再开主路, 严禁直通 */
+        __HAL_TIM_SET_COUNTER(&htim5, 0);
+        Pulse_CompPinMainSetInactive();
+        Pulse_CompPinCompSetInactive();
+        HAL_TIM_Base_Start_IT(&htim5);
+        HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_1);
+        HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_2);
+        HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_3);
     }
 }
 
@@ -233,6 +300,12 @@ void Pulse_Disable_Output(void)
     HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch);
     HAL_HRTIM_WaveformCountStop(&hhrtim1, g_pulse_ctrl.timer_id);
 
+    if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+    {
+        /* 互补模式: 同时关断 Tx1 与 Tx2 两路输出 */
+        HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch2);
+    }
+
     if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
     {
         s_pulse_remain = 0;
@@ -245,6 +318,15 @@ void Pulse_Disable_Output(void)
         HAL_TIM_Base_Stop_IT(&htim5);
         HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_1);
         Pulse_LongPin_SetInactive();
+    }
+    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    {
+        HAL_TIM_Base_Stop_IT(&htim5);
+        HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_1);
+        HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_2);
+        HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_3);
+        Pulse_CompPinMainSetInactive();
+        Pulse_CompPinCompSetInactive();
     }
 }
 
@@ -988,6 +1070,13 @@ void Pulse_EmergencyStop(void)
         Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
     }
 
+    /* 3b. 互补模式安全态: 主路与互补路两路瞬间同时拉低, 严禁物理电平重叠直通 */
+    if (g_pulse_ctrl.mode == PULSE_MODE_COMP_PWM_LONG)
+    {
+        Pulse_CompPinMainSetInactive();
+        Pulse_CompPinCompSetInactive();
+    }
+
     /* 4. 更新内部状态机为故障保护状态 */
     g_pulse_ctrl.is_enabled = false;
     s_npulse_remain = 0;
@@ -1259,6 +1348,457 @@ void Pulse_lPWM_Init(void)
 
     Pulse_lPWM_SetPW(1.0f, 50.0f);
     Pulse_SetPulsePolarity_High();
+}
+
+/* ==================== 互补 PWM (HRTIM 高精度) ==================== */
+
+/* 互补通道对选择: 同一 HRTIM Timer 的 Tx1(主路/参考) 与 Tx2(互补), 死区硬件生成 */
+void Pulse_Select_CompPair(uint8_t pair_idx)
+{
+    if (pair_idx > 3U) pair_idx = 0U;
+    const bool was_enabled = g_pulse_ctrl.is_enabled;
+    if (was_enabled) Pulse_Disable_Output();   /* 先关断旧通道对, 严禁打出寄生脉冲 */
+
+    g_pulse_ctrl.mode     = PULSE_MODE;
+    g_pulse_ctrl.pair_idx = pair_idx;
+
+    switch (pair_idx)
+    {
+        case COMP_PAIR_CH1_CH2: /* Timer B: TB1(PA10,CH2)=主路, TB2(PA11,CH1)=互补 */
+            g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_B;
+            g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_B;
+            g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TB1;
+            g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TB2;
+            break;
+        case COMP_PAIR_CH3_CH4: /* Timer A: TA1(PA8,CH4)=主路, TA2(PA9,CH3)=互补 */
+            g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_A;
+            g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_A;
+            g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TA1;
+            g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TA2;
+            break;
+        case COMP_PAIR_CH5_CH6: /* Timer D: TD1(PB14,CH6)=主路, TD2(PB15,CH5)=互补 */
+            g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_D;
+            g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_D;
+            g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TD1;
+            g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TD2;
+            break;
+        case COMP_PAIR_CH7_CH8: /* Timer C: TC1(PB12,CH8)=主路, TC2(PB13,CH7)=互补 */
+            g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_C;
+            g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_C;
+            g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TC1;
+            g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TC2;
+            break;
+        default:
+            break;
+    }
+
+    Pulse_SyncContext();
+
+    if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+        Pulse_CompPWM_Init();
+    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+        Pulse_CompLPWM_Init();
+
+    if (was_enabled) Pulse_Enable_Output();
+}
+
+/* 死区时间 -> HRTIM 死区时钟分频档与 9bit 计数值
+   fHRTIM = 170MHz, fDTG = fHRTIM 倍频/分频, 单 tick 时间见下表 */
+static void Pulse_CompPWM_CalcDeadTime(uint32_t dt_rise_ns, uint32_t dt_fall_ns,
+                                       uint32_t *out_psc, uint32_t *out_rise_val, uint32_t *out_fall_val)
+{
+    /* 取 rise/fall 较大者决定分频档, 保证 9bit (0~511) 能容纳 */
+    uint32_t dt_max = (dt_rise_ns > dt_fall_ns) ? dt_rise_ns : dt_fall_ns;
+    uint32_t psc;
+    float tick_ns;
+
+    if (dt_max <= 375U)        { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_MUL8; tick_ns = 0.735294f; }
+    else if (dt_max <= 751U)   { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_MUL4; tick_ns = 1.470588f; }
+    else if (dt_max <= 1502U)  { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_MUL2; tick_ns = 2.941176f; }
+    else                       { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_DIV1; tick_ns = 5.882353f; }
+
+    uint32_t rv = (uint32_t)roundf((float)dt_rise_ns / tick_ns);
+    uint32_t fv = (uint32_t)roundf((float)dt_fall_ns / tick_ns);
+    if (rv > 511U) rv = 511U;
+    if (fv > 511U) fv = 511U;
+
+    if (out_psc)      *out_psc      = psc;
+    if (out_rise_val) *out_rise_val = rv;
+    if (out_fall_val) *out_fall_val = fv;
+}
+
+/* 高精度互补 PWM: 周期 1~1500us, 占空比 0~100%, 上升/下降沿死区 0~1000ns */
+bool Pulse_CompPWM_SetPW(float period_us, int32_t duty_cycle_percent, uint32_t dt_rise_ns, uint32_t dt_fall_ns)
+{
+    if (period_us < 1.0f || period_us > 1500.0f)         return false;
+    if (duty_cycle_percent < 0 || duty_cycle_percent > 100) return false;
+    if (dt_rise_ns > 1000U || dt_fall_ns > 1000U)        return false;
+
+    /* CMP 最小值随分频档变化 (同 PWM, 低于该值 Reset 可能被漏掉) */
+    static const uint16_t cmp_min_tab[8] =
+        {0x60U, 0x30U, 0x18U, 0x0CU, 0x06U, 0x03U, 0x03U, 0x03U};
+
+    const uint8_t idx         = (uint8_t)g_pulse_ctrl.timer_idx;
+    const bool    was_enabled = g_pulse_ctrl.is_enabled;
+    bool          must_realign = false;
+
+    uint32_t prescaler_value    = 0U;
+    float    current_hrtim_freq = 0.0f;
+    uint32_t period_value;
+    uint32_t compare_value;
+    uint16_t cmp_min;
+    HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
+    HRTIM_CompareCfgTypeDef  CmpCfg    = {0};
+    HRTIM_DeadTimeCfgTypeDef DeadTimeCfg = {0};
+
+    if (!Pulse_CalcPrescalerAndCounts(period_us, &prescaler_value, &current_hrtim_freq, NULL))
+        return false;
+
+    period_value = (uint32_t)roundf(US_TO_S(period_us) * current_hrtim_freq);
+    if (period_value > 0xFFDFU)  period_value = 0xFFDFU;
+    else if (period_value < 96U) return false;
+
+    cmp_min = cmp_min_tab[prescaler_value & 0x07U];
+
+    compare_value = (uint32_t)roundf((float)period_value * ((float)duty_cycle_percent / 100.0f));
+    if (duty_cycle_percent == 0)
+    {
+        compare_value = 0U;                        /* 0%: 恒无效电平 */
+    }
+    else
+    {
+        if (compare_value < cmp_min)      compare_value = cmp_min;
+        if (compare_value >= period_value) compare_value = period_value - 1U;
+    }
+
+    /* 死区不得吞没整个脉冲: 钳制在半个周期以内 */
+    uint32_t half_period_ns = (uint32_t)((float)period_us * 1000.0f / 2.0f);
+    if (half_period_ns == 0U) half_period_ns = 1U;
+    if (dt_rise_ns > half_period_ns) dt_rise_ns = half_period_ns;
+    if (dt_fall_ns > half_period_ns) dt_fall_ns = half_period_ns;
+
+    /* 确定性重对齐判据 (同 PWM: 换分频档 / PER 收缩 / 停机态均需重对齐) */
+    {
+        uint32_t cur_psc = hhrtim1.Instance->sTimerxRegs[idx].TIMxCR & HRTIM_TIMCR_CK_PSC;
+        uint32_t old_per = hhrtim1.Instance->sTimerxRegs[idx].PERxR  & 0xFFFFU;
+
+        if (prescaler_value != cur_psc) must_realign = true;
+        if (period_value    <  old_per) must_realign = true;
+        if (!was_enabled)               must_realign = true;
+    }
+
+    if (must_realign && was_enabled)
+    {
+        Pulse_Disable_Output();
+    }
+
+    /* 写入新时基与占空比 */
+    ScalerCfg.Period            = period_value;
+    ScalerCfg.RepetitionCounter = 0;
+    ScalerCfg.PrescalerRatio    = prescaler_value;
+    ScalerCfg.Mode              = HRTIM_MODE_CONTINUOUS;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, idx, &ScalerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    CmpCfg.CompareValue       = compare_value;
+    CmpCfg.AutoDelayedMode    = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CmpCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, idx, HRTIM_COMPAREUNIT_2, &CmpCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* 配置死区发生器 (Tx1 参考 / Tx2 互补, 硬件杜绝共态导通) */
+    uint32_t dt_psc, dt_rise_val, dt_fall_val;
+    Pulse_CompPWM_CalcDeadTime(dt_rise_ns, dt_fall_ns, &dt_psc, &dt_rise_val, &dt_fall_val);
+
+    DeadTimeCfg.Prescaler      = dt_psc;
+    DeadTimeCfg.RisingValue    = dt_rise_val;
+    DeadTimeCfg.RisingSign     = HRTIM_TIMDEADTIME_RISINGSIGN_POSITIVE;
+    DeadTimeCfg.RisingLock     = HRTIM_TIMDEADTIME_RISINGLOCK_WRITE;
+    DeadTimeCfg.RisingSignLock = HRTIM_TIMDEADTIME_RISINGSIGNLOCK_WRITE;
+    DeadTimeCfg.FallingValue   = dt_fall_val;
+    DeadTimeCfg.FallingSign    = HRTIM_TIMDEADTIME_FALLINGSIGN_POSITIVE;
+    DeadTimeCfg.FallingLock    = HRTIM_TIMDEADTIME_FALLINGLOCK_WRITE;
+    DeadTimeCfg.FallingSignLock = HRTIM_TIMDEADTIME_FALLINGSIGNLOCK_WRITE;
+    if (HAL_HRTIM_DeadTimeConfig(&hhrtim1, idx, &DeadTimeCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    if (must_realign)
+    {
+        HAL_HRTIM_SoftwareUpdate(&hhrtim1, idx);
+        hhrtim1.Instance->sTimerxRegs[idx].CNTxR = 0U;
+    }
+
+    if (must_realign && was_enabled)
+    {
+        Pulse_Enable_Output();
+    }
+
+    return true;
+}
+
+void Pulse_CompPWM_Init(void)
+{
+    g_pulse_ctrl.mode = PULSE_MODE_COMP_PWM;
+    Pulse_SyncContext();
+
+    TimeBaseCfg.Period = 65503;
+    TimeBaseCfg.RepetitionCounter = 0;
+    TimeBaseCfg.PrescalerRatio = HRTIM_PRESCALERRATIO_MUL32;
+    TimeBaseCfg.Mode = HRTIM_MODE_CONTINUOUS;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimeBaseCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    TimerCtl.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
+    TimerCtl.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
+    TimerCtl.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
+    TimerCtl.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
+    if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCtl) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    TimerCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
+    TimerCfg.DMARequests = HRTIM_TIM_DMA_NONE;
+    TimerCfg.DMASrcAddress = 0x0000;
+    TimerCfg.DMADstAddress = 0x0000;
+    TimerCfg.DMASize = 0x1;
+    TimerCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
+    TimerCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
+    TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
+    TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
+    TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_ENABLED;      /* 开启预装载防抖 */
+    TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
+    TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
+    TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
+    TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
+    TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_ENABLED;  /* 开启死区插入 */
+    TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
+    TimerCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
+    TimerCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
+    TimerCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_ENABLED;            /* 复位时更新 */
+    TimerCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
+    if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, g_pulse_ctrl.timer_idx, &TimerCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    CompareCfg.CompareValue = 0;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_1, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    CompareCfg.CompareValue = 5435;
+    CompareCfg.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    CompareCfg.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_COMPAREUNIT_2, &CompareCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* Tx1 主路输出: CMP1 置位 / CMP2 复位 */
+    OutputCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+    OutputCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+    OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+    OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+    OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+    OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* Tx2 互补输出: Set/Reset 均置 NONE, 波形由死区硬件从 Tx1 自动生成 */
+    OutputCfg.SetSource = HRTIM_OUTPUTSET_NONE;
+    OutputCfg.ResetSource = HRTIM_OUTPUTRESET_NONE;
+    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch2, &OutputCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    HAL_HRTIM_MspPostInit(&hhrtim1);
+
+    Pulse_CompPWM_SetPW(10.0f, 50, 100, 100);
+}
+
+/* ==================== 互补 PWM Long (TIM5 超长, 软件死区) ==================== */
+
+/* 超长互补 PWM: 周期 0.001~1000s, 占空比 0.01~100%, 死区 1~5000ms */
+bool Pulse_CompLPWM_SetPW(float period_s, float duty_percent, uint32_t dt_ms)
+{
+    if (period_s < 0.001f || period_s > 1000.0f) return false;
+    if (duty_percent < 0.01f || duty_percent > 100.0f) return false;
+    if (dt_ms < 1U || dt_ms > 5000U) return false;
+
+    const uint32_t f_clk = 170000000UL;
+    uint32_t psc;
+    uint32_t period_ticks;
+
+    if (period_s <= 20.0f)
+    {
+        psc = 0U;
+        period_ticks = (uint32_t)(period_s * (float)f_clk);
+    }
+    else
+    {
+        psc = (f_clk / 1000000UL) - 1UL;   /* 分频后 1MHz 计数 */
+        period_ticks = (uint32_t)(period_s * 1000000.0f);
+    }
+
+    if (period_ticks < 8U) period_ticks = 8U;   /* 至少容纳 3 个比较事件 */
+    const uint32_t arr = period_ticks - 1U;
+
+    /* 死区 tick 数 (psc=0: 1ms=170000tick, 否则 1ms=1000tick) */
+    uint32_t dt_ticks = (psc == 0U)
+        ? (uint32_t)((float)dt_ms * (float)f_clk / 1000.0f)
+        : dt_ms * 1000UL;
+
+    /* 死区钳制到半个周期以内, 保证主路与互补路均能导通 */
+    uint32_t max_dt = period_ticks / 2U - 1U;
+    if (dt_ticks > max_dt) dt_ticks = max_dt;
+    if (dt_ticks < 1U)     dt_ticks = 1U;
+
+    /* 占空比点 (主路关断), 钳制保证主路/互补路导通时间均 > 死区 */
+    uint32_t duty_ticks = (uint32_t)((float)period_ticks * (duty_percent / 100.0f));
+    if (duty_ticks < dt_ticks + 1U)                 duty_ticks = dt_ticks + 1U;
+    if (duty_ticks > period_ticks - dt_ticks - 1U)  duty_ticks = period_ticks - dt_ticks - 1U;
+
+    /* 事件时序: CC3(死区点)主路开 -> CC1(占空比)主路关 -> CC2(占空比+死区)互补开 -> 更新(周期末)互补关 */
+    const uint32_t cc3 = dt_ticks;                 /* 主路开启 */
+    const uint32_t cc1 = duty_ticks;               /* 主路关断 */
+    const uint32_t cc2 = duty_ticks + dt_ticks;    /* 互补路开启 */
+
+    __HAL_TIM_SET_PRESCALER(&htim5, psc);
+    __HAL_TIM_SET_AUTORELOAD(&htim5, arr);
+    __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_1, cc1);
+    __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, cc2);
+    __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, cc3);
+    __HAL_TIM_SET_COUNTER(&htim5, 0);
+
+    TIM5->EGR = TIM_EGR_UG;
+    TIM5->SR &= ~(TIM_SR_UIF | TIM_SR_CC1IF | TIM_SR_CC2IF | TIM_SR_CC3IF);
+
+    return true;
+}
+
+void Pulse_CompLPWM_Init(void)
+{
+    g_pulse_ctrl.mode = PULSE_MODE_COMP_PWM_LONG;
+    Pulse_SyncContext();
+
+    TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+    TIM_MasterConfigTypeDef sMasterConfig = {0};
+    TIM_OC_InitTypeDef sConfigOC = {0};
+
+    htim5.Instance = TIM5;
+    htim5.Init.Prescaler = 0;
+    htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim5.Init.Period = 4294967295;
+    htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+    if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+    if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+    sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+    if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    if (HAL_TIM_OC_Init(&htim5) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* CC1/CC2/CC3 均为 TIMING 模式, 仅产生比较中断用于软件死区电平切换 */
+    sConfigOC.OCMode = TIM_OCMODE_TIMING;
+    sConfigOC.Pulse = 0;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
+    __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_2);
+    __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_3);
+
+    /* 将所有 8 路 HRTIM 输出引脚配置为推挽输出 (软件翻转互补电平) */
+    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin);
+    HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    /* 初始电平: 主路与互补路均无效, 严禁直通 */
+    Pulse_CompPinMainSetInactive();
+    Pulse_CompPinCompSetInactive();
+
+    Pulse_CompLPWM_SetPW(1.0f, 50.0f, 10);
+}
+
+/* 周期溢出: 互补路先关断 (主路保持关断, 待 CC3 死区点后开启) */
+void Pulse_CompLPWM_OnPeriodElapsed(void)
+{
+    Pulse_CompPinCompSetInactive();
+}
+
+/* CC1 匹配(占空比点): 主路关断 */
+void Pulse_CompLPWM_OnDuty(void)
+{
+    Pulse_CompPinMainSetInactive();
+}
+
+/* CC2 匹配(占空比+死区点): 互补路开启 (主路已关断, 死区保证) */
+void Pulse_CompLPWM_OnCompOn(void)
+{
+    Pulse_CompPinCompSetActive();
+}
+
+/* CC3 匹配(死区点): 主路开启 (互补路已在周期起点关断) */
+void Pulse_CompLPWM_OnMainOn(void)
+{
+    Pulse_CompPinMainSetActive();
 }
 
 /* 获取长脉冲模式对应的 GPIO 端口 (严格对齐 HARDWARE.md §5.1) */

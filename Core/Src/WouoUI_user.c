@@ -16,8 +16,11 @@ TitlePage main_page;
     ListPage double_pulse_page;
     ListPage pwm_page;
     ListPage pwm_long_page;
+    ListPage comp_pwm_page;
+    ListPage comp_pwm_long_page;
         ListWin ch_sel_page;
         ListWin polarity_sel_page;
+        ListWin comp_pair_sel_page;
         SpinWin pw_spin_page;
     ListPage setting_page;
         MsgWin common_msg_page; //共用的消息弹窗
@@ -34,7 +37,7 @@ TitlePage main_page;
             ListPage about_version_page;
 //--------定义每个页面需要的一些参数
 // 部分页面内选项个数
-#define MAIN_PAGE_NUM         7 //因为有两个数组所以做宏定义
+#define MAIN_PAGE_NUM         9 //因为有两个数组所以做宏定义
 // 定义部分页面选项
 //********main页面的选项
 Option main_option_array[MAIN_PAGE_NUM] =
@@ -45,6 +48,8 @@ Option main_option_array[MAIN_PAGE_NUM] =
         {.text = (char *)"+ Double Pulse"},
         {.text = (char *)"+ PWM"},
         {.text = (char *)"+ PWM Long"},
+        {.text = (char *)"+ Comp PWM"},
+        {.text = (char *)"+ Comp PWM Long"},
         {.text = (char *)"+ Setting"},
         // {.text = (char *)"~ This is a volumn page for test win in win",},
         // {.text = (char *)"% Spin", .val = 123456, .decimalNum = DecimalNum_2},
@@ -170,6 +175,48 @@ Icon main_icon_array[MAIN_PAGE_NUM] =
                 0x00, 0x80, 0xc0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfc, 0xf8, 0xf8, 0xf0, 0xc0, 0x80, 0x00, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+                0xff, 0xff, 0xff, 0xff, 0x07, 0x07, 0x07, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0x07, 0x07, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0x07, 0x07, 0x07, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0x07, 0x07, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x07, 0x07, 0x07, 0xc7,
+                0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0x07, 0x07, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
+                0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
+                0x7f, 0x7f, 0x7f, 0x7f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,
+                0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00, 0x00, 0x00, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0x7f, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xfc,
+                0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc,
+                0x07, 0x1f, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f, 0x1f, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0f, 0x0f, 0x0f,
+                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}, // Comp PWM Page (reuse PWM icon)
+        [6] = {
+                0x00, 0x80, 0xc0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfc, 0xf8, 0xf8, 0xf0, 0xc0, 0x80, 0x00, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+                0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0x07, 0x07, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x07, 0x07, 0x07,
+                0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0xc7, 0x07, 0x07, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0x07, 0x07, 0x07, 0xc7, 0xc7, 0xc7, 0xc7, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00, 0x00, 0x00,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f,
+                0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc,
+                0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xfc, 0xff, 0xff, 0xff, 0xff,
+                0x07, 0x1f, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f, 0x1f, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0f, 0x0f, 0x0f,
+                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}, // Comp PWM Long Page (reuse PWM Long icon)
+        [7] = {
+                0x00, 0x80, 0xc0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfc, 0xf8, 0xf8, 0xf0, 0xc0, 0x80, 0x00, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x0f,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f, 0x0f, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x01, 0x00, 0x00,
@@ -203,7 +250,7 @@ Icon main_icon_array[MAIN_PAGE_NUM] =
         //        0x80, 0xC0, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xCF, 0xDF, 0xFE, 0xF8, 0xF8, 0xF0,
         //        0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1,
         //        0xF1, 0xF1, 0xF0, 0xF8, 0xF8, 0xFE, 0xDF, 0xCF}, // DigitalLock
-        [6] = {
+        [8] = {
                 0x00, 0x80, 0xc0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xfe, 0xfe, 0xfc, 0xf8, 0xf8, 0xf0, 0xc0, 0x80, 0x00, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -284,6 +331,29 @@ Option pwm_long_option_array[] ={
     {.text = (char *)"--OUTPUT DISABLED--"},
 };
 
+// Comp PWM (HRTIM 高精度互补) 的列表选项数组
+Option comp_pwm_option_array[] ={
+    {.text = (char *)"- Comp PWM"}, // 第一个做说明标签，没有功能
+    {.text = (char *)"> Channel Pair"},
+    {.text = (char *)"% Period(uS)", .decimalNum = DecimalNum_2},
+    {.text = (char *)"~ Duty(%)"},
+    {.text = (char *)"~ DT Rise(ns)"},
+    {.text = (char *)"~ DT Fall(ns)"},
+    {.text = (char *)"@ Enable Output"},
+    {.text = (char *)"--OUTPUT DISABLED--"},
+};
+
+// Comp PWM Long (TIM5 超长互补) 的列表选项数组
+Option comp_pwm_long_option_array[] ={
+    {.text = (char *)"- Comp PWM Long"}, // 第一个做说明标签，没有功能
+    {.text = (char *)"> Channel Pair"},
+    {.text = (char *)"% Period(S)", .decimalNum = DecimalNum_3},
+    {.text = (char *)"= Duty(%)", .decimalNum = DecimalNum_2},
+    {.text = (char *)"~ DT(ms)"},
+    {.text = (char *)"@ Enable Output"},
+    {.text = (char *)"--OUTPUT DISABLED--"},
+};
+
 String ch_sel_str_array[] = {
     (char *)"CH1",
     (char *)"CH2",
@@ -298,6 +368,13 @@ String ch_sel_str_array[] = {
 String polarity_sel_str_array[] = {
     (char *)"+Pulse",
     (char *)"-Pulse"
+};
+
+String comp_pair_sel_str_array[] = {
+    (char *)"CH1&CH2 (Timer B)",
+    (char *)"CH3&CH4 (Timer A)",
+    (char *)"CH5&CH6 (Timer D)",
+    (char *)"CH7&CH8 (Timer C)"
 };
 
 // 设置的列表选项数组
@@ -425,6 +502,27 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
             pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Pulse_lPWM_Init();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &pwm_long_page);
+        } else if (!strcmp(select_item->text, "+ Comp PWM")) {
+            PULSE_MODE = PULSE_MODE_COMP_PWM;
+            Pulse_Select_CompPair(COMP_PAIR_CH1_CH2);
+            comp_pwm_option_array[1].content = comp_pair_sel_str_array[0];
+            comp_pwm_option_array[2].val = 1000;  // 周期 10.00 us
+            comp_pwm_option_array[3].val = 50;    // 占空比 50%
+            comp_pwm_option_array[4].val = 100;   // 上升沿死区 100 ns
+            comp_pwm_option_array[5].val = 100;   // 下降沿死区 100 ns
+            comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+            Pulse_CompPWM_Init();
+            WouoUI_JumpToPage((PageAddr)cur_page_addr, &comp_pwm_page);
+        } else if (!strcmp(select_item->text, "+ Comp PWM Long")) {
+            PULSE_MODE = PULSE_MODE_COMP_PWM_LONG;
+            Pulse_Select_CompPair(COMP_PAIR_CH1_CH2);
+            comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[0];
+            comp_pwm_long_option_array[2].val = 1000;  // 周期 1.000 s
+            comp_pwm_long_option_array[3].val = 5000;  // 占空比 50.00%
+            comp_pwm_long_option_array[4].val = 10;    // 死区 10 ms
+            comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+            Pulse_CompLPWM_Init();
+            WouoUI_JumpToPage((PageAddr)cur_page_addr, &comp_pwm_long_page);
         } else if (!strcmp(select_item->text, "+ Setting"))
         {
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &setting_page);
@@ -785,6 +883,158 @@ bool lPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     return false;
 }
 
+bool CompPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
+    Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
+    if(msg_return == msg) {
+        if (PULSE_OUT_ENABLED == 1)
+        {
+            comp_pwm_page.select_item = comp_pwm_page.item_num - 2;
+            comp_pwm_page.ind_y_tgt = (comp_pwm_page.item_num - 2) * LIST_LINE_H;
+            WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Please Disable Output Before Quit");
+            WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+        }
+        else
+        {
+            Pulse_Select_Output(CH1);
+            Pulse_SetPulsePolarity_High();
+            PULSE_MODE = PULSE_MODE_NONE;
+        }
+    }
+    if(msg_click == msg){
+        switch (select_item->order)
+        {
+            case 0:
+                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"This Page Make Complementary PWM");
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+                break;
+            case 1: /* 通道对选择 */
+                p_cur_ui->lw_var.list_y.pos_tgt = 0;
+                comp_pair_sel_page.sel_str_index = 0;
+                p_cur_ui->lw_var.ind_y_temp = 0;
+                WouoUI_JumpToPage((PageAddr)cur_page_addr,&comp_pair_sel_page);
+                break;
+            case 2: /* 周期 Period(uS): 1.00 ~ 1500.00 us */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 100, 150000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
+                break;
+            case 3: /* 占空比 Duty(%): 0 ~ 100 */
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 100);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+                break;
+            case 4: /* 上升沿死区 DT Rise(ns): 0 ~ 1000 */
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 1000);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+                break;
+            case 5: /* 下降沿死区 DT Fall(ns): 0 ~ 1000 */
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 1000);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+                break;
+            case 6: /* 使能输出 */
+                if (!!(select_item->val))
+                {
+                    Pulse_Enable_Output();
+                    PULSE_OUT_ENABLED = 1;
+                }
+                else
+                {
+                    Pulse_Disable_Output();
+                    PULSE_OUT_ENABLED = 0;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    return false;
+}
+
+bool CompLPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
+    Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
+    if(msg_return == msg) {
+        if (PULSE_OUT_ENABLED == 1)
+        {
+            comp_pwm_long_page.select_item = comp_pwm_long_page.item_num - 2;
+            comp_pwm_long_page.ind_y_tgt = (comp_pwm_long_page.item_num - 2) * LIST_LINE_H;
+            WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Please Disable Output Before Quit");
+            WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+        }
+        else
+        {
+            Pulse_Select_Output(CH1);
+            Pulse_SetPulsePolarity_High();
+            PULSE_MODE = PULSE_MODE_NONE;
+        }
+    }
+    if(msg_click == msg){
+        switch (select_item->order)
+        {
+            case 0:
+                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"This Page Make Long Complementary PWM");
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+                break;
+            case 1: /* 通道对选择 */
+                p_cur_ui->lw_var.list_y.pos_tgt = 0;
+                comp_pair_sel_page.sel_str_index = 0;
+                p_cur_ui->lw_var.ind_y_temp = 0;
+                WouoUI_JumpToPage((PageAddr)cur_page_addr,&comp_pair_sel_page);
+                break;
+            case 2: /* 周期 Period(S): 0.001 ~ 1000.000 s */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 1, 1000000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
+                break;
+            case 3: /* 占空比 Duty(%): 0.01 ~ 100.00 % */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 1, 10000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
+                break;
+            case 4: /* 死区 DT(ms): 1 ~ 5000 */
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 1, 1, 5000);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+                break;
+            case 5: /* 使能输出 */
+                if (!!(select_item->val))
+                {
+                    Pulse_Enable_Output();
+                    PULSE_OUT_ENABLED = 1;
+                }
+                else
+                {
+                    Pulse_Disable_Output();
+                    PULSE_OUT_ENABLED = 0;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    return false;
+}
+
+bool CompPairSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
+    if (msg_click == msg)
+    {
+        uint8_t pair = (uint8_t)comp_pair_sel_page.sel_str_index;
+        Pulse_Select_CompPair(pair);
+        if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+        {
+            comp_pwm_option_array[1].content = comp_pair_sel_str_array[(int)comp_pair_sel_page.sel_str_index];
+            comp_pwm_option_array[2].val = 1000;   // 周期 10.00 us
+            comp_pwm_option_array[3].val = 50;     // 占空比 50%
+            comp_pwm_option_array[4].val = 100;    // 上升沿死区 100 ns
+            comp_pwm_option_array[5].val = 100;    // 下降沿死区 100 ns
+            comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+        }
+        else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+        {
+            comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[(int)comp_pair_sel_page.sel_str_index];
+            comp_pwm_long_option_array[2].val = 1000;   // 周期 1.000 s
+            comp_pwm_long_option_array[3].val = 5000;   // 占空比 50.00%
+            comp_pwm_long_option_array[4].val = 10;     // 死区 10 ms
+            comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+        }
+    }
+    return false;
+}
+
 bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
     if(msg_click == msg){ //也可以靠选项的order顺序来识别item(以下顺序为其在数组中的下标)
@@ -909,6 +1159,27 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                 double_pulse_option_array[5].val = common_val_page.val;
 
             Pulse_dPulse_SetPW(double_pulse_option_array[3].val, double_pulse_option_array[4].val, double_pulse_option_array[5].val);
+        } else if (PULSE_MODE == PULSE_MODE_COMP_PWM) {
+            // 点击确认时同步保存并刷新互补 PWM 占空比/死区
+            if (!strcmp(common_val_page.bg_opt->text, "~ Duty(%)"))
+                comp_pwm_option_array[3].val = common_val_page.val;
+            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)"))
+                comp_pwm_option_array[4].val = common_val_page.val;
+            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)"))
+                comp_pwm_option_array[5].val = common_val_page.val;
+
+            Pulse_CompPWM_SetPW((float)comp_pwm_option_array[2].val / 100.0f,
+                                (int32_t)comp_pwm_option_array[3].val,
+                                (uint32_t)comp_pwm_option_array[4].val,
+                                (uint32_t)comp_pwm_option_array[5].val);
+        } else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG) {
+            // 点击确认时同步保存并刷新互补长 PWM 死区
+            if (!strcmp(common_val_page.bg_opt->text, "~ DT(ms)"))
+                comp_pwm_long_option_array[4].val = common_val_page.val;
+
+            Pulse_CompLPWM_SetPW((float)comp_pwm_long_option_array[2].val / 1000.0f,
+                                 (float)comp_pwm_long_option_array[3].val / 100.0f,
+                                 (uint32_t)comp_pwm_long_option_array[4].val);
         }
     }
     if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
@@ -941,6 +1212,29 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
         {
             pwm_option_array[4].val = common_val_page.val;
             Pulse_PWM_SetPW((float)pwm_option_array[3].val, pwm_option_array[4].val);
+        }
+        else if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+        {
+            if (!strcmp(common_val_page.bg_opt->text, "~ Duty(%)"))
+                comp_pwm_option_array[3].val = common_val_page.val;
+            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)"))
+                comp_pwm_option_array[4].val = common_val_page.val;
+            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)"))
+                comp_pwm_option_array[5].val = common_val_page.val;
+
+            Pulse_CompPWM_SetPW((float)comp_pwm_option_array[2].val / 100.0f,
+                                (int32_t)comp_pwm_option_array[3].val,
+                                (uint32_t)comp_pwm_option_array[4].val,
+                                (uint32_t)comp_pwm_option_array[5].val);
+        }
+        else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+        {
+            if (!strcmp(common_val_page.bg_opt->text, "~ DT(ms)"))
+                comp_pwm_long_option_array[4].val = common_val_page.val;
+
+            Pulse_CompLPWM_SetPW((float)comp_pwm_long_option_array[2].val / 1000.0f,
+                                 (float)comp_pwm_long_option_array[3].val / 100.0f,
+                                 (uint32_t)comp_pwm_long_option_array[4].val);
         }
     }
     return false;
@@ -1169,6 +1463,25 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 
                 Pulse_lPWM_SetPW((pwm_long_option_array[3].val / 1000.0f), (pwm_long_option_array[4].val / 100.0f));
             }
+            else if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+            {
+                comp_pwm_option_array[2].val = pw_spin_page.val;
+                Pulse_CompPWM_SetPW((float)comp_pwm_option_array[2].val / 100.0f,
+                                    (int32_t)comp_pwm_option_array[3].val,
+                                    (uint32_t)comp_pwm_option_array[4].val,
+                                    (uint32_t)comp_pwm_option_array[5].val);
+            }
+            else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+            {
+                if (strstr(pw_spin_page.bg_opt->text, "Period"))
+                    comp_pwm_long_option_array[2].val = pw_spin_page.val;
+                else if (strstr(pw_spin_page.bg_opt->text, "Duty"))
+                    comp_pwm_long_option_array[3].val = pw_spin_page.val;
+
+                Pulse_CompLPWM_SetPW((float)comp_pwm_long_option_array[2].val / 1000.0f,
+                                     (float)comp_pwm_long_option_array[3].val / 100.0f,
+                                     (uint32_t)comp_pwm_long_option_array[4].val);
+            }
         }
     }
     return false;
@@ -1229,6 +1542,19 @@ void TestUI_Init(void) {
     pwm_long_option_array[4].val = 5000;
     pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
 
+    comp_pwm_option_array[1].content = comp_pair_sel_str_array[0];
+    comp_pwm_option_array[2].val = 1000;    // 周期 10.00 us
+    comp_pwm_option_array[3].val = 50;      // 占空比 50%
+    comp_pwm_option_array[4].val = 100;     // 上升沿死区 100 ns
+    comp_pwm_option_array[5].val = 100;     // 下降沿死区 100 ns
+    comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+
+    comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[0];
+    comp_pwm_long_option_array[2].val = 1000;   // 周期 1.000 s
+    comp_pwm_long_option_array[3].val = 5000;   // 占空比 50.00%
+    comp_pwm_long_option_array[4].val = 10;     // 死区 10 ms
+    comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+
     // 设置界面选项
     WouoUI_TitlePageInit(&main_page, MAIN_PAGE_NUM, main_option_array, main_icon_array, MainPage_CallBack);
     WouoUI_ListPageInit(&n_pulse_page, sizeof(n_pulse_option_array)/sizeof(Option), n_pulse_option_array, Setting_none, NPulsePage_CallBack);
@@ -1236,6 +1562,8 @@ void TestUI_Init(void) {
     WouoUI_ListPageInit(&double_pulse_page, sizeof(double_pulse_option_array)/sizeof(Option), double_pulse_option_array, Setting_none, DoublePulsePage_CallBack);
     WouoUI_ListPageInit(&pwm_page, sizeof(pwm_option_array)/sizeof(Option), pwm_option_array, Setting_none, PWMPage_CallBack);
     WouoUI_ListPageInit(&pwm_long_page, sizeof(pwm_long_option_array)/sizeof(Option), pwm_long_option_array, Setting_none, lPWMPage_CallBack);
+    WouoUI_ListPageInit(&comp_pwm_page, sizeof(comp_pwm_option_array)/sizeof(Option), comp_pwm_option_array, Setting_none, CompPWMPage_CallBack);
+    WouoUI_ListPageInit(&comp_pwm_long_page, sizeof(comp_pwm_long_option_array)/sizeof(Option), comp_pwm_long_option_array, Setting_none, CompLPWMPage_CallBack);
     WouoUI_ListPageInit(&setting_page, sizeof(setting_option_array)/sizeof(Option), setting_option_array, Setting_none, SettingPage_CallBack);
     WouoUI_ListPageInit(&about_page, sizeof(about_option_array)/sizeof(Option), about_option_array, Setting_none, About_CallBack);
     WouoUI_ListPageInit(&about_origin_page, sizeof(about_origin_array)/sizeof(Option), about_origin_array, Setting_radio, NULL);
@@ -1249,6 +1577,7 @@ void TestUI_Init(void) {
     WouoUI_SpinWinPageInit(&pw_spin_page, NULL, 100, DecimalNum_2, 1, 150000, true, true, PWSpinPage_CallBack);
     WouoUI_ListWinPageInit(&ch_sel_page, sizeof(ch_sel_str_array)/sizeof(String), ch_sel_str_array, true, ChSelPage_CallBack);
     WouoUI_ListWinPageInit(&polarity_sel_page, sizeof(polarity_sel_str_array)/sizeof(String), polarity_sel_str_array, true, PolaritySelPage_CallBack);
+    WouoUI_ListWinPageInit(&comp_pair_sel_page, sizeof(comp_pair_sel_str_array)/sizeof(String), comp_pair_sel_str_array, true, CompPairSelPage_CallBack);
     WouoUI_ListWinPageInit(&bg_blur_sel_page, sizeof(bg_blur_sel_str_array)/sizeof(String), bg_blur_sel_str_array, true, BgBlurSelPage_CallBack);
     WouoUI_SetPageAutoDealWithMsg((Page*)&bg_blur_sel_page, false); //失能自动处理消息，因为想要在弹窗中click跳转其他页面
 

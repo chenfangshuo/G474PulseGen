@@ -60,6 +60,8 @@ extern Option n_pulse_long_option_array[];
 extern Option double_pulse_option_array[];
 extern Option pwm_option_array[];
 extern Option pwm_long_option_array[];
+extern Option comp_pwm_option_array[];
+extern Option comp_pwm_long_option_array[];
 int32_t last_count = 0;
 int32_t current_count = 0;
 int32_t diff = 0;
@@ -337,6 +339,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       else
         pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
     }
+    else if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+    {
+      if (PULSE_OUT_ENABLED)
+        comp_pwm_option_array[7].text = (char *)"--OUTPUT ENABLED--";
+      else
+        comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+    }
+    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    {
+      if (PULSE_OUT_ENABLED)
+        comp_pwm_long_option_array[6].text = (char *)"--OUTPUT ENABLED--";
+      else
+        comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+    }
     waiting_for_trg_flag = !waiting_for_trg_flag;
     triggered = 0;
   }
@@ -358,27 +374,45 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
           Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
       }
     }
+    else if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    {
+      /* 超长互补 PWM: 周期起点先关断互补路, 主路待 CC3 死区点再开启 */
+      Pulse_CompLPWM_OnPeriodElapsed();
+    }
   }
 }
 
 void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  if (htim->Instance == TIM5 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
+  if (htim->Instance == TIM5)
   {
-    if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+    if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
     {
-      /* N 长脉冲: 比较匹配(脉宽到达), 拉低引脚 */
-      Pulse_nPulseLong_OnCompareMatch();
+      /* 超长互补 PWM: CC1=占空比(主路关), CC2=占空比+死区(互补开), CC3=死区(主路开) */
+      if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
+        Pulse_CompLPWM_OnDuty();
+      else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2)
+        Pulse_CompLPWM_OnCompOn();
+      else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_3)
+        Pulse_CompLPWM_OnMainOn();
     }
-    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    else if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
     {
-      /* 比较匹配点：拉低置为无效电平 */
-      if (lpwm_ccr < lpwm_arr)
+      if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
       {
-        if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-          Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-        else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
-          Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+        /* N 长脉冲: 比较匹配(脉宽到达), 拉低引脚 */
+        Pulse_nPulseLong_OnCompareMatch();
+      }
+      else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+      {
+        /* 比较匹配点：拉低置为无效电平 */
+        if (lpwm_ccr < lpwm_arr)
+        {
+          if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+            Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+          else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
+            Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+        }
       }
     }
   }
