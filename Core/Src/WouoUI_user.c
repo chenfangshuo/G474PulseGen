@@ -27,12 +27,6 @@ TitlePage main_page;
     ListPage setting_page;
         MsgWin common_msg_page; //共用的消息弹窗
         ValWin common_val_page; //共用的数值弹窗
-        ConfWin common_conf_page; //共用的确认弹窗
-        SpinWin common_spin_page; //共用的spin弹窗
-        ListWin bg_blur_sel_page; //背景模糊的选项
-            ValWin test_val_win_page; //测试的数值弹窗
-    ValWin volumn_page; //音量调节页面
-    ConfWin volumn_conf_page; //音量确认界面
     ListPage about_page;
         ListPage about_origin_page;
             ListPage about_wououi_page;
@@ -380,30 +374,9 @@ String comp_pair_sel_str_array[] = {
 // 设置的列表选项数组
 Option setting_option_array[] ={
     {.text = (char *)"- Setting"}, // 第一个做说明标签，没有功能
-    {.text = (char *)"~ Title Ani"},
-    {.text = (char *)"% List Ani", .decimalNum = DecimalNum_0,},
-    {.text = (char *)"~ IND Ani"},
-    {.text = (char *)"@ Title UFD"},
-    {.text = (char *)"@ List UFD"},
-    {.text = (char *)"@ Title Loop"},
-    {.text = (char *)"# List Loop"},
-    {.text = (char *)"> Msg win gb blur"},
-    {.text = (char *)"> Conf win gb blur"},
-    {.text = (char *)"> Val win gb blur"},
-    {.text = (char *)"> Spin win gb blur"},
-    {.text = (char *)"> List win gb blur"},
+    {.text = (char *)"@ 12V Output"},
     {.text = (char *)"! Save Preset"},
     {.text = (char *)"! Load Preset"},
-    {.text = (char *)"@ 12V Output"},
-};
-
-String bg_blur_sel_str_array[] = {
-    (char *)"BLUR_0_4",
-    (char *)"BLUR_1_4",
-    (char *)"BLUR_2_4",
-    (char *)"BLUR_3_4",
-    (char *)"BLUR_4_4",
-    (char *)"This item is invalid, it use to test slide str"
 };
 
 // about页面的选项数组
@@ -491,12 +464,6 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &setting_page);
         }
-        // else if(!strcmp(select_item->text, "~ This is a volumn page for test win in win")){
-        //     WouoUI_JumpToPage((PageAddr)cur_page_addr, &volumn_page);
-        // } else if(!strcmp(select_item->text, "% Spin")){//设置spin弹窗的设置范围和小数点数并跳转
-        //     WouoUI_SpinWinPageSetMinMaxDecimalnum(&common_spin_page,-500000,500000,select_item->decimalNum);
-        //     WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_spin_page);
-        // }
         else if(!strcmp(select_item->text, "! About")){
             WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"BYD SEMI\n\nIPM\nLV Devices GRP\n\nPowered by WouoUI Page");
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
@@ -1009,77 +976,29 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         switch (select_item->order)
         {
             case 0:
-                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Setting Page\nYou can change the setting of this UI");
+                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Setting Page");
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
             break;
-            case 1: //设置数组弹窗调整的min step max 并跳转
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 1, 500);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+            case 1: /* 12V_OUT 手动开关 (供电正常时有效, 掉电仍瞬间切断) */
+                g_12v_enable = !!(select_item->val);
             break;
-            case 2:
-                WouoUI_SpinWinPageSetMinMaxDecimalnum(&common_spin_page, 0, 50000, select_item->decimalNum);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_spin_page);
-            break;
-            case 3:
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 1, 500);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
-            break;
-            //@二值选项框的值直接取出赋给我们想要的变量即可
-            case 4: g_default_ui_para.ufd_param[TILE_UFD] = !!(select_item->val); break;
-            case 5: g_default_ui_para.ufd_param[LIST_UFD] = !!(select_item->val); break;
-            case 6: g_default_ui_para.loop_param[LIST_LOOP] = !!(select_item->val); break;
-            case 7:
-                WouoUI_JumpToPage((PageAddr)cur_page_addr,&common_conf_page);
-            break;
-            case 8:
-            case 9:
-            case 10:
-            case 11:
-            case 12:
-                WouoUI_JumpToPage((PageAddr)cur_page_addr,&bg_blur_sel_page);
-            break;
-            case 13: /* 保存参数到 Flash */
+            case 2: /* 保存参数到 Flash */
                 if (Preset_Save())
                     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Preset Saved OK");
                 else
                     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Preset Save Failed");
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
             break;
-            case 14: /* 从 Flash 调出参数 */
+            case 3: /* 从 Flash 调出参数 */
                 if (Preset_Load())
                     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Preset Loaded OK");
                 else
                     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"No Valid Preset");
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
             break;
-            case 15: /* 12V_OUT 手动开关 (供电正常时有效, 掉电仍瞬间切断) */
-                g_12v_enable = !!(select_item->val);
-            break;
             default:
                 break;
         }
-    }
-    return false;
-}
-
-bool VolumePage_CallBack(const Page *cur_page_addr, InputMsg msg)
-{
-    ValWin* vw = (ValWin*)cur_page_addr;
-    if(vw->val == 80 && (msg_up == msg || msg_left == msg)) //如果调整到80的时候，弹出弹窗警告，音量过高，是否继续
-    {
-        volumn_conf_page.content = (char*)"The volumn is too high, do you want to increase it continue?";
-        WouoUI_JumpToPage((PageAddr)cur_page_addr ,&volumn_conf_page);
-    }
-    return false;
-}
-
-bool VolumnConf_CallBack(const Page *cur_page_addr, InputMsg msg)
-{
-    if(msg_return == msg) //如果直接返回的话，音量会保持在80
-        volumn_page.val = 79;
-    if(msg_click == msg)
-    {
-        if(volumn_conf_page.conf_ret == false)volumn_page.val = 79; //如果选择是no的话，音量保持80
     }
     return false;
 }
@@ -1105,25 +1024,11 @@ bool About_CallBack(const Page *cur_page_addr, InputMsg msg) {
 }
 
 
-bool CommonConfPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
-    //这个弹窗只在设置setting 的listloop选项中使用,所以可以不用判断bg_opt(参考下面通用val弹窗)
-    //不然一般通用确认弹窗可以在初始化设置auto_get_bg_opt中会自动获取bg_opt的content,和选中项的指针
-    // 可以靠这个判断是哪个选项进入的, 要是不想省一些内存,每一个确认弹窗单独使用一个confwinpage页面也是可以的
-    if(msg_click == msg){
-        g_default_ui_para.loop_param[LIST_LOOP] = common_conf_page.conf_ret;
-    }
-    return false;
-}
-
 bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 {
     if (msg_click == msg)
     {
-        if (!strcmp(common_val_page.bg_opt->text, "~ Title Ani")) {
-            g_default_ui_para.ani_param[TILE_ANI] = common_val_page.val;
-        } else if (!strcmp(common_val_page.bg_opt->text, "~ IND Ani")) {
-            g_default_ui_para.ani_param[IND_ANI] = common_val_page.val;
-        } else if (PULSE_MODE == PULSE_MODE_NPULSE) {
+        if (PULSE_MODE == PULSE_MODE_NPULSE) {
             // N 脉冲个数: 同步保存并刷新
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_option_array[4].val = common_val_page.val;
@@ -1215,56 +1120,6 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
         }
     }
     return false;
-}
-
-bool BgBlurSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
-    BLUR_DEGREE ret = BLUR_2_4;
-    bool res = false; //失能自动处理消息后，返回值true表示return，其他false
-    switch (msg)
-    {
-        case msg_click:
-            if(bg_blur_sel_page.sel_str_index < 5){ //click时选中的选项有效
-                ret = (BLUR_DEGREE)bg_blur_sel_page.sel_str_index;
-                //判断是哪个选项跳转到这个弹窗来的,与list中一样,可以靠order/text进行识别都可以
-                if(!strcmp(bg_blur_sel_page.bg_opt->text,"> Msg win gb blur")){
-                    g_default_ui_para.winbgblur_param[MGS_WBB] = ret;
-                    setting_option_array[8].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[MGS_WBB]];
-                    res = true;
-                } else if(!strcmp(bg_blur_sel_page.bg_opt->text,"> Conf win gb blur")){
-                    g_default_ui_para.winbgblur_param[CONF_WBB] = ret;
-                    setting_option_array[9].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[CONF_WBB]];
-                    res = true;
-                } else if(!strcmp(bg_blur_sel_page.bg_opt->text,"> Val win gb blur")){
-                    g_default_ui_para.winbgblur_param[VAL_WBB] = ret;
-                    setting_option_array[10].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[VAL_WBB]];
-                    res = true;
-                } else if(!strcmp(bg_blur_sel_page.bg_opt->text,"> Spin win gb blur")){
-                    g_default_ui_para.winbgblur_param[SPIN_WBB] = ret;
-                    setting_option_array[11].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[SPIN_WBB]];
-                    res = true;
-                } else if(!strcmp(bg_blur_sel_page.bg_opt->text,"> List win gb blur")){
-                    g_default_ui_para.winbgblur_param[LIST_WBB] = ret;
-                    setting_option_array[12].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[LIST_WBB]];
-                    res = true;
-                }
-            } else if(bg_blur_sel_page.sel_str_index == 5){ //测试跳转嵌套弹窗
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &test_val_win_page);
-            }
-            break;
-        case msg_return:
-            res = true; //失能自动处理消息后，返回值true表示return，其他false
-            break;
-        case msg_up:
-        case msg_left: //上翻一页
-            WouoUI_ListWinPageLastItem(&bg_blur_sel_page); //上翻一页
-            break;
-        case msg_down:
-        case msg_right: //下翻一页
-            WouoUI_ListWinPageNextItem(&bg_blur_sel_page); //下翻一页
-            break;
-        default: break;
-    }
-    return res;
 }
 
 bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
@@ -1484,25 +1339,37 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 
 
 //--------------给主函数调用的接口函数
+
+/* 硬件 Fault 后的 UI 收尾: 关闭当前模式 Enable Output 复选框并弹窗提示
+   (由 main 循环在 g_fault_flag 置位后调用, 不在 ISR 内做 UI 操作) */
+void Pulse_Fault_HandleUI(void)
+{
+    PULSE_OUT_ENABLED = 0;
+
+    switch (PULSE_MODE)
+    {
+        case PULSE_MODE_NPULSE:      n_pulse_option_array[7].val = 0; break;
+        case PULSE_MODE_NPULSE_LONG: n_pulse_long_option_array[6].val = 0; break;
+        case PULSE_MODE_DPULSE:      double_pulse_option_array[6].val = 0; break;
+        case PULSE_MODE_PWM:         pwm_option_array[5].val = 0; break;
+        case PULSE_MODE_PWM_LONG:    pwm_long_option_array[5].val = 0; break;
+        case PULSE_MODE_COMP_PWM:    comp_pwm_option_array[6].val = 0; break;
+        case PULSE_MODE_COMP_PWM_LONG: comp_pwm_long_option_array[5].val = 0; break;
+        default: break;
+    }
+
+    WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Fault!");
+    WouoUI_JumpToPage(WouoUI_GetCurrentPage(), &common_msg_page);
+}
+
 void TestUI_Init(void) {
     // OLED_Init();  //硬件的初始化
     WouoUI_SelectDefaultUI(); // 选择默认UI(这里先绑定刷屏函数再选择默认UI也没关系，因为p_cur_ui初始化时就是指向默认UI)
     WouoUI_BuffClear();      // 清空缓存
     WouoUI_BuffSend();       // 刷新屏幕(清空屏幕)
     WouoUI_GraphSetPenColor(1); // 设置绘制颜色
-    // 补充列表页面的初值
-    setting_option_array[1].val = g_default_ui_para.ani_param[TILE_ANI];
-    setting_option_array[2].val = g_default_ui_para.ani_param[LIST_ANI];
-    setting_option_array[3].val = g_default_ui_para.ani_param[IND_ANI];
-    setting_option_array[4].val = g_default_ui_para.ufd_param[TILE_UFD];
-    setting_option_array[5].val = g_default_ui_para.ufd_param[LIST_UFD];
-    setting_option_array[6].val = g_default_ui_para.loop_param[TILE_LOOP];
-    setting_option_array[7].val = g_default_ui_para.loop_param[LIST_LOOP];
-    setting_option_array[8].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[MGS_WBB]];
-    setting_option_array[9].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[CONF_WBB]];
-    setting_option_array[10].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[VAL_WBB]];
-    setting_option_array[11].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[SPIN_WBB]];
-    setting_option_array[12].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[LIST_WBB]];
+    // 补充列表页面的初值 (12V Output 默认使能)
+    setting_option_array[1].val = 1;
 
     n_pulse_option_array[1].content = ch_sel_str_array[0];
     n_pulse_option_array[2].content = polarity_sel_str_array[0];
@@ -1567,18 +1434,9 @@ void TestUI_Init(void) {
     WouoUI_ListPageInit(&about_version_page, sizeof(about_version_array)/sizeof(Option), about_version_array, Setting_none, NULL);
 
     WouoUI_MsgWinPageInit(&common_msg_page, NULL, false, 2, NULL);
-    WouoUI_ConfWinPageInit(&common_conf_page, NULL, NULL, NULL, true, true, true, 2, CommonConfPage_CallBack);
     WouoUI_ValWinPageInit(&common_val_page, NULL, 0, 0, 100, 20, true, true, CommonValPage_CallBack);
-    WouoUI_SpinWinPageInit(&common_spin_page, NULL, 0, DecimalNum_0, -500000, 500000, true, true, NULL);
     WouoUI_SpinWinPageInit(&pw_spin_page, NULL, 100, DecimalNum_2, 1, 150000, true, true, PWSpinPage_CallBack);
     WouoUI_ListWinPageInit(&ch_sel_page, sizeof(ch_sel_str_array)/sizeof(String), ch_sel_str_array, true, ChSelPage_CallBack);
     WouoUI_ListWinPageInit(&polarity_sel_page, sizeof(polarity_sel_str_array)/sizeof(String), polarity_sel_str_array, true, PolaritySelPage_CallBack);
     WouoUI_ListWinPageInit(&comp_pair_sel_page, sizeof(comp_pair_sel_str_array)/sizeof(String), comp_pair_sel_str_array, true, CompPairSelPage_CallBack);
-    WouoUI_ListWinPageInit(&bg_blur_sel_page, sizeof(bg_blur_sel_str_array)/sizeof(String), bg_blur_sel_str_array, true, BgBlurSelPage_CallBack);
-    WouoUI_SetPageAutoDealWithMsg((Page*)&bg_blur_sel_page, false); //失能自动处理消息，因为想要在弹窗中click跳转其他页面
-
-    WouoUI_ValWinPageInit(&test_val_win_page, (char*)"This is test for Pop-up window nesting", 0, 0, 100, 20, true, true, NULL);
-
-    WouoUI_ValWinPageInit(&volumn_page, NULL, 50, 0, 100, 1, false, false, VolumePage_CallBack);
-    WouoUI_ConfWinPageInit(&volumn_conf_page, NULL, NULL, NULL, true, true, true, 2, VolumnConf_CallBack);
 }

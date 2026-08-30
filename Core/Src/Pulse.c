@@ -25,6 +25,7 @@ volatile bool     PULSE_OUT_ENABLED        = false;
 volatile bool     PULSE_POLARITY           = PULSE_POLARITY_HIGH;
 volatile uint32_t lpwm_arr                 = 0;
 volatile uint32_t lpwm_ccr                 = 0;
+volatile bool     g_fault_flag             = false;   /* Fault 发生标志 (ISR 置位, main 循环消费) */
 
 /* 长脉冲 (TIM5 软件模式) 剩余脉冲计数, 由 TIM5 中断维护 */
 static volatile uint32_t s_pulse_remain    = 0;
@@ -2066,6 +2067,7 @@ void HAL_HRTIM_Fault2Callback(HRTIM_HandleTypeDef *hhrtim)
 {
     (void)hhrtim;
     Pulse_EmergencyStop();
+    g_fault_flag = true;   /* 通知 main 循环做 UI 收尾 (ISR 内不做弹窗) */
 }
 
 /* 初始化硬件故障封锁: PA15(AF13) -> HRTIM1_FLT2, 低有效(内部上拉, 悬空/正常=高=无故障)

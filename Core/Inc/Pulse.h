@@ -144,5 +144,6 @@ void Pulse_BurstPRF_OnTick(void);        /* TIM3 更新中断: 周期重发一�
 
 /* PA15 = HRTIM_FLT2 硬件故障封锁 (低电平触发, 输出 ns 级强制无效) */
 void Pulse_Fault_Init(void);
+extern volatile bool g_fault_flag;   /* Fault 发生标志 (ISR 置位, main 循环消费) */
 
 #endif /* __PULSE_H */

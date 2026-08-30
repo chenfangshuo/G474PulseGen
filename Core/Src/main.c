@@ -54,7 +54,7 @@
 volatile bool display_update_flag = 1;
 volatile bool waiting_for_trg_flag = 0;
 volatile bool triggered = 0;
-volatile bool g_12v_enable = false;      /* 12V_OUT 手动开关状态 (Setting 页切换) */
+volatile bool g_12v_enable = true;       /* 12V_OUT 手动开关状态 (Setting 页切换, 默认使能) */
 
 extern Option n_pulse_option_array[];
 extern Option n_pulse_long_option_array[];
@@ -155,6 +155,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    /* 硬件 Fault 发生后: ISR 只置标志, 此处做 UI 收尾 (关 Enable 按钮 + 弹窗) */
+    if (g_fault_flag)
+    {
+      g_fault_flag = false;
+      Pulse_Fault_HandleUI();
+    }
+
     /* 12V_OUT 手动控制：用户使能且供电正常才开启, 掉电微秒级瞬间切断 (安全优先) */
     if (LTC_IS_ANY_PWR_VALID() && g_12v_enable)
     {
