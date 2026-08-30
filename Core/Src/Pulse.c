@@ -350,7 +350,7 @@ void Pulse_SetPulsePolarity_High(void)
         OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
         OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
         OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
         OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
         OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
         if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
@@ -365,7 +365,7 @@ void Pulse_SetPulsePolarity_High(void)
         OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
         OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
         OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
         OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
         OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
         if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
@@ -396,7 +396,7 @@ void Pulse_SetPulsePolarity_Low(void)
         OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
         OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
         OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
         OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
         OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
         if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
@@ -411,7 +411,7 @@ void Pulse_SetPulsePolarity_Low(void)
         OutCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
         OutCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
         OutCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+        OutCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
         OutCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
         OutCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
         if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutCfg) != HAL_OK)
@@ -596,7 +596,7 @@ void Pulse_nPulse_Init(void)
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
     TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_FAULT2;
     TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
     TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
     TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
@@ -628,7 +628,7 @@ void Pulse_nPulse_Init(void)
     OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
     OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
     OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
     OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
     OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
     if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
@@ -803,7 +803,7 @@ void Pulse_dPulse_Init(void)
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
     TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_FAULT2;
     TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
     TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
     TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
@@ -847,7 +847,7 @@ void Pulse_dPulse_Init(void)
     OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2 | HRTIM_OUTPUTRESET_TIMCMP4;
     OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
     OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
     OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
     OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
     if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
@@ -1011,7 +1011,7 @@ void Pulse_PWM_Init(void)
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
     TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_FAULT2;
     TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
     TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
     TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
@@ -1043,7 +1043,7 @@ void Pulse_PWM_Init(void)
     OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
     OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
     OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
     OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
     OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
     if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
@@ -1591,7 +1591,7 @@ void Pulse_CompPWM_Init(void)
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
     TimerCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
-    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    TimerCfg.FaultEnable = HRTIM_TIMFAULTENABLE_FAULT2;
     TimerCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
     TimerCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_ENABLED;  /* 开启死区插入 */
     TimerCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
@@ -1624,7 +1624,7 @@ void Pulse_CompPWM_Init(void)
     OutputCfg.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
     OutputCfg.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
     OutputCfg.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
-    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    OutputCfg.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_INACTIVE;
     OutputCfg.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
     OutputCfg.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
     if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, g_pulse_ctrl.timer_idx, g_pulse_ctrl.output_ch, &OutputCfg) != HAL_OK)
@@ -2056,4 +2056,49 @@ void Pulse_BurstPRF_OnTick(void)
     Pulse_Frame_SetActive();
     Pulse_nPulse_OnTrigger(s_npulse_count);
     Pulse_TriggerFireAll();
+}
+
+/* ==================== PA15 = HRTIM_FLT2 硬件故障封锁 ==================== */
+
+/* HLRTIM FLT2 故障中断回调: 硬件已把输出 ns 级强制无效,
+   这里软件安全网关断 12V 并复位发波状态机 */
+void HAL_HRTIM_Fault2Callback(HRTIM_HandleTypeDef *hhrtim)
+{
+    (void)hhrtim;
+    Pulse_EmergencyStop();
+}
+
+/* 初始化硬件故障封锁: PA15(AF13) -> HRTIM1_FLT2, 低有效(内部上拉, 悬空/正常=高=无故障)
+   触发后 Timer A/B/D 的输出被 HRTIM 死区级扣到无效电平, 与软件彻底解耦 */
+void Pulse_Fault_Init(void)
+{
+    GPIO_InitTypeDef       gpio = {0};
+    HRTIM_FaultCfgTypeDef  fcfg = {0};
+
+    /* PA15 -> HRTIM1_FLT2 (AF13), 内部上拉: 未连接/正常时高电平, 拉低触发故障 */
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    gpio.Pin        = GPIO_PIN_15;
+    gpio.Mode       = GPIO_MODE_AF_PP;
+    gpio.Pull       = GPIO_PULLUP;
+    gpio.Speed      = GPIO_SPEED_FREQ_VERY_HIGH;
+    gpio.Alternate  = GPIO_AF13_HRTIM1;
+    HAL_GPIO_Init(GPIOA, &gpio);
+
+    /* FLT2: 数字输入引脚, 低有效, 轻度滤波防毛刺, 配置可读写 */
+    fcfg.Source   = HRTIM_FAULTSOURCE_DIGITALINPUT;
+    fcfg.Polarity = HRTIM_FAULTPOLARITY_LOW;
+    fcfg.Filter   = HRTIM_FAULTFILTER_2;      /* fHRTIM 采样 N=4, 兼顾抗毛刺与响应速度 */
+    fcfg.Lock     = HRTIM_FAULTLOCK_READWRITE;
+    if (HAL_HRTIM_FaultConfig(&hhrtim1, HRTIM_FAULT_2, &fcfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* 使能 FLT2 故障通道 */
+    HAL_HRTIM_FaultModeCtl(&hhrtim1, HRTIM_FAULT_2, HRTIM_FAULTMODECTL_ENABLED);
+
+    /* 使能 FLT2 中断 (软件安全网) */
+    __HAL_HRTIM_ENABLE_IT(&hhrtim1, HRTIM_IT_FLT2);
+    HAL_NVIC_SetPriority(HRTIM1_FLT_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(HRTIM1_FLT_IRQn);
 }

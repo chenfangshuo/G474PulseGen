@@ -9,6 +9,7 @@
 
 extern volatile bool PULSE_OUT_ENABLED;
 extern volatile uint8_t PULSE_MODE;
+extern volatile bool g_12v_enable;
 
 //--------定义页面对象
 TitlePage main_page;
@@ -393,6 +394,7 @@ Option setting_option_array[] ={
     {.text = (char *)"> List win gb blur"},
     {.text = (char *)"! Save Preset"},
     {.text = (char *)"! Load Preset"},
+    {.text = (char *)"@ 12V Output"},
 };
 
 String bg_blur_sel_str_array[] = {
@@ -1049,6 +1051,9 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 else
                     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"No Valid Preset");
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+            break;
+            case 15: /* 12V_OUT 手动开关 (供电正常时有效, 掉电仍瞬间切断) */
+                g_12v_enable = !!(select_item->val);
             break;
             default:
                 break;

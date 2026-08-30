@@ -341,4 +341,10 @@ void TIM3_IRQHandler(void)
     Pulse_BurstPRF_OnTick();
   }
 }
+
+/* HRTIM1 故障输入中断: 路由至 HAL 公共中断处理, 进而回调 Fault2Callback */
+void HRTIM1_FLT_IRQHandler(void)
+{
+  HAL_HRTIM_IRQHandler(&hhrtim1, HRTIM_TIMERINDEX_COMMON);
+}
 /* USER CODE END 1 */

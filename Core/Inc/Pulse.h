@@ -142,4 +142,7 @@ void Pulse_BurstPRF_Start(void);         /* 启动周期猝发 (立即发第一�
 void Pulse_BurstPRF_Stop(void);          /* 停止周期猝发 */
 void Pulse_BurstPRF_OnTick(void);        /* TIM3 更新中断: 周期重发一帧猝发 */
 
+/* PA15 = HRTIM_FLT2 硬件故障封锁 (低电平触发, 输出 ns 级强制无效) */
+void Pulse_Fault_Init(void);
+
 #endif /* __PULSE_H */

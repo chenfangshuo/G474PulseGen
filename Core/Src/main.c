@@ -54,6 +54,7 @@
 volatile bool display_update_flag = 1;
 volatile bool waiting_for_trg_flag = 0;
 volatile bool triggered = 0;
+volatile bool g_12v_enable = false;      /* 12V_OUT 手动开关状态 (Setting 页切换) */
 
 extern Option n_pulse_option_array[];
 extern Option n_pulse_long_option_array[];
@@ -142,6 +143,7 @@ int main(void)
   /* Y7 SYNC OUT (Timer C CH2) + Y8 帧标记 + PRF 猝发重复时基 (TIM3) 初始化 */
   Pulse_Sync_Init();
   Pulse_BurstPRF_Init();
+  Pulse_Fault_Init();    /* PA15 = HRTIM_FLT2 硬件故障封锁 */
 
   // 默认保持 12V 负载开关关断，待供电稳定后再开启
   LOADSW_DISABLE();
@@ -153,8 +155,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* 12V 供电闭环管理：LTC4421 检测到供电正常则开启负载开关，掉电微秒级瞬间切断 */
-    if (LTC_IS_ANY_PWR_VALID())
+    /* 12V_OUT 手动控制：用户使能且供电正常才开启, 掉电微秒级瞬间切断 (安全优先) */
+    if (LTC_IS_ANY_PWR_VALID() && g_12v_enable)
     {
       LOADSW_ENABLE();
     }
