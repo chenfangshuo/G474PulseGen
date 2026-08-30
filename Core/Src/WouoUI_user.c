@@ -311,11 +311,6 @@ Option setting_option_array[] ={
     {.text = (char *)"> Val win gb blur"},
     {.text = (char *)"> Spin win gb blur"},
     {.text = (char *)"> List win gb blur"},
-    {.text = (char *)"~ DT Rise(ns)"},
-    {.text = (char *)"~ DT Fall(ns)"},
-    {.text = (char *)"@ Interleave"},
-    {.text = (char *)"~ SoftStart(ms)"},
-    {.text = (char *)"@ SS Ramp Run"},
 };
 
 String bg_blur_sel_str_array[] = {
@@ -801,27 +796,6 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
             case 12:
                 WouoUI_JumpToPage((PageAddr)cur_page_addr,&bg_blur_sel_page);
             break;
-            case 13: // 死区上升沿时间调节
-            case 14: // 死区下降沿时间调节
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 5, 200);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
-            break;
-            case 15: /* SS Ramp Run — SoftStart Tick 已停用，锁定 */
-                select_item->val = 0;                                     /* 复选框强制回弹 */
-                WouoUI_MsgWinPageSetContent(&common_msg_page,
-                    (char*)"Locked in this build.\nNot validated yet.");
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
-                break;
-            case 16: // 软启动爬升时间调节
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 10, 10, 500);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
-            break;
-            case 17: /* SS Ramp Run — SoftStart Tick 已停用，锁定 */
-                select_item->val = 0;                                     /* 复选框强制回弹 */
-                WouoUI_MsgWinPageSetContent(&common_msg_page,
-                    (char*)"Locked in this build.\nNot validated yet.");
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
-                break;
             default:
                 break;
         }
@@ -1157,11 +1131,6 @@ void TestUI_Init(void) {
     setting_option_array[10].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[VAL_WBB]];
     setting_option_array[11].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[SPIN_WBB]];
     setting_option_array[12].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[LIST_WBB]];
-    setting_option_array[13].val = 0;   // DT Rise: 默认0ns
-    setting_option_array[14].val = 0;   // DT Fall: 默认0ns
-    setting_option_array[15].val = 0;   // Interleave: 默认关闭
-    setting_option_array[16].val = 100; // SoftStart: 默认100ms
-    setting_option_array[17].val = 0;   // SS Ramp Run: 默认未启动
 
     single_pulse_option_array[1].content = ch_sel_str_array[0];
     single_pulse_option_array[2].content = polarity_sel_str_array[0];

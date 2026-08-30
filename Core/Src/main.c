@@ -140,7 +140,6 @@ int main(void)
   // 默认保持 12V 负载开关关断，待供电稳定后再开启
   LOADSW_DISABLE();
   /* USER CODE END 2 */
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -340,9 +339,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
     waiting_for_trg_flag = !waiting_for_trg_flag;
     triggered = 0;
-
-    // 软启动状态机 Tick 更新
-    // Pulse_SoftStart_Update();
   }
   if(htim->Instance == TIM5)
   {
