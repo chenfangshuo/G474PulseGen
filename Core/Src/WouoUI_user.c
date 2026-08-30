@@ -281,7 +281,7 @@ Option n_pulse_option_array[] ={
     {.text = (char *)"= Width(uS)", .decimalNum = DecimalNum_2},
     {.text = (char *)"~ Pulse Count"},
     {.text = (char *)"= Interval(uS)", .decimalNum = DecimalNum_2},
-    {.text = (char *)"~ Burst PRF(Hz)"}, // 0 = 单次触发, 1~100000 = 周期猝发
+    {.text = (char *)"% Burst PRF(Hz)", .decimalNum = DecimalNum_0}, // 0 = 单次触发, 1~100000 = 周期猝发
     {.text = (char *)"@ Enable Output"},
     {.text = (char *)"--OUTPUT DISABLED--"},
 };
@@ -591,9 +591,9 @@ bool NPulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 100, 150000, select_item->decimalNum);
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
                 break;
-            case 6: /* Burst PRF(Hz): 0 = 单次触发, 1 ~ 100000 = 周期猝发 */
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 100000);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+            case 6: /* Burst PRF(Hz): 0 = 单次触发, 1 ~ 100000 = 周期猝发 (按位快调) */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 0, 100000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
                 break;
             case 7: /* 使能输出 */
                 if (!!(select_item->val))
@@ -1142,15 +1142,12 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
         } else if (!strcmp(common_val_page.bg_opt->text, "~ IND Ani")) {
             g_default_ui_para.ani_param[IND_ANI] = common_val_page.val;
         } else if (PULSE_MODE == PULSE_MODE_NPULSE) {
-            // N 脉冲个数 / PRF: 同步保存并刷新
+            // N 脉冲个数: 同步保存并刷新
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_option_array[4].val = common_val_page.val;
-            else if (!strcmp(common_val_page.bg_opt->text, "~ Burst PRF(Hz)"))
-                n_pulse_option_array[6].val = common_val_page.val;
             Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
                                (float)n_pulse_option_array[5].val / 100.0f,
                                (uint32_t)n_pulse_option_array[4].val);
-            Pulse_BurstPRF_Set((uint32_t)n_pulse_option_array[6].val);
         } else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG) {
             // 长 N 脉冲个数: 仅保存, 计时由 PW + Interval 决定, 触发时读取
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
@@ -1194,12 +1191,9 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_option_array[4].val = common_val_page.val;
-            else if (!strcmp(common_val_page.bg_opt->text, "~ Burst PRF(Hz)"))
-                n_pulse_option_array[6].val = common_val_page.val;
             Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
                                (float)n_pulse_option_array[5].val / 100.0f,
                                (uint32_t)n_pulse_option_array[4].val);
-            Pulse_BurstPRF_Set((uint32_t)n_pulse_option_array[6].val);
         }
         else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
         {
@@ -1438,14 +1432,26 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
             if (PULSE_MODE == PULSE_MODE_NPULSE)
             {
                 if (strstr(pw_spin_page.bg_opt->text, "Width"))
+                {
                     n_pulse_option_array[3].val = pw_spin_page.val;
+                    // 2 位小数精确 /100.0f
+                    Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
+                                       (float)n_pulse_option_array[5].val / 100.0f,
+                                       (uint32_t)n_pulse_option_array[4].val);
+                }
                 else if (strstr(pw_spin_page.bg_opt->text, "Interval"))
+                {
                     n_pulse_option_array[5].val = pw_spin_page.val;
-
-                // 2 位小数精确 /100.0f
-                Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
-                                   (float)n_pulse_option_array[5].val / 100.0f,
-                                   (uint32_t)n_pulse_option_array[4].val);
+                    // 2 位小数精确 /100.0f
+                    Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
+                                       (float)n_pulse_option_array[5].val / 100.0f,
+                                       (uint32_t)n_pulse_option_array[4].val);
+                }
+                else if (strstr(pw_spin_page.bg_opt->text, "PRF"))
+                {
+                    n_pulse_option_array[6].val = pw_spin_page.val;
+                    Pulse_BurstPRF_Set((uint32_t)pw_spin_page.val);
+                }
             }
             else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
             {

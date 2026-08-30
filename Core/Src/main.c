@@ -289,7 +289,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   {
     if (PULSE_MODE == PULSE_MODE_NPULSE)
     {
-      if (PULSE_OUT_ENABLED)
+      if (n_pulse_option_array[6].val > 0)
+      {
+        /* Burst 模式 (PRF > 0): 周期猝发自动运行, 不再等待触发 */
+        if (PULSE_OUT_ENABLED)
+          n_pulse_option_array[8].text = (char *)"--BURST RUNNING--";
+        else
+          n_pulse_option_array[8].text = (char *)"--OUTPUT DISABLED--";
+      }
+      else if (PULSE_OUT_ENABLED)
       {
         if (waiting_for_trg_flag)
           n_pulse_option_array[8].text = (char *)"-WAITING FOR TRIG-";
