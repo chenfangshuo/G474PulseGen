@@ -11,8 +11,8 @@ extern volatile uint8_t PULSE_MODE;
 
 //--------定义页面对象
 TitlePage main_page;
-    ListPage single_pulse_page;
-    ListPage single_pulse_long_page;
+    ListPage n_pulse_page;
+    ListPage n_pulse_long_page;
     ListPage double_pulse_page;
     ListPage pwm_page;
     ListPage pwm_long_page;
@@ -40,8 +40,8 @@ TitlePage main_page;
 Option main_option_array[MAIN_PAGE_NUM] =
 {
         // {.text = (char *)"! WouoUI"},
-        {.text = (char *)"+ Single Pulse"},
-        {.text = (char *)"+ Single Pulse Long"},
+        {.text = (char *)"+ Multi Pulse"},
+        {.text = (char *)"+ Multi Pulse Long"},
         {.text = (char *)"+ Double Pulse"},
         {.text = (char *)"+ PWM"},
         {.text = (char *)"+ PWM Long"},
@@ -81,7 +81,7 @@ Icon main_icon_array[MAIN_PAGE_NUM] =
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f, 0x1f, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0f, 0x0f, 0x0f,
                 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
-                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}, // Single Pulse Page
+                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}, // Multi Pulse Page
         [1] = {
                 0x00, 0x80, 0xc0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -102,7 +102,7 @@ Icon main_icon_array[MAIN_PAGE_NUM] =
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f, 0x1f, 0x07, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0f, 0x0f, 0x0f,
                 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
-                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}, // Single Pulse Long Page
+                0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}, // Multi Pulse Long Page
         [2] = {
                 0x00, 0x80, 0xc0, 0xf0, 0xf8, 0xf8, 0xfc, 0xfe, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -226,22 +226,26 @@ Icon main_icon_array[MAIN_PAGE_NUM] =
                 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00} // about
 };
 
-// Single Pulse的列表选项数组
-Option single_pulse_option_array[] ={
-    {.text = (char *)"- Single Pulse"}, // 第一个做说明标签，没有功能
+// Multi Pulse (N 脉冲) 的列表选项数组
+Option n_pulse_option_array[] ={
+    {.text = (char *)"- Multi Pulse"}, // 第一个做说明标签，没有功能
     {.text = (char *)"> Channel"},
     {.text = (char *)"> Polarity"},
     {.text = (char *)"= Width(uS)", .decimalNum = DecimalNum_2},
+    {.text = (char *)"~ Pulse Count"},
+    {.text = (char *)"= Interval(uS)", .decimalNum = DecimalNum_2},
     {.text = (char *)"@ Enable Output"},
     {.text = (char *)"--OUTPUT DISABLED--"},
 };
 
-// Single Pulse Long的列表选项数组
-Option single_pulse_long_option_array[] ={
-    {.text = (char *)"- Single Pulse Long"}, // 第一个做说明标签，没有功能
+// Multi Pulse Long (N 长脉冲) 的列表选项数组
+Option n_pulse_long_option_array[] ={
+    {.text = (char *)"- Multi Pulse Long"}, // 第一个做说明标签，没有功能
     {.text = (char *)"> Channel"},
     {.text = (char *)"> Polarity"},
     {.text = (char *)"% Width(S)", .decimalNum = DecimalNum_3},
+    {.text = (char *)"~ Pulse Count"},
+    {.text = (char *)"% Interval(S)", .decimalNum = DecimalNum_3},
     {.text = (char *)"@ Enable Output"},
     {.text = (char *)"--OUTPUT DISABLED--"},
 };
@@ -368,24 +372,28 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         // if (!strcmp(select_item->text, "! WouoUI")) {//设置消息弹窗内容并跳转
         //     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"BYD SEMI\n\nIPM\nLV Devices GRP");
         //     WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);}
-        if (!strcmp(select_item->text, "+ Single Pulse")) {
+        if (!strcmp(select_item->text, "+ Multi Pulse")) {
             PULSE_MODE = PULSE_MODE_NPULSE;
             Pulse_Select_Output(CH1);
-            single_pulse_option_array[1].content = ch_sel_str_array[0];
-            single_pulse_option_array[2].content = polarity_sel_str_array[0];
-            single_pulse_option_array[3].val = 100;
-            single_pulse_option_array[5].text = (char *)"--OUTPUT DISABLED--";
+            n_pulse_option_array[1].content = ch_sel_str_array[0];
+            n_pulse_option_array[2].content = polarity_sel_str_array[0];
+            n_pulse_option_array[3].val = 100;      // 脉宽 1.00 us
+            n_pulse_option_array[4].val = 1;        // 脉冲个数 1
+            n_pulse_option_array[5].val = 100;      // 间歇 1.00 us
+            n_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Pulse_nPulse_Init();
-            WouoUI_JumpToPage((PageAddr)cur_page_addr, &single_pulse_page);
-        } else if (!strcmp(select_item->text, "+ Single Pulse Long")) {
-            PULSE_MODE = PULSE_MODE_SINGLE_LONG;
+            WouoUI_JumpToPage((PageAddr)cur_page_addr, &n_pulse_page);
+        } else if (!strcmp(select_item->text, "+ Multi Pulse Long")) {
+            PULSE_MODE = PULSE_MODE_NPULSE_LONG;
             Pulse_Select_Output(CH1);
-            single_pulse_long_option_array[1].content = ch_sel_str_array[0];
-            single_pulse_long_option_array[2].content = polarity_sel_str_array[0];
-            single_pulse_long_option_array[3].val = 1000;
-            single_pulse_long_option_array[5].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_slPulse_Init();
-            WouoUI_JumpToPage((PageAddr)cur_page_addr, &single_pulse_long_page);
+            n_pulse_long_option_array[1].content = ch_sel_str_array[0];
+            n_pulse_long_option_array[2].content = polarity_sel_str_array[0];
+            n_pulse_long_option_array[3].val = 1000; // 脉宽 1.000 s
+            n_pulse_long_option_array[4].val = 1;    // 脉冲个数 1
+            n_pulse_long_option_array[5].val = 1000; // 间歇 1.000 s
+            n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+            Pulse_nPulseLong_Init();
+            WouoUI_JumpToPage((PageAddr)cur_page_addr, &n_pulse_long_page);
         } else if (!strcmp(select_item->text, "+ Double Pulse")) {
             PULSE_MODE = PULSE_MODE_DPULSE;
             Pulse_Select_Output(CH1);
@@ -435,7 +443,7 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     return false;
 }
 
-bool SinglePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
+bool NPulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
     // Pulse_Select_Output(CH1);
     if(msg_return == msg) {
@@ -443,8 +451,8 @@ bool SinglePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         // select_item->val = 0;
         if (PULSE_OUT_ENABLED == 1)
         {
-            single_pulse_page.select_item = single_pulse_page.item_num - 2;
-            single_pulse_page.ind_y_tgt = (single_pulse_page.item_num - 2) * LIST_LINE_H;
+            n_pulse_page.select_item = n_pulse_page.item_num - 2;
+            n_pulse_page.ind_y_tgt = (n_pulse_page.item_num - 2) * LIST_LINE_H;
             WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Please Disable Output Before Quit");
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
         }
@@ -459,7 +467,7 @@ bool SinglePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         switch (select_item->order)
         {
             case 0:
-                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"This Page Make Single Pulse");
+                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"This Page Make Multi Pulse");
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
                 break;
             case 1:
@@ -474,11 +482,19 @@ bool SinglePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 p_cur_ui->lw_var.ind_y_temp = 0;
                 WouoUI_JumpToPage((PageAddr)cur_page_addr,&polarity_sel_page);
                 break;
-            case 3:
+            case 3: /* 脉宽 Width(uS): 0.01 ~ 1500.00 us */
                 WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 1, 150000, select_item->decimalNum);
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
                 break;
-            case 4:
+            case 4: /* 脉冲个数 Pulse Count: 1 ~ 100 */
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 1, 1, 100);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+                break;
+            case 5: /* 间歇 Interval(uS): 1.00 ~ 1500.00 us */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 100, 150000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
+                break;
+            case 6: /* 使能输出 */
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
@@ -497,7 +513,7 @@ bool SinglePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     return false;
 }
 
-bool SinglePulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
+bool NPulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
     // Pulse_Select_Output(CH1);
     if(msg_return == msg) {
@@ -505,8 +521,8 @@ bool SinglePulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         // select_item->val = 0;
         if (PULSE_OUT_ENABLED == 1)
         {
-            single_pulse_long_page.select_item = single_pulse_long_page.item_num - 2;
-            single_pulse_long_page.ind_y_tgt = (single_pulse_long_page.item_num - 2) * LIST_LINE_H;
+            n_pulse_long_page.select_item = n_pulse_long_page.item_num - 2;
+            n_pulse_long_page.ind_y_tgt = (n_pulse_long_page.item_num - 2) * LIST_LINE_H;
             WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Please Disable Output Before Quit");
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
         }
@@ -521,7 +537,7 @@ bool SinglePulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         switch (select_item->order)
         {
             case 0:
-                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"This Page Make Single Long Pulse");
+                WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"This Page Make Multi Pulse Long");
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
                 break;
             case 1:
@@ -536,11 +552,19 @@ bool SinglePulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 p_cur_ui->lw_var.ind_y_temp = 0;
                 WouoUI_JumpToPage((PageAddr)cur_page_addr,&polarity_sel_page);
                 break;
-            case 3:
+            case 3: /* 脉宽 Width(S): 0.001 ~ 1000.000 s */
                 WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 1, 1000000, select_item->decimalNum);
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
                 break;
-            case 4:
+            case 4: /* 脉冲个数 Pulse Count: 1 ~ 100 */
+                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 1, 1, 100);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+                break;
+            case 5: /* 间歇 Interval(S): 0.001 ~ 100.000 s */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 1, 100000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
+                break;
+            case 6: /* 使能输出 */
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
@@ -864,6 +888,17 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
             g_default_ui_para.ani_param[TILE_ANI] = common_val_page.val;
         } else if (!strcmp(common_val_page.bg_opt->text, "~ IND Ani")) {
             g_default_ui_para.ani_param[IND_ANI] = common_val_page.val;
+        } else if (PULSE_MODE == PULSE_MODE_NPULSE) {
+            // N 脉冲个数: 同步保存并刷新
+            if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
+                n_pulse_option_array[4].val = common_val_page.val;
+            Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
+                               (float)n_pulse_option_array[5].val / 100.0f,
+                               (uint32_t)n_pulse_option_array[4].val);
+        } else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG) {
+            // 长 N 脉冲个数: 仅保存, 计时由 PW + Interval 决定, 触发时读取
+            if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
+                n_pulse_long_option_array[4].val = common_val_page.val;
         } else if (PULSE_MODE == PULSE_MODE_DPULSE) {
             // 点击确认时同步保存并刷新双脉冲参数
             if (!strcmp(common_val_page.bg_opt->text, "~ 1nd PW(uS)"))
@@ -878,7 +913,20 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
     }
     if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
     {
-        if (PULSE_MODE == PULSE_MODE_DPULSE)
+        if (PULSE_MODE == PULSE_MODE_NPULSE)
+        {
+            if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
+                n_pulse_option_array[4].val = common_val_page.val;
+            Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
+                               (float)n_pulse_option_array[5].val / 100.0f,
+                               (uint32_t)n_pulse_option_array[4].val);
+        }
+        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+        {
+            if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
+                n_pulse_long_option_array[4].val = common_val_page.val;
+        }
+        else if (PULSE_MODE == PULSE_MODE_DPULSE)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ 1nd PW(uS)"))
                 double_pulse_option_array[3].val = common_val_page.val;
@@ -954,15 +1002,19 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
         Pulse_Select_Output((int)ch_sel_page.sel_str_index + 1);
         if (PULSE_MODE == PULSE_MODE_NPULSE)
         {
-            single_pulse_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
-            single_pulse_option_array[2].content = polarity_sel_str_array[0];
-            single_pulse_option_array[3].val = 100;
+            n_pulse_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
+            n_pulse_option_array[2].content = polarity_sel_str_array[0];
+            n_pulse_option_array[3].val = 100;
+            n_pulse_option_array[4].val = 1;
+            n_pulse_option_array[5].val = 100;
         }
-        else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
         {
-            single_pulse_long_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
-            single_pulse_long_option_array[2].content = polarity_sel_str_array[0];
-            single_pulse_long_option_array[3].val = 1000;
+            n_pulse_long_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
+            n_pulse_long_option_array[2].content = polarity_sel_str_array[0];
+            n_pulse_long_option_array[3].val = 1000;
+            n_pulse_long_option_array[4].val = 1;
+            n_pulse_long_option_array[5].val = 1000;
         }
         else if (PULSE_MODE == PULSE_MODE_DPULSE)
         {
@@ -999,7 +1051,7 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
     //             ret = (int)ch_sel_page.sel_str_index;
     //
     //             Pulse_Select_Output(ret + 1);
-    //             single_pulse_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
+    //             n_pulse_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
     //             res = true;
     //         }
     //         break;
@@ -1027,9 +1079,9 @@ bool PolaritySelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
         else
             Pulse_SetPulsePolarity_High();
         if (PULSE_MODE == PULSE_MODE_NPULSE)
-            single_pulse_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
-        else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
-            single_pulse_long_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
+            n_pulse_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
+        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+            n_pulse_long_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
         else if (PULSE_MODE == PULSE_MODE_DPULSE)
             double_pulse_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
         else if (PULSE_MODE == PULSE_MODE_PWM)
@@ -1054,7 +1106,7 @@ bool PolaritySelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
     //             else
     //                 Pulse_SetPulsePolarity_High();
     //
-    //             single_pulse_option_array[2].content = polarity_sel_str_array[(int)ret];
+    //             n_pulse_option_array[2].content = polarity_sel_str_array[(int)ret];
     //             res = true;
     //         }
     //         break;
@@ -1082,14 +1134,26 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
         {
             if (PULSE_MODE == PULSE_MODE_NPULSE)
             {
-                single_pulse_option_array[3].val = pw_spin_page.val;
-                // 解决指针错位：直接按 2 位小数精确除以 100.0f
-                Pulse_nPulse_SetPW((float)single_pulse_option_array[3].val / 100.0f);
+                if (strstr(pw_spin_page.bg_opt->text, "Width"))
+                    n_pulse_option_array[3].val = pw_spin_page.val;
+                else if (strstr(pw_spin_page.bg_opt->text, "Interval"))
+                    n_pulse_option_array[5].val = pw_spin_page.val;
+
+                // 2 位小数精确 /100.0f
+                Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
+                                   (float)n_pulse_option_array[5].val / 100.0f,
+                                   (uint32_t)n_pulse_option_array[4].val);
             }
-            else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+            else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
             {
-                single_pulse_long_option_array[3].val = pw_spin_page.val;
-                Pulse_slPulse_SetPW((float)single_pulse_long_option_array[3].val / 1000.0f);
+                if (strstr(pw_spin_page.bg_opt->text, "Width"))
+                    n_pulse_long_option_array[3].val = pw_spin_page.val;
+                else if (strstr(pw_spin_page.bg_opt->text, "Interval"))
+                    n_pulse_long_option_array[5].val = pw_spin_page.val;
+
+                // 3 位小数精确 /1000.0f
+                Pulse_nPulseLong_SetPW((float)n_pulse_long_option_array[3].val / 1000.0f,
+                                       (float)n_pulse_long_option_array[5].val / 1000.0f);
             }
             else if (PULSE_MODE == PULSE_MODE_PWM)
             {
@@ -1132,15 +1196,19 @@ void TestUI_Init(void) {
     setting_option_array[11].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[SPIN_WBB]];
     setting_option_array[12].content = bg_blur_sel_str_array[(uint8_t)g_default_ui_para.winbgblur_param[LIST_WBB]];
 
-    single_pulse_option_array[1].content = ch_sel_str_array[0];
-    single_pulse_option_array[2].content = polarity_sel_str_array[0];
-    single_pulse_option_array[3].val = 100;
-    single_pulse_option_array[5].text = (char *)"--OUTPUT DISABLED--";
+    n_pulse_option_array[1].content = ch_sel_str_array[0];
+    n_pulse_option_array[2].content = polarity_sel_str_array[0];
+    n_pulse_option_array[3].val = 100;
+    n_pulse_option_array[4].val = 1;
+    n_pulse_option_array[5].val = 100;
+    n_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
 
-    single_pulse_long_option_array[1].content = ch_sel_str_array[0];
-    single_pulse_long_option_array[2].content = polarity_sel_str_array[0];
-    single_pulse_long_option_array[3].val = 1000;
-    single_pulse_long_option_array[5].text = (char *)"--OUTPUT DISABLED--";
+    n_pulse_long_option_array[1].content = ch_sel_str_array[0];
+    n_pulse_long_option_array[2].content = polarity_sel_str_array[0];
+    n_pulse_long_option_array[3].val = 1000;
+    n_pulse_long_option_array[4].val = 1;
+    n_pulse_long_option_array[5].val = 1000;
+    n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
 
     double_pulse_option_array[1].content = ch_sel_str_array[0];
     double_pulse_option_array[2].content = polarity_sel_str_array[0];
@@ -1163,8 +1231,8 @@ void TestUI_Init(void) {
 
     // 设置界面选项
     WouoUI_TitlePageInit(&main_page, MAIN_PAGE_NUM, main_option_array, main_icon_array, MainPage_CallBack);
-    WouoUI_ListPageInit(&single_pulse_page, sizeof(single_pulse_option_array)/sizeof(Option), single_pulse_option_array, Setting_none, SinglePulsePage_CallBack);
-    WouoUI_ListPageInit(&single_pulse_long_page, sizeof(single_pulse_long_option_array)/sizeof(Option), single_pulse_long_option_array, Setting_none, SinglePulseLongPage_CallBack);
+    WouoUI_ListPageInit(&n_pulse_page, sizeof(n_pulse_option_array)/sizeof(Option), n_pulse_option_array, Setting_none, NPulsePage_CallBack);
+    WouoUI_ListPageInit(&n_pulse_long_page, sizeof(n_pulse_long_option_array)/sizeof(Option), n_pulse_long_option_array, Setting_none, NPulseLongPage_CallBack);
     WouoUI_ListPageInit(&double_pulse_page, sizeof(double_pulse_option_array)/sizeof(Option), double_pulse_option_array, Setting_none, DoublePulsePage_CallBack);
     WouoUI_ListPageInit(&pwm_page, sizeof(pwm_option_array)/sizeof(Option), pwm_option_array, Setting_none, PWMPage_CallBack);
     WouoUI_ListPageInit(&pwm_long_page, sizeof(pwm_long_option_array)/sizeof(Option), pwm_long_option_array, Setting_none, lPWMPage_CallBack);

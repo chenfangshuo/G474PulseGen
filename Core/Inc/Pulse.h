@@ -16,13 +16,11 @@
 #define CH8                             8   /* HRTIM1_CHC1 (PB12 -> Y8) */
 
 /* 发波模式定义 */
-#define PULSE_MODE_SINGLE               0
-#define PULSE_MODE_NPULSE               1
+#define PULSE_MODE_NPULSE               1   /* N 脉冲 (HRTIM 短脉冲) */
 #define PULSE_MODE_DPULSE               2
 #define PULSE_MODE_PWM                  3
 #define PULSE_MODE_NONE                 4
-#define PULSE_MODE_SINGLE_LONG          5
-#define PULSE_MODE_NPULSE_LONG          6
+#define PULSE_MODE_NPULSE_LONG          6   /* N 脉冲 Long (TIM5 长脉冲) */
 #define PULSE_MODE_PWM_LONG             7
 
 /* 脉冲极性定义 */
@@ -81,16 +79,25 @@ void Pulse_Enable_Output(void);
 void Pulse_Disable_Output(void);
 void Pulse_SetPulsePolarity_High(void);
 void Pulse_SetPulsePolarity_Low(void);
-bool Pulse_nPulse_SetPW(float pw);
+bool Pulse_nPulse_SetPW(float pw, float interval_us, uint32_t count);
 void Pulse_nPulse_Init(void);
+void Pulse_nPulse_OnTrigger(uint32_t count);
+void Pulse_nPulse_OnPeriodEnd(void);
 bool Pulse_dPulse_SetPW(int32_t pw1, int32_t interval, int32_t pw2);
 void Pulse_dPulse_Init(void);
 bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent);
 void Pulse_PWM_Init(void);
-void Pulse_slPulse_SetPW(float pw);
-void Pulse_slPulse_Init(void);
+void Pulse_nPulseLong_SetPW(float pw, float interval_s);
+void Pulse_nPulseLong_Init(void);
 void Pulse_lPWM_SetPW(float period_s, float duty_cycle_percent);
 void Pulse_lPWM_Init(void);
+
+/* 长脉冲 (TIM5 软件模式) 引脚电平与中断服务接口 */
+void Pulse_LongPin_SetActive(void);
+void Pulse_LongPin_SetInactive(void);
+void Pulse_nPulseLong_OnTrigger(uint32_t count);
+void Pulse_nPulseLong_OnPeriodElapsed(void);
+void Pulse_nPulseLong_OnCompareMatch(void);
 
 /* 硬件级与软件级紧急快速关断 (Safe-State) */
 void Pulse_EmergencyStop(void);

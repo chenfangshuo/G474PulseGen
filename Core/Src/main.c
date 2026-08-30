@@ -55,8 +55,8 @@ volatile bool display_update_flag = 1;
 volatile bool waiting_for_trg_flag = 0;
 volatile bool triggered = 0;
 
-extern Option single_pulse_option_array[];
-extern Option single_pulse_long_option_array[];
+extern Option n_pulse_option_array[];
+extern Option n_pulse_long_option_array[];
 extern Option double_pulse_option_array[];
 extern Option pwm_option_array[];
 extern Option pwm_long_option_array[];
@@ -211,9 +211,9 @@ int main(void)
       // OLED_PrintfMix(0, 0,OLED_12X12_FULL,OLED_7X12_HALF,"你好,HI. CFS");
 
       if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_NPULSE))
-        single_pulse_option_array[5].text = (char *)"--->TRIGGERED<---";
-      if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_SINGLE_LONG))
-        single_pulse_long_option_array[5].text = (char *)"--->TRIGGERED<---";
+        n_pulse_option_array[7].text = (char *)"--->TRIGGERED<---";
+      if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_NPULSE_LONG))
+        n_pulse_long_option_array[7].text = (char *)"--->TRIGGERED<---";
       if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_DPULSE))
         double_pulse_option_array[7].text = (char *)"--->TRIGGERED<---";
 
@@ -286,27 +286,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       if (PULSE_OUT_ENABLED)
       {
         if (waiting_for_trg_flag)
-          single_pulse_option_array[5].text = (char *)"-WAITING FOR TRIG-";
+          n_pulse_option_array[7].text = (char *)"-WAITING FOR TRIG-";
         else
-          single_pulse_option_array[5].text = (char *)"                  ";
+          n_pulse_option_array[7].text = (char *)"                  ";
       }
       else
       {
-        single_pulse_option_array[5].text = (char *)"--OUTPUT DISABLED--";
+        n_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
       }
     }
-    else if (PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+    else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
     {
       if (PULSE_OUT_ENABLED)
       {
         if (waiting_for_trg_flag)
-          single_pulse_long_option_array[5].text = (char *)"-WAITING FOR TRIG-";
+          n_pulse_long_option_array[7].text = (char *)"-WAITING FOR TRIG-";
         else
-          single_pulse_long_option_array[5].text = (char *)"                  ";
+          n_pulse_long_option_array[7].text = (char *)"                  ";
       }
       else
       {
-        single_pulse_long_option_array[5].text = (char *)"--OUTPUT DISABLED--";
+        n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
       }
     }
     else if (PULSE_MODE == PULSE_MODE_DPULSE)
@@ -342,15 +342,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   if(htim->Instance == TIM5)
   {
-    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE_LONG)
     {
-      if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-        Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-      else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
-        Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
-
-      __HAL_TIM_DISABLE(htim);
-      __HAL_TIM_DISABLE_IT(htim, TIM_IT_UPDATE);
+      /* N 长脉冲: 周期溢出, 交由 Pulse 模块维护剩余脉冲计数与引脚电平 */
+      Pulse_nPulseLong_OnPeriodElapsed();
     }
     else if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_PWM_LONG)
     {
@@ -370,13 +365,21 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM5 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
   {
-    /* 比较匹配点：拉低置为无效电平 */
-    if (lpwm_ccr < lpwm_arr)
+    if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
     {
-      if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-        Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-      else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
-        Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+      /* N 长脉冲: 比较匹配(脉宽到达), 拉低引脚 */
+      Pulse_nPulseLong_OnCompareMatch();
+    }
+    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    {
+      /* 比较匹配点：拉低置为无效电平 */
+      if (lpwm_ccr < lpwm_arr)
+      {
+        if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+          Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
+        else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
+          Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
+      }
     }
   }
 }
@@ -385,6 +388,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if(GPIO_Pin == KEY_TRG_Pin)
   {
+    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE)
+    {
+      /* 短脉冲 N 脉冲: 记录本次突发脉冲个数, 首个脉冲由下方 TxRST 触发, 后续由 CMP4 中断重发 */
+      Pulse_nPulse_OnTrigger((uint32_t)n_pulse_option_array[4].val);
+    }
+
     if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_B)
       HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TBRST;
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_A)
@@ -394,19 +403,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_D)
       HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TDRST;
 
-    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_SINGLE_LONG)
+    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE_LONG)
     {
-      __HAL_TIM_SET_COUNTER(&htim5, 0);
-
-      //硬件拉高 GPIO (使用 BSRR 寄存器)
-      if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
-        Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
-      else if (PULSE_POLARITY == PULSE_POLARITY_LOW)
-        Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
-
-      //启动定时器并开启更新中断
-      __HAL_TIM_ENABLE_IT(&htim5, TIM_IT_UPDATE);
-      __HAL_TIM_ENABLE(&htim5);
+      /* N 长脉冲: 触发一次脉冲串 (剩余脉冲计数 = 用户设置的 Pulse Count) */
+      Pulse_nPulseLong_OnTrigger((uint32_t)n_pulse_long_option_array[4].val);
     }
 
 
@@ -425,14 +425,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 //   }
 // }
 
-// void HAL_HRTIM_RepetitionEventCallback(HRTIM_HandleTypeDef *hhrtim, uint32_t TimerIdx)
-// {
-//   if (PULSE_MODE == PULSE_MODE_NPULSE)
-//   {
-//     HAL_HRTIM_WaveformOutputStop(&hhrtim1, HRTIM_OUTPUT_TXX);
-//     HAL_HRTIM_WaveformCountStop_IT(&hhrtim1, HRTIM_TIMERID_TIMER_X);
-//   }
-// }
+void HAL_HRTIM_Compare4EventCallback(HRTIM_HandleTypeDef *hhrtim, uint32_t TimerIdx)
+{
+  (void)hhrtim;
+  (void)TimerIdx;
+  /* 短脉冲 N 脉冲: CMP4 周期结束, 维护剩余计数并重发下一脉冲 */
+  if (PULSE_MODE == PULSE_MODE_NPULSE)
+  {
+    Pulse_nPulse_OnPeriodEnd();
+  }
+}
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     OLED_SPI_TxCpltCallback(hspi);
