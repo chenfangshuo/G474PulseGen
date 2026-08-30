@@ -5,6 +5,7 @@
 #include "stm32g4xx.h"
 #include "hrtim.h"
 #include "Pulse.h"
+#include "Preset.h"
 
 extern volatile bool PULSE_OUT_ENABLED;
 extern volatile uint8_t PULSE_MODE;
@@ -338,8 +339,8 @@ Option comp_pwm_option_array[] ={
     {.text = (char *)"> Channel Pair"},
     {.text = (char *)"% Period(uS)", .decimalNum = DecimalNum_2},
     {.text = (char *)"~ Duty(%)"},
-    {.text = (char *)"~ DT Rise(ns)"},
-    {.text = (char *)"~ DT Fall(ns)"},
+    {.text = (char *)"% DT Rise(ns)", .decimalNum = DecimalNum_0},
+    {.text = (char *)"% DT Fall(ns)", .decimalNum = DecimalNum_0},
     {.text = (char *)"@ Enable Output"},
     {.text = (char *)"--OUTPUT DISABLED--"},
 };
@@ -390,6 +391,8 @@ Option setting_option_array[] ={
     {.text = (char *)"> Val win gb blur"},
     {.text = (char *)"> Spin win gb blur"},
     {.text = (char *)"> List win gb blur"},
+    {.text = (char *)"! Save Preset"},
+    {.text = (char *)"! Load Preset"},
 };
 
 String bg_blur_sel_str_array[] = {
@@ -449,78 +452,38 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         //     WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);}
         if (!strcmp(select_item->text, "+ Multi Pulse")) {
             PULSE_MODE = PULSE_MODE_NPULSE;
-            Pulse_Select_Output(CH1);
-            n_pulse_option_array[1].content = ch_sel_str_array[0];
-            n_pulse_option_array[2].content = polarity_sel_str_array[0];
-            n_pulse_option_array[3].val = 100;      // 脉宽 1.00 us
-            n_pulse_option_array[4].val = 1;        // 脉冲个数 1
-            n_pulse_option_array[5].val = 100;      // 间歇 1.00 us
-            n_pulse_option_array[6].val = 0;        // Burst PRF 0 = 单次
             n_pulse_option_array[8].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_nPulse_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &n_pulse_page);
         } else if (!strcmp(select_item->text, "+ Multi Pulse Long")) {
             PULSE_MODE = PULSE_MODE_NPULSE_LONG;
-            Pulse_Select_Output(CH1);
-            n_pulse_long_option_array[1].content = ch_sel_str_array[0];
-            n_pulse_long_option_array[2].content = polarity_sel_str_array[0];
-            n_pulse_long_option_array[3].val = 1000; // 脉宽 1.000 s
-            n_pulse_long_option_array[4].val = 1;    // 脉冲个数 1
-            n_pulse_long_option_array[5].val = 1000; // 间歇 1.000 s
             n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_nPulseLong_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &n_pulse_long_page);
         } else if (!strcmp(select_item->text, "+ Double Pulse")) {
             PULSE_MODE = PULSE_MODE_DPULSE;
-            Pulse_Select_Output(CH1);
-            double_pulse_option_array[1].content = ch_sel_str_array[0];
-            double_pulse_option_array[2].content = polarity_sel_str_array[0];
-            double_pulse_option_array[3].val = 5;
-            double_pulse_option_array[4].val = 5;
-            double_pulse_option_array[5].val = 5;
             double_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_dPulse_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &double_pulse_page);
         } else if (!strcmp(select_item->text, "+ PWM")) {
             PULSE_MODE = PULSE_MODE_PWM;
-            Pulse_Select_Output(CH1);
-            pwm_option_array[1].content = ch_sel_str_array[0];
-            pwm_option_array[2].content = polarity_sel_str_array[0];
-            pwm_option_array[3].val = 1;
-            pwm_option_array[4].val = 50;
             pwm_option_array[6].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_PWM_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &pwm_page);
         } else if (!strcmp(select_item->text, "+ PWM Long")) {
             PULSE_MODE = PULSE_MODE_PWM_LONG;
-            Pulse_Select_Output(CH1);
-            pwm_long_option_array[1].content = ch_sel_str_array[0];
-            pwm_long_option_array[2].content = polarity_sel_str_array[0];
-            pwm_long_option_array[3].val = 1000;
-            pwm_long_option_array[4].val = 5000;
             pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_lPWM_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &pwm_long_page);
         } else if (!strcmp(select_item->text, "+ Comp PWM")) {
             PULSE_MODE = PULSE_MODE_COMP_PWM;
-            Pulse_Select_CompPair(COMP_PAIR_CH1_CH2);
-            comp_pwm_option_array[1].content = comp_pair_sel_str_array[0];
-            comp_pwm_option_array[2].val = 1000;  // 周期 10.00 us
-            comp_pwm_option_array[3].val = 50;    // 占空比 50%
-            comp_pwm_option_array[4].val = 100;   // 上升沿死区 100 ns
-            comp_pwm_option_array[5].val = 100;   // 下降沿死区 100 ns
             comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_CompPWM_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &comp_pwm_page);
         } else if (!strcmp(select_item->text, "+ Comp PWM Long")) {
             PULSE_MODE = PULSE_MODE_COMP_PWM_LONG;
-            Pulse_Select_CompPair(COMP_PAIR_CH1_CH2);
-            comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[0];
-            comp_pwm_long_option_array[2].val = 1000;  // 周期 1.000 s
-            comp_pwm_long_option_array[3].val = 5000;  // 占空比 50.00%
-            comp_pwm_long_option_array[4].val = 10;    // 死区 10 ms
             comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
-            Pulse_CompLPWM_Init();
+            Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &comp_pwm_long_page);
         } else if (!strcmp(select_item->text, "+ Setting"))
         {
@@ -924,13 +887,13 @@ bool CompPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 100);
                 WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
                 break;
-            case 4: /* 上升沿死区 DT Rise(ns): 0 ~ 1000 */
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 1000);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+            case 4: /* 上升沿死区 DT Rise(ns): 0 ~ 12000 (按位快调) */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 0, 12000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
                 break;
-            case 5: /* 下降沿死区 DT Fall(ns): 0 ~ 1000 */
-                WouoUI_ValWinPageSetMinStepMax(&common_val_page, 0, 1, 1000);
-                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_val_page);
+            case 5: /* 下降沿死区 DT Fall(ns): 0 ~ 12000 (按位快调) */
+                WouoUI_SpinWinPageSetMinMaxDecimalnum(&pw_spin_page, 0, 12000, select_item->decimalNum);
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &pw_spin_page);
                 break;
             case 6: /* 使能输出 */
                 if (!!(select_item->val))
@@ -1073,6 +1036,20 @@ bool SettingPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
             case 12:
                 WouoUI_JumpToPage((PageAddr)cur_page_addr,&bg_blur_sel_page);
             break;
+            case 13: /* 保存参数到 Flash */
+                if (Preset_Save())
+                    WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Preset Saved OK");
+                else
+                    WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Preset Save Failed");
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+            break;
+            case 14: /* 从 Flash 调出参数 */
+                if (Preset_Load())
+                    WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Preset Loaded OK");
+                else
+                    WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"No Valid Preset");
+                WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
+            break;
             default:
                 break;
         }
@@ -1163,13 +1140,9 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 
             Pulse_dPulse_SetPW(double_pulse_option_array[3].val, double_pulse_option_array[4].val, double_pulse_option_array[5].val);
         } else if (PULSE_MODE == PULSE_MODE_COMP_PWM) {
-            // 点击确认时同步保存并刷新互补 PWM 占空比/死区
+            // 点击确认时同步保存并刷新互补 PWM 占空比 (死区改用 SpinWin, 见 PWSpinPage_CallBack)
             if (!strcmp(common_val_page.bg_opt->text, "~ Duty(%)"))
                 comp_pwm_option_array[3].val = common_val_page.val;
-            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)"))
-                comp_pwm_option_array[4].val = common_val_page.val;
-            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)"))
-                comp_pwm_option_array[5].val = common_val_page.val;
 
             Pulse_CompPWM_SetPW((float)comp_pwm_option_array[2].val / 100.0f,
                                 (int32_t)comp_pwm_option_array[3].val,
@@ -1220,10 +1193,6 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ Duty(%)"))
                 comp_pwm_option_array[3].val = common_val_page.val;
-            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Rise(ns)"))
-                comp_pwm_option_array[4].val = common_val_page.val;
-            else if (!strcmp(common_val_page.bg_opt->text, "~ DT Fall(ns)"))
-                comp_pwm_option_array[5].val = common_val_page.val;
 
             Pulse_CompPWM_SetPW((float)comp_pwm_option_array[2].val / 100.0f,
                                 (int32_t)comp_pwm_option_array[3].val,
@@ -1480,7 +1449,13 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
             }
             else if (PULSE_MODE == PULSE_MODE_COMP_PWM)
             {
-                comp_pwm_option_array[2].val = pw_spin_page.val;
+                if (strstr(pw_spin_page.bg_opt->text, "Period"))
+                    comp_pwm_option_array[2].val = pw_spin_page.val;
+                else if (strstr(pw_spin_page.bg_opt->text, "DT Rise"))
+                    comp_pwm_option_array[4].val = pw_spin_page.val;
+                else if (strstr(pw_spin_page.bg_opt->text, "DT Fall"))
+                    comp_pwm_option_array[5].val = pw_spin_page.val;
+
                 Pulse_CompPWM_SetPW((float)comp_pwm_option_array[2].val / 100.0f,
                                     (int32_t)comp_pwm_option_array[3].val,
                                     (uint32_t)comp_pwm_option_array[4].val,

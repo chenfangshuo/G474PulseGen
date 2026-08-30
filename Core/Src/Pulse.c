@@ -1410,7 +1410,9 @@ void Pulse_Select_CompPair(uint8_t pair_idx)
 }
 
 /* 死区时间 -> HRTIM 死区时钟分频档与 9bit 计数值
-   fHRTIM = 170MHz, fDTG = fHRTIM 倍频/分频, 单 tick 时间见下表 */
+   fHRTIM = 170MHz, fDTG = fHRTIM 倍频/分频, 单 tick 时间见下表:
+     MUL8=0.735ns / MUL4=1.471ns / MUL2=2.941ns / DIV1=5.882ns / DIV2=11.765ns / DIV4=23.529ns
+   9bit 值(0~511) 结合 DIV4 档可覆盖至约 12us 死区 */
 static void Pulse_CompPWM_CalcDeadTime(uint32_t dt_rise_ns, uint32_t dt_fall_ns,
                                        uint32_t *out_psc, uint32_t *out_rise_val, uint32_t *out_fall_val)
 {
@@ -1422,7 +1424,9 @@ static void Pulse_CompPWM_CalcDeadTime(uint32_t dt_rise_ns, uint32_t dt_fall_ns,
     if (dt_max <= 375U)        { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_MUL8; tick_ns = 0.735294f; }
     else if (dt_max <= 751U)   { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_MUL4; tick_ns = 1.470588f; }
     else if (dt_max <= 1502U)  { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_MUL2; tick_ns = 2.941176f; }
-    else                       { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_DIV1; tick_ns = 5.882353f; }
+    else if (dt_max <= 3006U)  { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_DIV1; tick_ns = 5.882353f; }
+    else if (dt_max <= 6012U)  { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_DIV2; tick_ns = 11.764706f; }
+    else                       { psc = HRTIM_TIMDEADTIME_PRESCALERRATIO_DIV4; tick_ns = 23.529412f; }
 
     uint32_t rv = (uint32_t)roundf((float)dt_rise_ns / tick_ns);
     uint32_t fv = (uint32_t)roundf((float)dt_fall_ns / tick_ns);
@@ -1434,12 +1438,12 @@ static void Pulse_CompPWM_CalcDeadTime(uint32_t dt_rise_ns, uint32_t dt_fall_ns,
     if (out_fall_val) *out_fall_val = fv;
 }
 
-/* 高精度互补 PWM: 周期 1~1500us, 占空比 0~100%, 上升/下降沿死区 0~1000ns */
+/* 高精度互补 PWM: 周期 1~1500us, 占空比 0~100%, 上升/下降沿死区 0~12000ns */
 bool Pulse_CompPWM_SetPW(float period_us, int32_t duty_cycle_percent, uint32_t dt_rise_ns, uint32_t dt_fall_ns)
 {
     if (period_us < 1.0f || period_us > 1500.0f)         return false;
     if (duty_cycle_percent < 0 || duty_cycle_percent > 100) return false;
-    if (dt_rise_ns > 1000U || dt_fall_ns > 1000U)        return false;
+    if (dt_rise_ns > 12000U || dt_fall_ns > 12000U)      return false;
 
     /* CMP 最小值随分频档变化 (同 PWM, 低于该值 Reset 可能被漏掉) */
     static const uint16_t cmp_min_tab[8] =
