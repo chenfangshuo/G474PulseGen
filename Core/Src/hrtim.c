@@ -203,15 +203,22 @@ void HAL_HRTIM_MspPostInit(HRTIM_HandleTypeDef* hrtimHandle)
 
   /* USER CODE BEGIN HRTIM1_MspPostInit 1 */
     /** HRTIM1 Timer C GPIO Configuration (严格遵循 HARDWARE.md §5.1)
-    PB12     ------> HRTIM1_CHC1 (Y8)
-    PB13     ------> HRTIM1_CHC2 (Y7)
+    PB13     ------> HRTIM1_CHC2 (Y7 = SYNC OUT, HRTIM 硬件输出)
+    PB12     ------> GPIO 推挽输出 (Y8 = 帧/猝发标记, 软件控制)
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
+    GPIO_InitStruct.Pin = GPIO_PIN_13;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF13_HRTIM1;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_12;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);   /* 帧标记初始低 */
   /* USER CODE END HRTIM1_MspPostInit 1 */
   }
 

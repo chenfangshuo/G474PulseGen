@@ -12,8 +12,14 @@
 #define CH4                             4   /* HRTIM1_CHA1 (PA8  -> Y4) */
 #define CH5                             5   /* HRTIM1_CHD2 (PB15 -> Y5) */
 #define CH6                             6   /* HRTIM1_CHD1 (PB14 -> Y6) */
-#define CH7                             7   /* HRTIM1_CHC2 (PB13 -> Y7) */
-#define CH8                             8   /* HRTIM1_CHC1 (PB12 -> Y8) */
+
+/* Y7/Y8 专用功能引脚 (Step 0 起 Timer C 剥离发波) */
+#define SYNC_OUT_GPIO_Port              GPIOB
+#define SYNC_OUT_Pin                    GPIO_PIN_13   /* Y7 = HRTIM CHC2, SYNC OUT */
+#define FRAME_OUT_GPIO_Port             GPIOB
+#define FRAME_OUT_Pin                   GPIO_PIN_12   /* Y8 = 帧/猝发标记 (软件 GPIO) */
+#define SYNC_OUT_WIDTH_TICKS            1088U         /* SYNC 脉宽 200ns @ MUL32 (5.44GHz) */
+#define BURST_PRF_MAX_HZ                100000U       /* PRF 猝发重复频率上限 */
 
 /* 发波模式定义 */
 #define PULSE_MODE_NPULSE               1   /* N 脉冲 (HRTIM 短脉冲) */
@@ -29,7 +35,6 @@
 #define COMP_PAIR_CH1_CH2               0   /* CH1(TB2,PA11) + CH2(TB1,PA10) -> Timer B */
 #define COMP_PAIR_CH3_CH4               1   /* CH3(TA2,PA9)  + CH4(TA1,PA8)  -> Timer A */
 #define COMP_PAIR_CH5_CH6               2   /* CH5(TD2,PB15) + CH6(TD1,PB14) -> Timer D */
-#define COMP_PAIR_CH7_CH8               3   /* CH7(TC2,PB13) + CH8(TC1,PB12) -> Timer C */
 
 /* 脉冲极性定义 */
 #define PULSE_POLARITY_HIGH             0
@@ -60,13 +65,13 @@
 
 /* Pulse 控制器上下文结构体 (重构全局状态机，消除类型溢出隐患) */
 typedef struct {
-    volatile uint8_t          channel;               /* 当前选中的逻辑通道 CH1 ~ CH8 */
+    volatile uint8_t          channel;               /* 当前选中的逻辑通道 CH1 ~ CH6 */
     volatile uint8_t          mode;                  /* PULSE_MODE_* */
     volatile uint8_t          timer_idx;             /* HRTIM_TIMERINDEX_TIMER_A/B/C/D */
     volatile uint32_t         timer_id;              /* HRTIM_TIMERID_TIMER_A/B/C/D */
     volatile uint32_t         output_ch;             /* 主路输出 (互补模式为 Tx1 参考路) */
     volatile uint32_t         output_ch2;            /* 互补输出 (互补模式为 Tx2, 单通道模式置 0) */
-    volatile uint8_t          pair_idx;              /* 互补通道对索引 COMP_PAIR_* (0~3) */
+    volatile uint8_t          pair_idx;              /* 互补通道对索引 COMP_PAIR_* (0~2) */
     volatile uint8_t          polarity;              /* PULSE_POLARITY_HIGH / LOW */
     volatile bool             is_enabled;            /* 输出使能标志 */
 } Pulse_Controller_t;
@@ -125,5 +130,16 @@ void Pulse_EmergencyStop(void);
 
 GPIO_TypeDef *Pulse_GetLongPulsePort(void);
 uint16_t Pulse_GetLongPulsePin(void);
+
+/* ==================== Y7 SYNC OUT / Y8 帧标记 / Burst PRF ==================== */
+void Pulse_Sync_Init(void);              /* 配置 Timer C CH2 (Y7) 为单次同步脉冲 */
+void Pulse_TriggerFireAll(void);         /* 同一写操作同步复位波形定时器与 SYNC Timer C */
+void Pulse_Frame_SetActive(void);        /* 帧标记 (Y8) 拉高: 猝发开始 */
+void Pulse_Frame_SetInactive(void);      /* 帧标记 (Y8) 拉低: 猝发结束 */
+void Pulse_BurstPRF_Init(void);          /* TIM3 周期猝发时基初始化 */
+void Pulse_BurstPRF_Set(uint32_t prf_hz);/* 设置猝发重复频率 (0 = 单次, 1~100000 Hz) */
+void Pulse_BurstPRF_Start(void);         /* 启动周期猝发 (立即发第一帧) */
+void Pulse_BurstPRF_Stop(void);          /* 停止周期猝发 */
+void Pulse_BurstPRF_OnTick(void);        /* TIM3 更新中断: 周期重发一帧猝发 */
 
 #endif /* __PULSE_H */

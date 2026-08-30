@@ -332,5 +332,13 @@ void HRTIM1_TIMB_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-
+/* TIM3 更新中断: PRF 周期猝发重触发时基 */
+void TIM3_IRQHandler(void)
+{
+  if (TIM3->SR & TIM_SR_UIF)
+  {
+    TIM3->SR = (uint32_t)~TIM_SR_UIF;   /* 清更新中断标志 */
+    Pulse_BurstPRF_OnTick();
+  }
+}
 /* USER CODE END 1 */

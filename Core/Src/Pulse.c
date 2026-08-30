@@ -32,6 +32,12 @@ static volatile uint32_t s_pulse_remain    = 0;
 /* 短脉冲 (HRTIM) 当前突发剩余脉冲计数, 由 CMP4 周期结束中断维护 */
 static volatile uint32_t s_npulse_remain   = 0;
 
+/* 短脉冲 (HRTIM) 本次猝发的脉冲总数 (PRF 周期猝发复读) */
+static volatile uint32_t s_npulse_count    = 1;
+
+/* Burst PRF 猝发重复频率 (Hz), 0 = 单次触发 */
+static volatile uint32_t s_burst_prf_hz    = 0;
+
 /* HRTIM 硬件配置结构体 */
 HRTIM_TimeBaseCfgTypeDef TimeBaseCfg = {0};
 HRTIM_TimerCtlTypeDef    TimerCtl    = {0};
@@ -122,21 +128,19 @@ typedef struct {
     uint16_t      pin_comp;   /* Tx2 互补引脚 */
 } Pulse_CompPinMap_t;
 
-static const Pulse_CompPinMap_t s_comp_pin_map[4] = {
+static const Pulse_CompPinMap_t s_comp_pin_map[3] = {
     /* pair0: CH1&CH2 -> Timer B: TB1(PA10,CH2)=主路, TB2(PA11,CH1)=互补 */
     { GPIOA, HRT_CHB1_Pin, HRT_CHB2_Pin },
     /* pair1: CH3&CH4 -> Timer A: TA1(PA8,CH4)=主路, TA2(PA9,CH3)=互补 */
     { GPIOA, HRT_CHA1_Pin, HRT_CHA2_Pin },
     /* pair2: CH5&CH6 -> Timer D: TD1(PB14,CH6)=主路, TD2(PB15,CH5)=互补 */
     { GPIOB, HRT_CHD1_Pin, HRT_CHD2_Pin },
-    /* pair3: CH7&CH8 -> Timer C: TC1(PB12,CH8)=主路, TC2(PB13,CH7)=互补 */
-    { GPIOB, HRT_CHC1_Pin, HRT_CHC2_Pin },
 };
 
 static const Pulse_CompPinMap_t *Pulse_CompPinGet(void)
 {
     uint8_t p = g_pulse_ctrl.pair_idx;
-    if (p > 3U) p = 0U;
+    if (p > 2U) p = 0U;
     return &s_comp_pin_map[p];
 }
 
@@ -162,7 +166,7 @@ static void Pulse_CompPinCompSetInactive(void)
     m->port->BSRR = (uint32_t)m->pin_comp << 16U;
 }
 
-/* 通道选择：严格按照 HARDWARE.md §5.1 表格映射 CH1 ~ CH8 */
+/* 通道选择：严格按照 HARDWARE.md §5.1 表格映射 CH1 ~ CH6 (Timer C 已剥离发波) */
 void Pulse_Select_Output(uint8_t CHx)
 {
     bool was_enabled = g_pulse_ctrl.is_enabled;
@@ -205,16 +209,6 @@ void Pulse_Select_Output(uint8_t CHx)
             g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_D;
             g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_D;
             g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TD1;
-            break;
-        case CH7: /* HRTIM1_CHC2 (PB13 -> Y7) */
-            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_C;
-            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_C;
-            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TC2;
-            break;
-        case CH8: /* HRTIM1_CHC1 (PB12 -> Y8) */
-            g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_C;
-            g_pulse_ctrl.timer_id  = HRTIM_TIMERID_TIMER_C;
-            g_pulse_ctrl.output_ch = HRTIM_OUTPUT_TC1;
             break;
         default:
             g_pulse_ctrl.timer_idx = HRTIM_TIMERINDEX_TIMER_B;
@@ -286,6 +280,12 @@ void Pulse_Enable_Output(void)
         HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_2);
         HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_3);
     }
+
+    /* PRF 猝发重复: 频率 > 0 时立即发首帧并启动周期重发 (仅 N 脉冲模式) */
+    if (PULSE_MODE == PULSE_MODE_NPULSE)
+    {
+        Pulse_BurstPRF_Start();
+    }
 }
 
 void Pulse_Disable_Output(void)
@@ -293,6 +293,8 @@ void Pulse_Disable_Output(void)
     g_pulse_ctrl.is_enabled = false;
     Pulse_SyncContext();
     s_npulse_remain = 0;   /* 关断输出时中止短脉冲重触发链 */
+    Pulse_BurstPRF_Stop();      /* 停止 PRF 周期猝发 */
+    Pulse_Frame_SetInactive();  /* 帧标记拉低 */
 
     /* 关闭 CMP4 周期结束中断 (仅短脉冲多脉冲使用, 其它模式无需) */
     __HAL_HRTIM_TIMER_DISABLE_IT(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_TIM_IT_CMP4);
@@ -485,6 +487,8 @@ bool Pulse_nPulse_SetPW(float pw, float interval_us, uint32_t count)
     if (count < 1 || count > 100)        return false;
     if (count > 1 && (interval_us < 1.0f || interval_us > 1500.0f)) return false;
 
+    s_npulse_count = count;   /* 记录猝发脉冲总数, 供 PRF 周期猝发复读 */
+
     const bool was_enabled = g_pulse_ctrl.is_enabled; // 暂存使能状态
     uint32_t prescaler_value;
     uint32_t period_value;
@@ -656,6 +660,7 @@ void Pulse_nPulse_OnTrigger(uint32_t count)
 {
     if (count < 1) count = 1;
     if (count > 100) count = 100;
+    s_npulse_count  = count;
     s_npulse_remain = count;
 }
 
@@ -670,6 +675,7 @@ void Pulse_nPulse_OnPeriodEnd(void)
     else
     {
         s_npulse_remain = 0;           /* 脉冲串结束 (单次模式下定时器已自动停止) */
+        Pulse_Frame_SetInactive();     /* 帧标记拉低: 一帧猝发结束 */
     }
 }
 
@@ -1077,7 +1083,13 @@ void Pulse_EmergencyStop(void)
         Pulse_CompPinCompSetInactive();
     }
 
-    /* 4. 更新内部状态机为故障保护状态 */
+    /* 4. 停止 PRF 周期猝发 (TIM3 若已使能) 并拉低帧标记 */
+    if (RCC->APB1ENR1 & RCC_APB1ENR1_TIM3EN) {
+        TIM3->CR1 &= ~TIM_CR1_CEN;
+    }
+    Pulse_Frame_SetInactive();
+
+    /* 5. 更新内部状态机为故障保护状态 */
     g_pulse_ctrl.is_enabled = false;
     s_npulse_remain = 0;
     s_pulse_remain = 0;
@@ -1190,12 +1202,12 @@ void Pulse_nPulseLong_Init(void)
     }
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
 
-    /* 将所有 8 路 HRTIM 输出引脚配置为推挽输出 (包含 Timer C: PB12/PB13) */
-    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin);
+    /* 将 6 路 HRTIM 输出引脚配置为推挽输出 (Timer C 已剥离为 SYNC/帧标记) */
+    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin);
     HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin;
+    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -1237,6 +1249,7 @@ void Pulse_nPulseLong_OnPeriodElapsed(void)
     {
         s_pulse_remain = 0;
         Pulse_LongPin_SetInactive();
+        Pulse_Frame_SetInactive();   /* 帧标记拉低: 一帧猝发结束 */
         __HAL_TIM_DISABLE_IT(&htim5, TIM_IT_UPDATE | TIM_IT_CC1);
         __HAL_TIM_DISABLE(&htim5);
     }
@@ -1329,12 +1342,12 @@ void Pulse_lPWM_Init(void)
     }
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
 
-    /* 将所有 8 路 HRTIM 输出引脚配置为推挽输出 (包含 Timer C: PB12/PB13) */
-    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin);
+    /* 将 6 路 HRTIM 输出引脚配置为推挽输出 (Timer C 已剥离为 SYNC/帧标记) */
+    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin);
     HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin;
+    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -1355,7 +1368,7 @@ void Pulse_lPWM_Init(void)
 /* 互补通道对选择: 同一 HRTIM Timer 的 Tx1(主路/参考) 与 Tx2(互补), 死区硬件生成 */
 void Pulse_Select_CompPair(uint8_t pair_idx)
 {
-    if (pair_idx > 3U) pair_idx = 0U;
+    if (pair_idx > 2U) pair_idx = 0U;
     const bool was_enabled = g_pulse_ctrl.is_enabled;
     if (was_enabled) Pulse_Disable_Output();   /* 先关断旧通道对, 严禁打出寄生脉冲 */
 
@@ -1381,12 +1394,6 @@ void Pulse_Select_CompPair(uint8_t pair_idx)
             g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_D;
             g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TD1;
             g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TD2;
-            break;
-        case COMP_PAIR_CH7_CH8: /* Timer C: TC1(PB12,CH8)=主路, TC2(PB13,CH7)=互补 */
-            g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_C;
-            g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_C;
-            g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TC1;
-            g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TC2;
             break;
         default:
             break;
@@ -1753,12 +1760,12 @@ void Pulse_CompLPWM_Init(void)
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_2);
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_3);
 
-    /* 将所有 8 路 HRTIM 输出引脚配置为推挽输出 (软件翻转互补电平) */
-    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin);
+    /* 将 6 路 HRTIM 输出引脚配置为推挽输出 (软件翻转互补电平) */
+    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin);
     HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin | HRT_CHC1_Pin | HRT_CHC2_Pin;
+    GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -1847,4 +1854,202 @@ uint16_t Pulse_GetLongPulsePin(void)
         default:
             return HRT_CHB2_Pin;
     }
+}
+
+/* ==================== Y7 SYNC OUT / Y8 帧标记 / Burst PRF ==================== */
+
+/* Y7 帧/猝发标记电平控制 (软件 GPIO, BSRR 原子写) */
+void Pulse_Frame_SetActive(void)
+{
+    FRAME_OUT_GPIO_Port->BSRR = FRAME_OUT_Pin;
+}
+
+void Pulse_Frame_SetInactive(void)
+{
+    FRAME_OUT_GPIO_Port->BSRR = (uint32_t)FRAME_OUT_Pin << 16U;
+}
+
+/* Y7 SYNC OUT 初始化: Timer C CH2 (PB13) 配置为单次短脉冲
+   每按下一次 TRG, 由下方 Pulse_TriggerFireAll 写入 TCRST 复位 Timer C,
+   输出一个宽度 200ns 的同步脉冲, 与首脉冲同一起点 (ns 级对齐) */
+void Pulse_Sync_Init(void)
+{
+    HRTIM_TimeBaseCfgTypeDef SyncTB   = {0};
+    HRTIM_TimerCtlTypeDef    SyncTC   = {0};
+    HRTIM_TimerCfgTypeDef    SyncCfg  = {0};
+    HRTIM_CompareCfgTypeDef  SyncCmp  = {0};
+    HRTIM_OutputCfgTypeDef   SyncOut  = {0};
+
+    /* 时基: MUL32 最高分辨率 (5.44GHz), PER = 脉宽 + 余量, 单次模式待 TCRST 触发
+       (PER 需 > CMP2, 避免复位沿与周期溢出沿重合导致脉宽异常) */
+    SyncTB.Period            = SYNC_OUT_WIDTH_TICKS + 32U;
+    SyncTB.RepetitionCounter = 0;
+    SyncTB.PrescalerRatio    = HRTIM_PRESCALERRATIO_MUL32;
+    SyncTB.Mode              = HRTIM_MODE_SINGLESHOT;
+    if (HAL_HRTIM_TimeBaseConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_C, &SyncTB) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    SyncTC.UpDownMode = HRTIM_TIMERUPDOWNMODE_UP;
+    SyncTC.TrigHalf = HRTIM_TIMERTRIGHALF_DISABLED;
+    SyncTC.GreaterCMP1 = HRTIM_TIMERGTCMP1_EQUAL;
+    SyncTC.DualChannelDacEnable = HRTIM_TIMER_DCDE_DISABLED;
+    if (HAL_HRTIM_WaveformTimerControl(&hhrtim1, HRTIM_TIMERINDEX_TIMER_C, &SyncTC) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    SyncCfg.InterruptRequests = HRTIM_TIM_IT_NONE;
+    SyncCfg.DMARequests = HRTIM_TIM_DMA_NONE;
+    SyncCfg.DMASrcAddress = 0x0000;
+    SyncCfg.DMADstAddress = 0x0000;
+    SyncCfg.DMASize = 0x1;
+    SyncCfg.HalfModeEnable = HRTIM_HALFMODE_DISABLED;
+    SyncCfg.InterleavedMode = HRTIM_INTERLEAVED_MODE_DISABLED;
+    SyncCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
+    SyncCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
+    SyncCfg.DACSynchro = HRTIM_DACSYNC_NONE;
+    SyncCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED;
+    SyncCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
+    SyncCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
+    SyncCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
+    SyncCfg.PushPull = HRTIM_TIMPUSHPULLMODE_DISABLED;
+    SyncCfg.FaultEnable = HRTIM_TIMFAULTENABLE_NONE;
+    SyncCfg.FaultLock = HRTIM_TIMFAULTLOCK_READWRITE;
+    SyncCfg.DeadTimeInsertion = HRTIM_TIMDEADTIMEINSERTION_DISABLED;
+    SyncCfg.DelayedProtectionMode = HRTIM_TIMER_A_B_C_DELAYEDPROTECTION_DISABLED;
+    SyncCfg.UpdateTrigger = HRTIM_TIMUPDATETRIGGER_NONE;
+    SyncCfg.ResetTrigger = HRTIM_TIMRESETTRIGGER_NONE;
+    SyncCfg.ResetUpdate = HRTIM_TIMUPDATEONRESET_DISABLED;
+    SyncCfg.ReSyncUpdate = HRTIM_TIMERESYNC_UPDATE_UNCONDITIONAL;
+    if (HAL_HRTIM_WaveformTimerConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_C, &SyncCfg) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* CMP1 = 0 (复位即置位), CMP2 = 200ns (脉宽到达复位) */
+    SyncCmp.CompareValue = 0;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_C, HRTIM_COMPAREUNIT_1, &SyncCmp) != HAL_OK)
+    {
+        Error_Handler();
+    }
+    SyncCmp.CompareValue = SYNC_OUT_WIDTH_TICKS;
+    SyncCmp.AutoDelayedMode = HRTIM_AUTODELAYEDMODE_REGULAR;
+    SyncCmp.AutoDelayedTimeout = 0x0000;
+    if (HAL_HRTIM_WaveformCompareConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_C, HRTIM_COMPAREUNIT_2, &SyncCmp) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    /* 输出 TC2 (PB13/Y7): CMP1 置位 / CMP2 复位, 高有效 */
+    SyncOut.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
+    SyncOut.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
+    SyncOut.ResetSource = HRTIM_OUTPUTRESET_TIMCMP2;
+    SyncOut.IdleMode = HRTIM_OUTPUTIDLEMODE_NONE;
+    SyncOut.IdleLevel = HRTIM_OUTPUTIDLELEVEL_INACTIVE;
+    SyncOut.FaultLevel = HRTIM_OUTPUTFAULTLEVEL_NONE;
+    SyncOut.ChopperModeEnable = HRTIM_OUTPUTCHOPPERMODE_DISABLED;
+    SyncOut.BurstModeEntryDelayed = HRTIM_OUTPUTBURSTMODEENTRY_REGULAR;
+    if (HAL_HRTIM_WaveformOutputConfig(&hhrtim1, HRTIM_TIMERINDEX_TIMER_C, HRTIM_OUTPUT_TC2, &SyncOut) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    HAL_HRTIM_MspPostInit(&hhrtim1);   /* 确保 PB13 为 HRTIM_CHC2 复用 */
+    HAL_HRTIM_WaveformOutputStart(&hhrtim1, HRTIM_OUTPUT_TC2);
+    HAL_HRTIM_WaveformCountStart(&hhrtim1, HRTIM_TIMERID_TIMER_C);
+}
+
+/* 触发发波: 同一写操作同步复位「波形定时器」与「SYNC Timer C」, 保证首脉冲与 SYNC ns 级对齐 */
+void Pulse_TriggerFireAll(void)
+{
+    if (!PULSE_OUT_ENABLED) return;
+
+    uint32_t cr2 = HRTIM_CR2_TCRST;   /* SYNC OUT: Timer C 同步复位 */
+
+    switch (g_pulse_ctrl.timer_idx)
+    {
+        case HRTIM_TIMERINDEX_TIMER_A: cr2 |= HRTIM_CR2_TARST; break;
+        case HRTIM_TIMERINDEX_TIMER_B: cr2 |= HRTIM_CR2_TBRST; break;
+        case HRTIM_TIMERINDEX_TIMER_D: cr2 |= HRTIM_CR2_TDRST; break;
+        default: break;
+    }
+
+    HRTIM1->sCommonRegs.CR2 = cr2;
+}
+
+/* TIM3 周期猝发时基初始化 (PRF 猝发重复) */
+void Pulse_BurstPRF_Init(void)
+{
+    __HAL_RCC_TIM3_CLK_ENABLE();
+
+    HAL_NVIC_SetPriority(TIM3_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(TIM3_IRQn);
+
+    TIM3->CR1  = 0;              /* 默认停止 */
+    TIM3->DIER = TIM_DIER_UIE;   /* 仅使能更新中断 */
+    TIM3->PSC  = 0;
+    TIM3->ARR  = 1699;           /* 默认 100kHz @ 170MHz */
+    s_burst_prf_hz = 0;
+}
+
+/* 设置猝发重复频率: 0 = 单次触发, 1 ~ 100000 Hz 周期猝发 */
+void Pulse_BurstPRF_Set(uint32_t prf_hz)
+{
+    s_burst_prf_hz = prf_hz;
+
+    if (prf_hz == 0U)
+    {
+        Pulse_BurstPRF_Stop();
+        return;
+    }
+
+    if (prf_hz > BURST_PRF_MAX_HZ) prf_hz = BURST_PRF_MAX_HZ;
+
+    /* TIM3 计数时钟 = 170MHz (APB1 分频 1); 16bit ARR 需按频率选择预分频 */
+    uint32_t ticks = 170000000UL / prf_hz;
+    uint32_t psc   = ticks / 65536UL;
+    uint32_t arr   = ticks / (psc + 1UL);
+    if (arr == 0UL)   arr = 1UL;
+    if (arr > 65535UL) arr = 65535UL;
+
+    TIM3->PSC = (uint16_t)psc;
+    TIM3->ARR = (uint16_t)(arr - 1UL);
+    TIM3->CNT = 0;
+    TIM3->EGR = TIM_EGR_UG;    /* 立即重载 PSC/ARR, 防止运行中改频滞留旧值 */
+    TIM3->SR  = (uint32_t)~TIM_IT_UPDATE;
+
+    /* 输出已使能且为 N 脉冲模式: 按新频率立即启动周期猝发 */
+    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE)
+    {
+        Pulse_BurstPRF_Start();
+    }
+}
+
+/* 启动周期猝发 (使能输出时调用): 立即发首帧, 后续帧由 TIM3 更新中断重发 */
+void Pulse_BurstPRF_Start(void)
+{
+    if (s_burst_prf_hz == 0U) return;
+    TIM3->CNT = 0;
+    TIM3->SR  = (uint32_t)~TIM_IT_UPDATE;
+    TIM3->CR1 |= TIM_CR1_CEN;
+    Pulse_BurstPRF_OnTick();   /* 立即发首帧 */
+}
+
+/* 停止周期猝发 */
+void Pulse_BurstPRF_Stop(void)
+{
+    TIM3->CR1 &= ~TIM_CR1_CEN;
+}
+
+/* TIM3 更新中断: 周期重发一帧猝发 (仅 N 脉冲模式) */
+void Pulse_BurstPRF_OnTick(void)
+{
+    if (!PULSE_OUT_ENABLED) return;
+    if (PULSE_MODE != PULSE_MODE_NPULSE) return;
+
+    Pulse_Frame_SetActive();
+    Pulse_nPulse_OnTrigger(s_npulse_count);
+    Pulse_TriggerFireAll();
 }

@@ -139,6 +139,10 @@ int main(void)
 
   TestUI_Init();
 
+  /* Y7 SYNC OUT (Timer C CH2) + Y8 帧标记 + PRF 猝发重复时基 (TIM3) 初始化 */
+  Pulse_Sync_Init();
+  Pulse_BurstPRF_Init();
+
   // 默认保持 12V 负载开关关断，待供电稳定后再开启
   LOADSW_DISABLE();
   /* USER CODE END 2 */
@@ -213,7 +217,7 @@ int main(void)
       // OLED_PrintfMix(0, 0,OLED_12X12_FULL,OLED_7X12_HALF,"你好,HI. CFS");
 
       if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_NPULSE))
-        n_pulse_option_array[7].text = (char *)"--->TRIGGERED<---";
+        n_pulse_option_array[8].text = (char *)"--->TRIGGERED<---";
       if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_NPULSE_LONG))
         n_pulse_long_option_array[7].text = (char *)"--->TRIGGERED<---";
       if (PULSE_OUT_ENABLED && triggered && (PULSE_MODE == PULSE_MODE_DPULSE))
@@ -288,13 +292,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       if (PULSE_OUT_ENABLED)
       {
         if (waiting_for_trg_flag)
-          n_pulse_option_array[7].text = (char *)"-WAITING FOR TRIG-";
+          n_pulse_option_array[8].text = (char *)"-WAITING FOR TRIG-";
         else
-          n_pulse_option_array[7].text = (char *)"                  ";
+          n_pulse_option_array[8].text = (char *)"                  ";
       }
       else
       {
-        n_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+        n_pulse_option_array[8].text = (char *)"--OUTPUT DISABLED--";
       }
     }
     else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
@@ -426,22 +430,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     {
       /* 短脉冲 N 脉冲: 记录本次突发脉冲个数, 首个脉冲由下方 TxRST 触发, 后续由 CMP4 中断重发 */
       Pulse_nPulse_OnTrigger((uint32_t)n_pulse_option_array[4].val);
+      Pulse_Frame_SetActive();   /* 帧标记: 猝发开始 */
     }
-
-    if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_B)
-      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TBRST;
-    else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_A)
-      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TARST;
-    else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_C)
-      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TCRST;
-    else if (HRTIM_TIMERINDEX_TIMER_X == HRTIM_TIMERINDEX_TIMER_D)
-      HRTIM1->sCommonRegs.CR2 = HRTIM_CR2_TDRST;
 
     if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE_LONG)
     {
       /* N 长脉冲: 触发一次脉冲串 (剩余脉冲计数 = 用户设置的 Pulse Count) */
       Pulse_nPulseLong_OnTrigger((uint32_t)n_pulse_long_option_array[4].val);
+      Pulse_Frame_SetActive();   /* 帧标记: 猝发开始 */
     }
+
+    /* 波形定时器 + SYNC Timer C 同一写操作复位, 保证首脉冲与 SYNC 沿 ns 级对齐 */
+    Pulse_TriggerFireAll();
 
 
     triggered = 1;
