@@ -336,6 +336,10 @@ class App:
         self.last_frame = bytearray(FRAME_LEN)
         self.has_frame = False         # 是否收到过至少一帧镜像 (永久显示最后一帧用)
         self.frame_ts = 0.0
+        self.frame_count = 0           # 累计镜像帧数
+        self._fps_count = 0            # 帧率窗口内帧数
+        self._fps_window_t = time.time()  # 帧率窗口起始
+        self.mirror_fps = 0.0          # 实时镜像帧率 (fps)
         self.rsp_lines = []
         self.cmd_text = ""
         self.input_focused = False     # SCPI 输入框聚焦标记 (点击输入框才激活文本输入)
@@ -524,6 +528,17 @@ class App:
             return
         self.msg_q.put((ftype, payload))
 
+    def _count_frame(self):
+        """镜像帧计数 + 实时帧率 (1s 滑动窗口)"""
+        self.frame_count += 1
+        self._fps_count += 1
+        now = time.time()
+        dt = now - self._fps_window_t
+        if dt >= 1.0:
+            self.mirror_fps = self._fps_count / dt
+            self._fps_count = 0
+            self._fps_window_t = now
+
     def _process_queue(self):
         try:
             while True:
@@ -536,6 +551,7 @@ class App:
                     self.last_frame = payload
                     self.has_frame = True
                     self.frame_ts = time.time()
+                    self._count_frame()
                     if not getattr(self, '_frame_seen', False):
                         self._frame_seen = True
                         print("[镜像] 已收到第一帧 FRAME")
@@ -546,6 +562,7 @@ class App:
                         self.last_frame = dec
                         self.has_frame = True
                         self.frame_ts = time.time()
+                        self._count_frame()
                         if not getattr(self, '_frame_seen', False):
                             self._frame_seen = True
                             print("[镜像] 已收到第一帧 FRAME(RLE)")
@@ -942,10 +959,12 @@ class App:
             True, self.DIM)
         scr.blit(info, (int(38 * d), self.mirror_px + int(12 * d)))
 
-        # 诊断: CRC 失败帧计数 (长帧丢字节会持续累加, 正常应接近 0)
+        # 诊断: CRC 失败帧计数 + 距上一帧时间 + 实时镜像帧率 + 累计帧数
         if self.reader is not None:
-            diag = self.font_s.render("bad_crc={} fr={:.0f}".format(
-                self.reader.bad_crc, time.time() - self.frame_ts), True, self.RED)
+            diag = self.font_s.render(
+                "bad_crc={} fr={:.0f} fps={:.1f} frames={}".format(
+                    self.reader.bad_crc, time.time() - self.frame_ts,
+                    self.mirror_fps, self.frame_count), True, self.RED)
             scr.blit(diag, (int(38 * d), self.mirror_px + int(34 * d)))
 
         # 屏幕快照按钮 (状态指示栏右边)
