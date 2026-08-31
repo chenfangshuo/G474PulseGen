@@ -34,8 +34,8 @@
 | **7** | PG10/NRST | NetC32_2 | NRST / RESET | 系统复位引脚，接 RESET 按钮 (SKRPABE010) 与 RC 滤波 |
 | **8** | PA0 | PA0/ENC_A | TIM2_CH1 (Encoder A) | 旋转编码器 A 相；C34 对地 + R37 上拉至 3.3V |
 | **9** | PA1 | PA1/ENC_B | TIM2_CH2 (Encoder B) | 旋转编码器 B 相；C35 对地 + R38 上拉至 3.3V |
-| **10** | PA2 | PA2/RS232_TX | USART2_TX (外设复用) | RS232 串口发送，经 R39 连接 MAX3232 (U7 Pin 10 DIN2) |
-| **11** | PA3 | PA3/RS232_RX | USART2_RX (外设复用) | RS232 串口接收，经 R40 连接 MAX3232 (U7 Pin 9 ROUT2) |
+| **10** | PA2 | PA2/RS232_TX | USART2_TX (外设复用) | RS232 串口发送，经 R39 连接 MAX3232 (U7 Pin 10 DIN2)。**当前固件未使能 USART2** |
+| **11** | PA3 | PA3/RS232_RX | USART2_RX (外设复用) | RS232 串口接收，经 R40 连接 MAX3232 (U7 Pin 9 ROUT2)。**当前固件未使能 USART2** |
 | **12** | PA4 | PA4/K_DOWN | GPIO_Input (Pull-None) | 五向摇杆 DOWN 键 (经 MAX6818 U6 Pin 18 输出) |
 | **13** | PA5 | PA5/K_LEFT | GPIO_Input (Pull-None) | 五向摇杆 LEFT 键 (经 MAX6818 U6 Pin 17 输出) |
 | **14** | PA6 | PA6/K_RIGHT| GPIO_Input (Pull-None) | 五向摇杆 RIGHT 键 (经 MAX6818 U6 Pin 16 输出) |
@@ -46,10 +46,10 @@
 | **19** | VSSA | GND | 电源 | 模拟地 |
 | **20** | VREF+ | 3.3V | 电源 | ADC/DAC 参考电压正，接 3.3V |
 | **21** | VDDA | 3.3V | 电源 | 模拟供电正，接 3.3V |
-| **22** | PB10 | PB10/BLE_TX | USART3_TX (或 GPIO) | 蓝牙模块串口发送 (连接 J5 Pin 2) |
+| **22** | PB10 | PB10/USART3_TX | USART3_TX (AF7) | **PC 上位机串口发送**（460800 8N1，DMA1_Channel2 TX），连接 J5 Pin 2 |
 | **23** | VSS | GND | 电源 | 数字地 |
 | **24** | VDD | 3.3V | 电源 | 数字供电正，接 3.3V |
-| **25** | PB11 | PB11/BLE_RX | USART3_RX (或 GPIO) | 蓝牙模块串口接收 (连接 J5 Pin 3) |
+| **25** | PB11 | PB11/USART3_RX | USART3_RX (AF7) | **PC 上位机串口接收**（RXNE 中断，内部上拉），连接 J5 Pin 3 |
 | **26** | PB12 | PB12/HRT_C1 | HRTIM1_CHC1 | Timer C CH1：经 **R61** 至 U8 Pin 10 (A8)；另经 **R63** 并联至 Y8 输出网 |
 | **27** | PB13 | PB13/HRT_C2 | HRTIM1_CHC2 | Timer C CH2：经 **R60** 至 U8 Pin 9 (A7)；另经 **R62** 并联至 Y7 输出网 |
 | **28** | PB14 | PB14/HRT_D1 | HRTIM1_CHD1 | 高精定时器 Timer D 通道 1 -> 74LVCH8T245 (U8 Pin 8 A6) |
@@ -63,16 +63,37 @@
 | **36** | VDD | 3.3V | 电源 | 数字供电正，接 3.3V |
 | **37** | PA13 | PA13/SWDIO | SYS_JTMS-SWDIO | SWD 调试数据线，接 J1 Pin 3 (R31 上拉至 3.3V) |
 | **38** | PA14 | PA14/SWCLK | SYS_JTCK-SWCLK | SWD 调试时钟线，接 J1 Pin 2 (R32 下拉至 GND) |
-| **39** | PA15 | PA15/I2C1_SCL| I2C1_SCL | I2C1 时钟线 → J6 Pin 2；R43 上拉至 3.3V、R46 下拉至 GND |
+| **39** | PA15 | PA15/HRT_FLT2 | HRTIM1_FLT2 (AF13) | **硬件故障封锁输入**（低有效，内部上拉）。**固件已从原理图标注的 I2C1_SCL 改为 HRTIM_FLT2**：触发后 Timer A/B/D 输出 ns 级强制无效并断 12V（见 §5.3）。⚠ 需核对实际 PCB 是否已将 PA15 改接故障源，J6 I2C 功能随之停用 |
 | **40** | PB3 | PB3/SPI1_SCK | SPI1_SCK | OLED 硬件 SPI 时钟，连接 J4 Pin 5 |
 | **41** | PB4 | PB4/SPI1_CS | GPIO_Output_PP (CS) | OLED 片选信号，连接 J4 Pin 1 (低有效) |
 | **42** | PB5 | PB5/SPI1_MOSI| SPI1_MOSI | OLED 硬件 SPI 数据，连接 J4 Pin 4 |
 | **43** | PB6 | PB6/SPI1_DC | GPIO_Output_PP (DC) | OLED 数据/命令选择，连接 J4 Pin 2 (高:数据, 低:命令) |
 | **44** | PB7 | PB7/SPI1_RES | GPIO_Output_PP (RES) | OLED 硬件复位信号，连接 J4 Pin 3 (低有效) |
 | **45** | PB8-BOOT0 | PB8/BOOT0 | BOOT0 / GPIO | 经 **R30** 接 J2 中间脚；跳线至 Pin1 (3.3V) 或 Pin3 (GND) |
-| **46** | PB9 | PB9/I2C1_SDA | I2C1_SDA | I2C1 数据线 → J6 Pin 3；R44 上拉至 3.3V、R47 下拉至 GND |
+| **46** | PB9 | PB9/I2C1_SDA | I2C1_SDA | I2C1 数据线 → J6 Pin 3；R44 上拉至 3.3V、R47 下拉至 GND。**当前固件未使能 I2C1**（PA15 已改作 HRTIM_FLT2，见上） |
 | **47** | VSS | GND | 电源 | 数字地 |
 | **48** | VDD | 3.3V | 电源 | 数字供电正，接 3.3V |
+
+
+### 2.1 固件外设与定时器实际使用汇总（以 `main.c` / CubeMX 实际初始化为准）
+
+| 外设/定时器 | 功能 | 关键引脚 | 有效中断优先级* |
+|:---|:---|:---|:---|
+| HRTIM1 | 6 路发波 + SYNC OUT + Fault 封锁 | PA8/9/10/11, PB14/15 发波；PB13=SYNC；PA15=FLT2 | FLT2 = (0,0) |
+| TIM2 | 旋转编码器 (Encoder TI1) | PA0=A 相, PA1=B 相 | — |
+| TIM3 | Burst PRF 周期猝发时基 (1Hz~100kHz) | —（软件） | (1,0) |
+| TIM5 | 长脉冲 / 长 PWM / 超长互补（软件 GPIO） | 复用 CH1~CH6 引脚 | (1,0) |
+| TIM6 | 屏幕刷新节拍 (~90Hz) | — | (3,2) |
+| TIM7 | 按键扫描节拍 | — | (2,0) |
+| TIM16 | 输出状态刷新 (~2Hz) | — | (2,1) |
+| SPI1 | OLED 128×128（SSD1315 兼容, DMA 发送） | PB3=SCK, PB5=MOSI, PB4=CS, PB6=DC, PB7=RES | (3,0)/(3,1) |
+| USART3 | PC 上位机 (460800 8N1) | PB10=TX, PB11=RX | (3,3) |
+| EXTI1 | 硬件触发输入（下降沿） | PB1 (KEY_TRG) | (0,0) 最高 |
+| GPIO | 按键/摇杆（MAX6818 消抖） | PC13 / PA4 / PA5 / PA6 / PA7 / PB0 | 轮询 |
+| GPIO | 12V 负载开关 / 电源状态 | PA12=OUT；PC14/15=IN | 主循环轮询 |
+| — | 固件未使能：USART2(RS232)、I2C1 | PA2/PA3；PB9/PA15 | — |
+
+\* 有效优先级为 `main.c` 初始化阶段用 `HAL_NVIC_SetPriority` 重设后的值（覆盖 CubeMX MspInit 默认值）；发波关键路径（EXTI1 / TIM5 / TIM3）最高，显示与串口最低，绝不阻塞发波。
 
 
 ---
@@ -129,6 +150,8 @@
 ### 4.3 蓝牙接口 (J5 - BLE 6-Pin Header)
 网表中 **仅 4 个引脚有网络**。模块供电必须使用 Pin 6，**不可按 Pin 5 供电**。
 
+> **固件实际用途**：USART3（PB10=TX / PB11=RX）当前作为 **PC 上位机串口**（460800 8N1），经 J5 Pin 2/3 连接 USB-TTL（CH340/CH9111 等）实现 OLED 镜像 + SCPI 远程控制，而非蓝牙模块。
+
 | J5 Pin | 网络 / 连接 | 说明 |
 |:---|:---|:---|
 | **Pin 1** | 未连接 (NC) | 悬空，无 STATE 信号 |
@@ -139,6 +162,9 @@
 | **Pin 6** | **3.3V** | 板载唯一蓝牙供电脚 |
 
 ### 4.4 I2C / 扩展接口 (J6 & J7)
+
+> **固件说明**：当前固件**未使能 I2C1**；PA15 已改作 HRTIM_FLT2 硬件故障封锁输入（见 §5.3），PB9 保留为 I2C1_SDA 但未初始化。以下 J6 网络为原理图/网表原始定义，实际以 PCB 为准。
+
 - **J6 (5-Pin)**:
   - Pin 1: 3.3V
   - Pin 2: **PA15** (`I2C1_SCL`)；R43 上拉至 3.3V，R46 下拉至 GND
@@ -199,6 +225,23 @@ Y1–Y6 为 `SMA_Conn`（信号在 Pin 2）；Y7/Y8 为 `SMA-KE`（信号在 Pin
 
 ---
 
+### 5.3 固件专用功能：SYNC OUT / 帧标记 / 硬件 Fault 封锁
+
+**Timer C（Y7/Y8）已剥离发波**，改作示波器触发辅助信号（`Pulse.h` 定义）：
+
+| 信号 | 引脚 | 实现 | 说明 |
+|:---|:---|:---|:---|
+| SYNC OUT | PB13 (Y7) | HRTIM1_CHC2 单次模式 | 每次 TRG 与首脉冲**同一写操作**复位 Timer C，输出 **200ns 同步脉冲**，与首脉冲 ns 级对齐 |
+| 帧标记 (Frame) | PB12 (Y8) | 软件 GPIO 推挽输出 | 猝发开始拉高、结束拉低，标记一帧完整猝发（Burst/触发均适用） |
+
+**硬件 Fault 封锁（PA15 = HRTIM1_FLT2, AF13）**：
+- 引脚：PA15，低有效（内部上拉，悬空/正常=高=无故障），`Filter=2` 轻度滤波防毛刺。
+- 配置：`Pulse_Fault_Init()` 使能 FLT2 + 中断；Timer A/B/D 均 `FaultEnable=FAULT2`、输出 `FaultLevel=INACTIVE`。
+- 行为：FLT2 触发 → HRTIM **硬件 ns 级**将 A/B/D 输出扣到无效电平（与软件彻底解耦）；`HAL_HRTIM_Fault2Callback` 再调 `Pulse_EmergencyStop()` 断 12V 并复位状态机。
+- ⚠ 原理图原将 PA15 用作 I2C1_SCL；当前固件已改作 Fault 输入，请核对 PCB 实际接线。
+
+---
+
 ## 6. 电源管理与双路 LTC4421 理想二极管控制器
 
 ### 6.1 LTC4421CG (U2) 架构
@@ -242,3 +285,11 @@ Y1–Y6 为 `SMA_Conn`（信号在 Pin 2）；Y7/Y8 为 `SMA-KE`（信号在 Pin
    - 仅 J5 Pin 6 提供 3.3V；Pin 5 悬空。USART3：PB10=TX，PB11=RX。
 8. **I2C 上下拉**:
    - 确认 R43/R44（上拉）与 R46/R47（下拉）的实际贴片后再决定是否开启 MCU 内部上下拉。
+9. **硬件 Fault 封锁 (PA15=HRTIM_FLT2)**:
+   - PA15 复用为 AF13；Timer A/B/D 使能 `FaultEnable=FAULT2`、输出 `FaultLevel=INACTIVE`；FLT2 中断回调做软件安全网关断 12V。
+10. **Y7 SYNC OUT / Y8 帧标记**:
+   - Y7(PB13)=Timer C CH2 单次 200ns 同步脉冲，随 TRG 同步复位；Y8(PB12)=软件 GPIO 帧标记（猝发开始拉高/结束拉低）。
+11. **Burst PRF 时基 (TIM3)**:
+   - TIM3 作 1Hz~100kHz 周期猝发时基（0=单次）；仅在 N 脉冲模式生效。
+12. **PC 通信串口 (USART3)**:
+   - PB10=TX/PB11=RX，460800 8N1；TX 走 DMA1_Channel2，RX 走 RXNE 中断；RXNE 风暴保护自动关中断 500ms。

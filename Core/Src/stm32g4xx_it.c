@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "Pulse.h"
+#include "uart_comm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,7 +59,9 @@
 /* External variables --------------------------------------------------------*/
 extern HRTIM_HandleTypeDef hhrtim1;
 extern DMA_HandleTypeDef hdma_spi1_tx;
+extern DMA_HandleTypeDef hdma_usart3_tx;
 extern SPI_HandleTypeDef hspi1;
+extern UART_HandleTypeDef huart3;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
@@ -346,5 +349,41 @@ void TIM3_IRQHandler(void)
 void HRTIM1_FLT_IRQHandler(void)
 {
   HAL_HRTIM_IRQHandler(&hhrtim1, HRTIM_TIMERINDEX_COMMON);
+}
+
+/* USART3 中断: 读 ISR 一次, 处理接收 + 清全部错误标志 + TX 发送完成收尾 */
+void USART3_IRQHandler(void)
+{
+  uint32_t isr = USART3->ISR;
+
+  /* 接收: 读 RDR 清 RXNE 及该帧的 FE/NE/PE */
+  if (isr & USART_ISR_RXNE)
+    UartComm_RxByte((uint8_t)USART3->RDR);   /* 读 RDR 清除 RXNE, 入环形缓冲 */
+
+  /* 清所有遗留错误标志 (ORE/FE/NE/PE)。EIE 使能后这些都会触发中断, 若任一未清
+   * 将形成中断风暴饿死主循环 (屏幕 1min 动一次 + STAT 无回应)。CH340 开串口瞬间的
+   * 噪声常产生 FE(帧错误)/NE(噪声), 必须显式写 ICR 清除, 不能只清 ORE。 */
+  {
+    uint32_t icr = 0u;
+    if (isr & USART_ISR_ORE) { icr |= USART_ICR_ORECF; UartComm_OreEvent(); }
+    if (isr & USART_ISR_FE)  icr |= USART_ICR_FECF;
+    if (isr & USART_ISR_NE)  icr |= USART_ICR_NECF;
+    if (isr & USART_ISR_PE)  icr |= USART_ICR_PECF;
+    if (icr) USART3->ICR = icr;
+  }
+
+  /* TX 发送完成收尾: HAL 的 DMA 发送完成后会置 TCIE 并等 TC 标志, 若不在 ISR 里
+   * 交给 HAL 结束发送 (UART_EndTransmit_IT), 则 gState 永远 BUSY_TX 且 TC 标志持续
+   * 触发 USART3 中断 -> 中断风暴饿死主循环 */
+  if ((isr & USART_ISR_TC) && (USART3->CR1 & USART_CR1_TCIE))
+  {
+    HAL_UART_IRQHandler(&huart3);            /* 结束发送, 恢复 gState=READY 并回调 TxCpltCallback */
+  }
+}
+
+/* DMA1 通道2 (USART3_TX) 发送完成中断 */
+void DMA1_Channel2_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_usart3_tx);
 }
 /* USER CODE END 1 */

@@ -46,7 +46,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Src/WouoUI_win.c
         Core/Src/Key.c
         Core/Src/Pulse.c
-        Core/Src/Preset.c)
+        Core/Src/Preset.c
+        Core/Src/uart_comm.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -73,6 +74,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/Key.c
     Core/Src/Pulse.c
     Core/Src/Preset.c
+    Core/Src/uart_comm.c
 )
 
 # Add include paths

@@ -4,6 +4,7 @@
 #include "stm32g4xx.h"
 #include "OLED_driver.h"
 #include "spi.h"
+#include "uart_comm.h"   /* PC 镜像推流: UartComm_MirrorFrame */
 
 uint8_t OLED_DisplayBuf[128/8][128];
 bool OLED_ColorMode = true;
@@ -178,6 +179,7 @@ void OLED_Update_DisplayBuf(uint8_t DisplayBuf[16][128])
 {
     if (s_oled_dma_busy || s_oled_updating) return; // 先判忙，DMA 传输中绝不 memcpy 显存
     memcpy(OLED_DisplayBuf, DisplayBuf, sizeof(OLED_DisplayBuf));
+    UartComm_MirrorFrame(OLED_DisplayBuf);          // 脏帧 -> PC 镜像推流 (连接时, 零阻塞丢帧)
     OLED_Update();
 }
 

@@ -31,6 +31,8 @@
 #include "WouoUI_user.h"
 #include "Key.h"
 #include "Pulse.h"
+#include "usart.h"
+#include "uart_comm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -110,6 +112,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+  MX_USART3_UART_Init();
   MX_HRTIM1_Init();
   MX_TIM2_Init();
   MX_SPI1_Init();
@@ -144,6 +147,7 @@ int main(void)
   Pulse_Sync_Init();
   Pulse_BurstPRF_Init();
   Pulse_Fault_Init();    /* PA15 = HRTIM_FLT2 硬件故障封锁 */
+  UartComm_Init();       /* PC 通信协议层初始化 (镜像推流 + SCPI + 虚拟按键) */
 
   // 默认保持 12V 负载开关关断，待供电稳定后再开启
   LOADSW_DISABLE();
@@ -171,6 +175,10 @@ int main(void)
     {
       LOADSW_DISABLE();
     }
+
+    /* PC 通信处理: 无条件每轮调用 (便宜: 64B 消费上限 + 滚动风暴窗 + 镜像节流),
+     * 与显示刷新解耦 —— 屏幕卡住时 SCPI/ACK 仍能响应 */
+    UartComm_Proc();
 
     if (Key_Check(K_UP, KEY_DOWN) || Key_Check(K_UP, KEY_REPEAT))
     {
