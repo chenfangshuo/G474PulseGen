@@ -292,6 +292,33 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* 手动触发发波: 物理 TRG 按键 (HAL_GPIO_EXTI_Callback) 与 SCPI TRIG (uart_comm.c) 共用,
+ * 保证两种触发路径走完全相同的逻辑 (含 N 长脉冲的 TIM5 触发与 TRIGGERED 状态显示) */
+void Trigger_Pulse(void)
+{
+    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE)
+    {
+      /* 短脉冲 N 脉冲: 记录本次突发脉冲个数, 首个脉冲由下方 TxRST 触发, 后续由 CMP4 中断重发 */
+      Pulse_nPulse_OnTrigger((uint32_t)n_pulse_option_array[4].val);
+      Pulse_Frame_SetActive();   /* 帧标记: 猝发开始 */
+    }
+
+    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+    {
+      /* N 长脉冲: 触发一次脉冲串 (剩余脉冲计数 = 用户设置的 Pulse Count) */
+      Pulse_nPulseLong_OnTrigger((uint32_t)n_pulse_long_option_array[4].val);
+      Pulse_Frame_SetActive();   /* 帧标记: 猝发开始 */
+    }
+
+    /* 波形定时器 + SYNC Timer C 同一写操作复位, 保证首脉冲与 SYNC 沿 ns 级对齐。
+     * N 长脉冲走 TIM5 (已由 Pulse_nPulseLong_OnTrigger 启动); 此处复位 HRTIM 供
+     * 短脉冲/双脉冲使用, 并输出一次 SYNC 同步脉冲 */
+    Pulse_TriggerFireAll();
+
+    triggered = 1;    /* 置触发标志: 主循环据此显示 "--->TRIGGERED<---" */
+    TIM16->CNT = 0;   /* 复位状态刷新定时器, 立即刷新触发状态文本 */
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == TIM6) // 检查对应定时器
@@ -451,26 +478,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if(GPIO_Pin == KEY_TRG_Pin)
   {
-    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE)
-    {
-      /* 短脉冲 N 脉冲: 记录本次突发脉冲个数, 首个脉冲由下方 TxRST 触发, 后续由 CMP4 中断重发 */
-      Pulse_nPulse_OnTrigger((uint32_t)n_pulse_option_array[4].val);
-      Pulse_Frame_SetActive();   /* 帧标记: 猝发开始 */
-    }
-
-    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE_LONG)
-    {
-      /* N 长脉冲: 触发一次脉冲串 (剩余脉冲计数 = 用户设置的 Pulse Count) */
-      Pulse_nPulseLong_OnTrigger((uint32_t)n_pulse_long_option_array[4].val);
-      Pulse_Frame_SetActive();   /* 帧标记: 猝发开始 */
-    }
-
-    /* 波形定时器 + SYNC Timer C 同一写操作复位, 保证首脉冲与 SYNC 沿 ns 级对齐 */
-    Pulse_TriggerFireAll();
-
-
-    triggered = 1;
-    TIM16->CNT = 0;
+    Trigger_Pulse();   /* 物理 TRG 按键与 SCPI TRIG 共用同一触发路径 */
   }
 }
 

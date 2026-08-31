@@ -66,7 +66,8 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
+/* 手动触发发波: 物理 TRG 按键与 SCPI TRIG 共用 (定义于 main.c, 含长脉冲 TIM5 触发) */
+void Trigger_Pulse(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

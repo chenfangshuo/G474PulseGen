@@ -19,6 +19,7 @@ oled_mirror.py — STM32G474 脉冲发生器 PC 端上位机 (单文件)
 """
 
 import argparse
+import os
 import queue
 import sys
 import threading
@@ -46,6 +47,7 @@ T_ACK   = 0x12   # MCU->PC 连接确认
 T_FRAME_RLE = 0x13  # MCU->PC 屏幕镜像 RLE 压缩
 
 K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ENTER, K_BACK = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
+K_WHEEL_UP, K_WHEEL_DOWN = 0x08, 0x09  # 滚轮: 固件按当前页面类型智能分发 (菜单=上移, 数值=增大)
 
 FRAME_LEN = 2048
 WIDTH, HEIGHT = 128, 128
@@ -55,6 +57,46 @@ BAUDS = [460800, 921600, 2000000, 115200, 230400]
 
 # 中键长按判定阈值 (s): 超过视为"返回", 否则"确定" (镜像板载编码器 KEY_LONG)
 MID_LONG_PRESS_S = 0.6
+
+# SCPI 命令列表 (TAB 自动补全)
+SCPI_COMMANDS = ["OUTP", "TRIG", "12V", "MODE", "CHAN", "POL", "PULS", "DPULS",
+                 "PWM", "LPWM", "COMP", "BURST", "PRESET", "STAT", "KEY", "HELP", "*IDN?"]
+
+# TCP SCPI 服务端默认监听地址
+TCP_HOST = "127.0.0.1"
+TCP_PORT = 5025
+
+# HELP 帮助面板内容 (英文, 避免 consolas 字体下中文乱码)
+HELP_LINES = [
+    "=== SCPI Commands ===",
+    "OUTP:ON / OUTP:OFF    output enable",
+    "TRIG                   single trigger",
+    "12V:ON / 12V:OFF       12V output",
+    "MODE:<m>               set mode",
+    "  NPULSE DPULSE PWM NPULSELONG",
+    "  PWMLONG COMPPWM COMPPWMLONG",
+    "CHAN:<1-6>             select channel",
+    "POL:0 / POL:1          polarity",
+    "PULS:WIDTH:<us>        pulse width",
+    "PULS:COUNT:<n>         pulse count",
+    "PULS:INTV:<us>         interval",
+    "DPULS:PW1:<us>         1st width (double)",
+    "DPULS:INTV:<us>        interval (double)",
+    "DPULS:PW2:<us>         2nd width (double)",
+    "BURST:<hz>             PRF (0=single)",
+    "PWM:PER:<us> / DUTY:<%>",
+    "LPWM:PER:<us> / DUTY:<%>",
+    "COMP:PER / DUTY / DTR / DTF",
+    "PRESET:SAVE / LOAD     store",
+    "STAT                   query status",
+    "KEY:<1-6>              virtual key",
+    "",
+    "=== Mouse & Keys ===",
+    "Wheel     encoder (up=next / down=prev)",
+    "Middle    OK / hold = Back",
+    "Arrows    UP DOWN LEFT RIGHT",
+    "Enter=OK  Backspace=Back",
+]
 
 
 # ---------------------------------------------------------------- 协议工具
@@ -244,6 +286,27 @@ def demo_frame(phase: int) -> bytes:
     return bytes(frame)
 
 
+def _enable_dpi_awareness():
+    """Windows 高 DPI 缩放: 声明进程 DPI 感知, 避免 200% 缩放下文字边缘模糊。
+    返回 DPI 缩放因子 (200% 缩放 = 2.0), 用于按比例放大窗口保持逻辑大小。"""
+    if sys.platform != "win32":
+        return 1.0
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)   # PER_MONITOR_DPI_AWARE
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.user32.SetProcessDPIAware()     # 旧版回退
+        except Exception:
+            pass
+    try:
+        import ctypes
+        return ctypes.windll.user32.GetDpiForSystem() / 96.0
+    except Exception:
+        return 1.0
+
+
 # ---------------------------------------------------------------- 主界面
 class App:
     BG = (28, 30, 36)
@@ -254,11 +317,12 @@ class App:
     RED = (235, 90, 90)
     BLUE = (90, 160, 230)
 
-    def __init__(self, port=None, baud=460800, scale=4, demo=False):
+    def __init__(self, port=None, baud=460800, scale=4, demo=False, dpi=1.0):
         global pygame
         import pygame  # 惰性: 仅在 GUI 启动时加载
         self.scale = scale
         self.demo = demo
+        self.dpi = dpi              # 高 DPI 缩放因子 (200% = 2.0)
 
         # 串口状态
         self.port_name = port          # 当前选中串口名 (None=未选)
@@ -266,6 +330,7 @@ class App:
         self.ser = None                # 已打开串口对象 (None=未连接)
         self.reader = None             # 读线程 (None=未连接)
         self.port_open = False         # 串口是否已打开
+        self._tx_lock = threading.Lock()   # 串口写锁 (主线程 + TCP 线程并发写保护)
 
         self.conn_time = 0.0           # 最近收到 MCU 任一帧的时间
         self.last_frame = bytearray(FRAME_LEN)
@@ -277,6 +342,8 @@ class App:
         self.out_enabled = None        # 输出使能状态 (None=未知, 由 STAT 响应的 OUT= 字段同步)
         self.msg_q = queue.Queue()
         self._last_ping = time.time()
+        self._last_stat = 0.0        # 上次轮询 STAT 时刻 (同步板上输出开关等本地改动)
+        self._poll_silent = 0        # 待静默处理的轮询 STAT 响应数 (不刷屏)
 
         # 串口下拉菜单状态
         self.port_menu_open = False        # 串口下拉菜单是否展开
@@ -287,42 +354,67 @@ class App:
         self._mid_press_t = 0.0
         self._mid_long_fired = False
 
+        # HELP 帮助面板状态
+        self.help_open = False
+
+        # SCPI 命令历史 (最近 10 条) + TAB 补全
+        self.cmd_history = []
+        self._hist_idx = None
+
+        # 屏幕快照
+        self._shot_idx = 0              # 会话内快照编号
+        self.mode_name = None           # 当前模式名 (由 STAT 的 MODE= 同步)
+
+        # TCP SCPI 服务端
+        self._tcp_rsp_queue = queue.Queue(maxsize=64)  # RSP 响应队列 (供 TCP 客户端消费)
+        self._tcp_server = None
+
         self.mirror_px = WIDTH * scale
-        self.right_w = 300
+        self.right_w = int(300 * dpi)
         WIN_W = self.mirror_px + self.right_w
-        WIN_H = self.mirror_px + 60
+        WIN_H = self.mirror_px + int(60 * dpi)
         pygame.init()
         pygame.display.set_caption("OLED Mirror / SCPI Console")
         self.screen = pygame.display.set_mode((WIN_W, WIN_H))
-        self.font = pygame.font.SysFont("consolas", 20)
-        self.font_s = pygame.font.SysFont("consolas", 16)
+        self.font = pygame.font.SysFont("consolas", max(12, int(20 * dpi)))
+        self.font_s = pygame.font.SysFont("consolas", max(10, int(16 * dpi)))
         self.clock = pygame.time.Clock()
+        self.welcome_frame = self._build_welcome_frame()   # 未连接/断开后的静态欢迎画面
 
         mx = self.mirror_px
         W = self.right_w
+        s = lambda v: int(round(v * dpi))   # 高 DPI 缩放辅助
 
         # 虚拟键几何 (右边板): 上下左右加宽, 间隙与 Enter/Back 行一致 (12px);
         # Enter/Back 下方新增 OUT 开关 + TRIG 触发快捷键
-        self.btn_up    = pygame.Rect(mx + W // 2 - 38, 14, 76, 34)
-        self.btn_left  = pygame.Rect(mx + 24, 54, 76, 34)
-        self.btn_down  = pygame.Rect(mx + W // 2 - 38, 54, 76, 34)
-        self.btn_right = pygame.Rect(mx + 200, 54, 76, 34)
-        self.btn_enter = pygame.Rect(mx + 24, 94, 120, 34)
-        self.btn_back  = pygame.Rect(mx + 156, 94, 120, 34)
-        self.btn_out   = pygame.Rect(mx + 24, 134, 120, 34)
-        self.btn_trig  = pygame.Rect(mx + 156, 134, 120, 34)
+        self.btn_up    = pygame.Rect(mx + W // 2 - s(38), s(14), s(76), s(34))
+        self.btn_left  = pygame.Rect(mx + s(24), s(54), s(76), s(34))
+        self.btn_down  = pygame.Rect(mx + W // 2 - s(38), s(54), s(76), s(34))
+        self.btn_right = pygame.Rect(mx + s(200), s(54), s(76), s(34))
+        self.btn_enter = pygame.Rect(mx + s(24), s(94), s(120), s(34))
+        self.btn_back  = pygame.Rect(mx + s(156), s(94), s(120), s(34))
+        self.btn_out   = pygame.Rect(mx + s(24), s(134), s(120), s(34))
+        self.btn_trig  = pygame.Rect(mx + s(156), s(134), s(120), s(34))
 
         # 串口/波特率选择行 (与按键区拉开距离)
-        self.sel_port  = pygame.Rect(mx + 10, 184, 100, 28)
-        self.sel_baud  = pygame.Rect(mx + 112, 184, 76, 28)
-        self.btn_conn  = pygame.Rect(mx + 190, 184, 100, 28)
+        self.sel_port  = pygame.Rect(mx + s(10), s(184), s(100), s(28))
+        self.sel_baud  = pygame.Rect(mx + s(112), s(184), s(76), s(28))
+        self.btn_conn  = pygame.Rect(mx + s(190), s(184), s(100), s(28))
 
-        # SCPI 输入框 + RSP 消息区
-        self.input_box = pygame.Rect(mx + 10, 220, W - 20, 30)
-        self.rsp_area  = pygame.Rect(mx + 10, 258, W - 20, WIN_H - 258 - 10)
+        # SCPI 输入框 + HELP 按钮 + RSP 消息区
+        self.input_box = pygame.Rect(mx + s(10), s(220), W - s(70), s(30))
+        self.btn_help  = pygame.Rect(mx + W - s(55), s(220), s(45), s(30))
+        self.rsp_area  = pygame.Rect(mx + s(10), s(258), W - s(20), WIN_H - s(258) - s(10))
+
+        # 屏幕快照按钮 (状态指示栏右边, 与状态栏垂直居中)
+        self.btn_shot  = pygame.Rect(mx - s(90), self.mirror_px + s(15), s(80), s(30))
 
         # 可选串口列表 (每次点击端口按钮时刷新)
         self._ports = self._list_ports()
+
+        # 启动后台 TCP SCPI 服务端 (默认 127.0.0.1:5025)
+        if not self.demo:
+            self._start_tcp_server()
 
         # 启动即连接 (带 --port 时); demo 或未指定端口则留待界面操作
         if not self.demo and self.port_name is not None:
@@ -462,15 +554,28 @@ class App:
                         txt = payload.decode('ascii', 'replace').strip()
                     except Exception:
                         txt = ''
-                    # 完整内容打印到终端 (GUI 窗口裁剪, 终端可见 FR/ST/OR/RX/LNK 全字段)
                     if ftype == T_RSP:
-                        print("[RSP] " + txt)
-                        self.rsp_lines.append("> " + txt)
-                        # 从 STAT 响应同步输出使能状态 (OUT=ON/OFF)
-                        if "OUT=" in txt:
+                        # 从 STAT 响应同步输出使能/模式 (无论主动查询还是轮询)
+                        is_stat = "OUT=" in txt
+                        if is_stat:
                             for part in txt.split(";"):
                                 if part.startswith("OUT="):
                                     self.out_enabled = (part[4:] == "ON")
+                                elif part.startswith("MODE="):
+                                    self.mode_name = part[5:]
+                        # 轮询 STAT 响应静默 (只更新状态, 不打印/不刷屏); 主动查询才显示
+                        is_poll = is_stat and self._poll_silent > 0
+                        if is_poll:
+                            self._poll_silent -= 1
+                        else:
+                            # 完整内容打印到终端 (GUI 窗口裁剪, 终端可见 FR/ST/OR/RX/LNK 全字段)
+                            print("[RSP] " + txt)
+                            self.rsp_lines.append("> " + txt)
+                        # 所有 RSP 入队给 TCP 客户端消费 (客户端发命令前会清空积压)
+                        try:
+                            self._tcp_rsp_queue.put_nowait(txt)
+                        except queue.Full:
+                            pass
                     else:
                         # ACK 只更新连接指示, 不污染 rsp_lines (否则 500ms 刷屏淹没 RSP)
                         pass
@@ -482,7 +587,8 @@ class App:
         if self.ser is None or not self.port_open:
             return False
         try:
-            self.ser.write(data)
+            with self._tx_lock:
+                self.ser.write(data)
             return True
         except Exception:
             self.port_open = False
@@ -499,6 +605,28 @@ class App:
         self.rsp_lines.append("< " + cmd)
         self.rsp_lines = self.rsp_lines[-12:]
         self._send(frame_cmd(cmd))
+        # 记录历史 (去重, 最多 10 条)
+        if cmd in self.cmd_history:
+            self.cmd_history.remove(cmd)
+        self.cmd_history.append(cmd)
+        self.cmd_history = self.cmd_history[-10:]
+        self._hist_idx = None
+
+    def _tab_complete(self):
+        """TAB 自动补全: 匹配命令前缀, 唯一则补全, 多个则补公共前缀"""
+        prefix = self.cmd_text.upper()
+        if not prefix:
+            return
+        matches = [c for c in SCPI_COMMANDS if c.startswith(prefix)]
+        if not matches:
+            return
+        if len(matches) == 1:
+            self.cmd_text = matches[0] + ":"
+        else:
+            common = os.path.commonprefix(matches)
+            if len(common) > len(prefix):
+                self.cmd_text = common
+        self._hist_idx = None
 
     def _toggle_output(self):
         """OUT 按钮: 切换输出使能 (OUTP:ON / OUTP:OFF), 本地乐观翻转, STAT 回传校正"""
@@ -513,6 +641,111 @@ class App:
         """TRIG 按钮: 单次触发 (等价 TRIG 命令)"""
         self._send(frame_cmd("TRIG"))
 
+    def _save_screenshot(self):
+        """一键快照: 保存当前镜像为高质量 PNG 到 screenshots/ 文件夹"""
+        if not self.has_frame:
+            print("[快照] 无镜像帧可保存")
+            self.rsp_lines.append("> no frame to save")
+            self.rsp_lines = self.rsp_lines[-12:]
+            return
+        try:
+            os.makedirs("screenshots", exist_ok=True)
+            rgb = render_frame(self.last_frame)   # 128x128 原始点阵
+            # 放大到 mirror_px 保持像素锐利 (transform.scale 为最近邻, 无平滑模糊)
+            big = pygame.transform.scale(rgb, (self.mirror_px, self.mirror_px))
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            mode = self.mode_name or "UNKNOWN"
+            self._shot_idx += 1
+            fname = os.path.join("screenshots", f"{ts}_{mode}_{self._shot_idx:03d}.png")
+            pygame.image.save(big, fname)
+            print(f"[快照] 已保存 {fname}")
+            self.rsp_lines.append(f"> saved {fname}")
+        except Exception as e:
+            print(f"[快照] 保存失败: {e}")
+            self.rsp_lines.append(f"> snapshot failed: {e}")
+        self.rsp_lines = self.rsp_lines[-12:]
+
+    # ------------------------------------------------------------ TCP SCPI 服务端
+    def _start_tcp_server(self):
+        """启动后台 TCP SCPI 服务端, 监听 127.0.0.1:5025"""
+        import socket
+        try:
+            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            srv.bind((TCP_HOST, TCP_PORT))
+            srv.listen(5)
+        except OSError as e:
+            print(f"[TCP] 监听 {TCP_HOST}:{TCP_PORT} 失败: {e}")
+            self.rsp_lines.append(f"> TCP listen fail: {e}")
+            self.rsp_lines = self.rsp_lines[-12:]
+            return
+        self._tcp_server = srv
+        msg = f"TCP SCPI server @ {TCP_HOST}:{TCP_PORT}"
+        print(f"[TCP] {msg}")
+        self.rsp_lines.append(f"> {msg}")
+        self.rsp_lines = self.rsp_lines[-12:]
+        threading.Thread(target=self._tcp_accept_loop, args=(srv,), daemon=True).start()
+
+    def _tcp_accept_loop(self, srv):
+        import socket
+        while True:
+            try:
+                conn, addr = srv.accept()
+            except OSError:
+                break
+            print(f"[TCP] 客户端连接 {addr}")
+            threading.Thread(target=self._tcp_client_handler, args=(conn,), daemon=True).start()
+
+    def _tcp_client_handler(self, conn):
+        import socket
+        conn.settimeout(1.0)
+        buf = b""
+        while True:
+            try:
+                data = conn.recv(4096)
+            except socket.timeout:
+                continue
+            except (ConnectionError, OSError):
+                break
+            if not data:
+                break
+            buf += data
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                cmd = line.decode('ascii', 'ignore').strip()
+                if not cmd:
+                    continue
+                # 清空积压旧 RSP, 保证本次请求-响应对应
+                while not self._tcp_rsp_queue.empty():
+                    try:
+                        self._tcp_rsp_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                if not self._send(frame_cmd(cmd)):
+                    try:
+                        conn.sendall(b"ERR NOT CONNECTED\n")
+                    except OSError:
+                        return
+                    continue
+                rsp = None
+                for _ in range(2):  # 超时重发一次 (连接初始化阶段偶发丢首条命令)
+                    try:
+                        rsp = self._tcp_rsp_queue.get(timeout=3.0)
+                        break
+                    except queue.Empty:
+                        self._send(frame_cmd(cmd))
+                if rsp is not None:
+                    try:
+                        conn.sendall(rsp.encode('ascii', 'ignore') + b"\n")
+                    except OSError:
+                        return
+                else:
+                    try:
+                        conn.sendall(b"ERR TIMEOUT\n")
+                    except OSError:
+                        return
+        conn.close()
+
     # ------------------------------------------------------------ 事件
     def _handle_events(self):
         for ev in pygame.event.get():
@@ -525,11 +758,32 @@ class App:
                         self._send_cmd()
                     elif ev.key == pygame.K_BACKSPACE:
                         self.cmd_text = self.cmd_text[:-1]
+                        self._hist_idx = None
                     elif ev.key == pygame.K_ESCAPE:
                         self.input_focused = False   # 退出编辑, 恢复方向键遥控
+                    elif ev.key == pygame.K_UP:
+                        # 历史回溯: 上键 = 更早的命令
+                        if self.cmd_history:
+                            if self._hist_idx is None:
+                                self._hist_idx = len(self.cmd_history) - 1
+                            elif self._hist_idx > 0:
+                                self._hist_idx -= 1
+                            self.cmd_text = self.cmd_history[self._hist_idx]
+                    elif ev.key == pygame.K_DOWN:
+                        # 历史回溯: 下键 = 更新的命令
+                        if self._hist_idx is not None:
+                            if self._hist_idx < len(self.cmd_history) - 1:
+                                self._hist_idx += 1
+                                self.cmd_text = self.cmd_history[self._hist_idx]
+                            else:
+                                self._hist_idx = None
+                                self.cmd_text = ""
+                    elif ev.key == pygame.K_TAB:
+                        self._tab_complete()
                     elif ev.unicode and ev.unicode.isprintable():
                         if len(self.cmd_text) < 90:
                             self.cmd_text += ev.unicode
+                            self._hist_idx = None
                 else:
                     # 非聚焦: 方向键 + 回车/退格/Esc 均为遥控虚拟按键
                     if ev.key == pygame.K_UP:
@@ -548,11 +802,11 @@ class App:
                         self._inject_key(K_BACK)
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 if ev.button == 4:
-                    # 滚轮上滚 = 板载编码器正转 (main.c: diff>=2 -> msg_left)
-                    self._inject_key(K_LEFT)
+                    # 滚轮上滚: 固件按当前页面类型分发 (菜单上移 / 数值增大)
+                    self._inject_key(K_WHEEL_UP)
                 elif ev.button == 5:
-                    # 滚轮下滚 = 板载编码器反转 (main.c: diff<=-2 -> msg_right)
-                    self._inject_key(K_RIGHT)
+                    # 滚轮下滚: 固件按当前页面类型分发 (菜单下移 / 数值减小)
+                    self._inject_key(K_WHEEL_DOWN)
                 elif ev.button == 2:
                     # 中键按下 = 编码器按键: 记录时刻, 长按判定在 run() 中做
                     self._mid_held = True
@@ -567,6 +821,11 @@ class App:
                 self._mid_held = False
 
     def _on_left_click(self, pos):
+        # HELP 面板打开时: 点击任意处关闭面板, 并屏蔽其它控件
+        if self.help_open:
+            self.help_open = False
+            return
+
         # 串口下拉菜单展开时: 优先处理菜单项点击 (点菜单项选中, 点其它地方收起)
         if self.port_menu_open:
             for rect, dev in self._port_menu_rects:
@@ -610,44 +869,94 @@ class App:
         elif self.btn_conn.collidepoint(pos):
             self._toggle_conn()
             self.input_focused = False
+        elif self.btn_shot.collidepoint(pos):
+            self._save_screenshot()
+            self.input_focused = False
+        elif self.btn_help.collidepoint(pos):
+            self.help_open = True        # 打开帮助面板
+            self.input_focused = False
         elif self.input_box.collidepoint(pos):
             self.input_focused = True    # 点击输入框 → 激活文本编辑
+        else:
+            # 点击其它任意位置: 取消输入框激活 (不再只能按 ESC 退出)
+            self.input_focused = False
+
+    def _wrap_text(self, text, font, max_width):
+        """按像素宽度把文本折成多行 (消息区长文本完整显示)"""
+        lines = []
+        cur = ""
+        for ch in text:
+            if font.size(cur + ch)[0] <= max_width:
+                cur += ch
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = ch
+        if cur:
+            lines.append(cur)
+        return lines or [""]
+
+    def _build_welcome_frame(self):
+        """生成静态欢迎画面点阵 (未连接/断开后显示, 仅居中 DISCONNECTED)"""
+        surf = pygame.Surface((WIDTH, HEIGHT))
+        surf.fill((0, 0, 0))
+        font = pygame.font.SysFont("consolas", 13, bold=True)
+        t = font.render("DISCONNECTED", True, (255, 255, 255))
+        surf.blit(t, t.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
+        frame = bytearray(FRAME_LEN)
+        for y in range(HEIGHT):
+            page = y >> 3
+            bit = y & 7
+            base = page * WIDTH
+            for x in range(WIDTH):
+                if surf.get_at((x, y))[0] > 128:   # 白色点亮
+                    frame[base + x] |= (1 << bit)
+        return bytes(frame)
 
     # ------------------------------------------------------------ 绘制
     def _draw(self, now):
         scr = self.screen
         scr.fill(self.BG)
 
-        # 镜像区: 只要收到过帧就永久显示最后一帧 (OLED 是保持型显示, 画面静止时
-        # MCU 按脏帧策略不再推流, 若仍按超时清屏会退回纯色背景)
-        if self.has_frame:
-            rgb = render_frame(self.last_frame)
-            rgb = pygame.transform.scale(rgb, (self.mirror_px, self.mirror_px))
+        # 镜像区: 未连接/断开后显示静态欢迎画面, 已连接且有帧才显示镜像
+        if self.demo:
+            frame = self.last_frame            # demo 模式: 移动棋盘格
+        elif self.ser is None or not self.has_frame:
+            frame = self.welcome_frame         # 未连接 / 已连接但还没收到帧: 欢迎画面
         else:
-            rgb = pygame.Surface((self.mirror_px, self.mirror_px))
-            rgb.fill(self.PANEL)
+            frame = self.last_frame            # 已连接有帧: 镜像
+        rgb = render_frame(frame)
+        rgb = pygame.transform.scale(rgb, (self.mirror_px, self.mirror_px))
         scr.blit(rgb, (0, 0))
 
         # 底部状态
         connected = self.port_open and (now - self.conn_time < 1.5)
         col = self.GREEN if connected else self.RED
+        d = self.dpi
         st = self.font.render("●" if connected else "○", True, col)
-        scr.blit(st, (10, self.mirror_px + 14))
+        scr.blit(st, (int(10 * d), self.mirror_px + int(12 * d)))
         info = self.font.render(
             "128x128 | {} px | {:.0f} fps{}".format(
                 self.mirror_px, self.clock.get_fps(),
                 " | DEMO" if self.demo else ""),
             True, self.DIM)
-        scr.blit(info, (38, self.mirror_px + 14))
+        scr.blit(info, (int(38 * d), self.mirror_px + int(12 * d)))
 
         # 诊断: CRC 失败帧计数 (长帧丢字节会持续累加, 正常应接近 0)
         if self.reader is not None:
             diag = self.font_s.render("bad_crc={} fr={:.0f}".format(
                 self.reader.bad_crc, time.time() - self.frame_ts), True, self.RED)
-            scr.blit(diag, (38, self.mirror_px + 36))
+            scr.blit(diag, (int(38 * d), self.mirror_px + int(34 * d)))
+
+        # 屏幕快照按钮 (状态指示栏右边)
+        sh = self.btn_shot.collidepoint(pygame.mouse.get_pos())
+        pygame.draw.rect(scr, (60, 66, 80) if sh else (46, 50, 60), self.btn_shot, border_radius=5)
+        pygame.draw.rect(scr, self.BLUE, self.btn_shot, 1, border_radius=5)
+        sshot = self.font_s.render("SNAP", True, self.TEXT)
+        scr.blit(sshot, sshot.get_rect(center=self.btn_shot.center))
 
         # 右板 (半透明遮罩)
-        panel = pygame.Surface((self.right_w, self.mirror_px + 60), pygame.SRCALPHA)
+        panel = pygame.Surface((self.right_w, self.mirror_px + int(60 * self.dpi)), pygame.SRCALPHA)
         panel.fill((255, 255, 255, 70))
         scr.blit(panel, (self.mirror_px, 0))
 
@@ -703,13 +1012,27 @@ class App:
                           True, self.TEXT)
         scr.blit(head, self.input_box.move(6, 6))
 
-        # RSP 区
+        # HELP 按钮
+        hh = self.btn_help.collidepoint(pygame.mouse.get_pos())
+        pygame.draw.rect(scr, (60, 66, 80) if hh else (46, 50, 60), self.btn_help, border_radius=5)
+        pygame.draw.rect(scr, self.BLUE, self.btn_help, 1, border_radius=5)
+        ht = lbl.render("HELP", True, self.TEXT)
+        scr.blit(ht, ht.get_rect(center=self.btn_help.center))
+
+        # RSP 区 (支持折行, 从下往上画, 长文本自动换行完整显示)
         pygame.draw.rect(scr, (12, 14, 18), self.rsp_area)
-        y = self.rsp_area.bottom - 6
-        for line in reversed(self.rsp_lines[-8:]):
-            t = lbl.render(line, True, self.DIM)
-            scr.blit(t, (self.rsp_area.x + 8, y - t.get_height()))
-            y -= t.get_height() + 2
+        wrap_w = self.rsp_area.width - int(16 * d)
+        all_lines = []
+        for line in self.rsp_lines[-12:]:
+            all_lines.extend(self._wrap_text(line, lbl, wrap_w))
+        y = self.rsp_area.bottom - int(4 * d)
+        for wline in reversed(all_lines):
+            t = lbl.render(wline, True, self.DIM)
+            yy = y - t.get_height()
+            if yy < self.rsp_area.y:
+                break
+            scr.blit(t, (self.rsp_area.x + int(8 * d), yy))
+            y = yy - int(2 * d)
 
         # 串口下拉菜单 (最后绘制, 确保覆盖在输入框/RSP 区之上)
         if self.port_menu_open:
@@ -719,15 +1042,40 @@ class App:
                 pygame.draw.rect(scr, (70, 76, 90) if hover else (46, 50, 60), rect)
                 pygame.draw.rect(scr, self.GREEN if cur else self.BLUE, rect, 1)
                 t = lbl.render(dev, True, self.TEXT)
-                scr.blit(t, (rect.x + 8, rect.centery - t.get_height() // 2))
+                scr.blit(t, (rect.x + int(8 * d), rect.centery - t.get_height() // 2))
+
+        # HELP 帮助面板 (最后绘制, 覆盖全窗口)
+        if self.help_open:
+            w, h = scr.get_size()
+            overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 210))
+            scr.blit(overlay, (0, 0))
+            pad = int(16 * d)
+            panel_rect = pygame.Rect(pad, pad, w - 2 * pad, h - 2 * pad)
+            pygame.draw.rect(scr, (40, 42, 50), panel_rect, border_radius=int(8 * d))
+            pygame.draw.rect(scr, self.BLUE, panel_rect, int(2 * d), border_radius=int(8 * d))
+            y = panel_rect.y + int(12 * d)
+            for line in HELP_LINES:
+                t = lbl.render(line, True, self.TEXT)
+                scr.blit(t, (panel_rect.x + int(16 * d), y))
+                y += int(18 * d)
+            tip = lbl.render("click anywhere to close", True, self.DIM)
+            scr.blit(tip, (panel_rect.x + int(16 * d), panel_rect.bottom - int(22 * d)))
 
         pygame.display.flip()
 
     # ------------------------------------------------------------ 心跳
     def _heartbeat(self, now):
-        if self.ser is not None and self.port_open and now - self._last_ping >= 0.5:
-            self._send(frame_ping())
-            self._last_ping = now
+        if self.ser is not None and self.port_open:
+            if now - self._last_ping >= 0.5:
+                self._send(frame_ping())
+                self._last_ping = now
+            # 低频兜底轮询 STAT (5s): 固件已在状态变化时主动推送, 此处仅作断线重连/丢帧兜底。
+            # 轮询响应由 _process_queue 静默处理, 不打印/不刷屏
+            if now - self._last_stat >= 5.0:
+                self._last_stat = now
+                self._poll_silent += 1
+                self._send(frame_cmd("STAT"))
 
     def quit(self):
         if self.reader is not None:
@@ -735,6 +1083,11 @@ class App:
         if self.ser is not None:
             try:
                 self.ser.close()
+            except Exception:
+                pass
+        if self._tcp_server is not None:
+            try:
+                self._tcp_server.close()
             except Exception:
                 pass
         pygame.quit()
@@ -753,10 +1106,11 @@ class App:
                 self._mid_long_fired = True
                 self._inject_key(K_BACK)
 
-            if self.ser is None:
-                # 演示模式: 定时换测试图案
+            if self.ser is None and self.demo:
+                # 演示模式: 定时换测试图案 (棋盘格移动)
                 demo_phase = int(now * 4)
                 self.last_frame = demo_frame(demo_phase)
+                self.has_frame = True
                 self.frame_ts = now
                 self.conn_time = now
             self._heartbeat(now)
@@ -776,7 +1130,11 @@ def main():
         print("pyserial 未安装: pip install pyserial, 或使用 --demo")
         sys.exit(1)
 
-    App(port=args.port, baud=args.baud, scale=args.scale, demo=args.demo).run()
+    # Windows 高 DPI: 声明感知避免文字模糊, 并按缩放因子放大窗口保持逻辑大小
+    dpi_scale = _enable_dpi_awareness()
+    scale = max(1, int(args.scale * dpi_scale))
+
+    App(port=args.port, baud=args.baud, scale=scale, demo=args.demo, dpi=dpi_scale).run()
 
 
 if __name__ == "__main__":

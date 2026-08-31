@@ -96,10 +96,23 @@ static volatile uint32_t s_diag_rx_bytes = 0u;     /* 累计收到字节数 */
 static volatile uint32_t s_last_frame_tick = 0u;   /* 上一镜像帧入队时刻 */
 static volatile uint32_t s_storm_win_reset_tick = 0u;  /* 风暴计数滚动窗口复位基准 */
 
+/* 状态变化主动推送快照: 监测 OUT/12V/模式/通道, 变化即推 STAT (上位机 0 延迟同步) */
+static volatile uint8_t s_last_stat_out  = 0xFFu;
+static volatile uint8_t s_last_stat_12v  = 0xFFu;
+static volatile uint8_t s_last_stat_mode = 0xFFu;
+static volatile uint8_t s_last_stat_ch   = 0xFFu;
+
+/* 连接后周期性推帧兜底: 首帧偶发被串口噪声丢失时, 后续周期推帧补上 */
+#define UC_LINK_PUSH_MS     3000u   /* 连接后 3s 内兜底 */
+#define UC_LINK_PUSH_PERIOD 500u    /* 每 500ms 补推一帧 */
+static volatile uint32_t s_link_push_until = 0u;
+
 /* 12V_OUT 手动开关状态 (定义于 main.c, 由 Setting 页与 SCPI 共同写) */
 extern volatile bool g_12v_enable;
 /* Setting 页选项数组 (同步 12V Output 复选框 val 用) */
 extern Option setting_option_array[];
+/* OLED 当前显存 (连接建立时直接推显存, 避免缓存被连接前清屏空白污染) */
+extern uint8_t OLED_DisplayBuf[16][128];
 
 /* ---------------------------- 内部函数 ----------------------------------- */
 
@@ -182,8 +195,8 @@ static bool UcTxQueue(uint8_t type, const uint8_t *payload, uint16_t plen, bool 
 
     s_tx_len[bank] = UcBuildFrame(type, payload, plen, bank);
     s_tx_pending = bank;
-    if (type == UC_TYPE_FRAME)
-        s_diag_frame_sent++;                       /* 成功入队的镜像帧计数 */
+    if (type == UC_TYPE_FRAME || type == UC_TYPE_FRAME_RLE)
+        s_diag_frame_sent++;                       /* 成功入队的镜像帧计数 (含 RLE) */
     UcTxKick();
     return true;
 }
@@ -196,11 +209,57 @@ static void UcSendResp(const char *txt)
     UcTxQueue(UC_TYPE_RSP, (const uint8_t *)txt, len, true);
 }
 
+/* 构建并发送 STAT 状态响应: 供 SCPI STAT? 查询与本地状态变化主动推送共用 */
+static void UcSendStat(void)
+{
+    const char *mode_name = "?";
+    switch (PULSE_MODE)
+    {
+        case PULSE_MODE_NONE:           mode_name = "NONE";       break;
+        case PULSE_MODE_NPULSE:         mode_name = "NPULSE";     break;
+        case PULSE_MODE_DPULSE:         mode_name = "DPULSE";     break;
+        case PULSE_MODE_PWM:            mode_name = "PWM";        break;
+        case PULSE_MODE_NPULSE_LONG:    mode_name = "NPULSELONG"; break;
+        case PULSE_MODE_PWM_LONG:       mode_name = "PWMLONG";    break;
+        case PULSE_MODE_COMP_PWM:       mode_name = "COMPPWM";    break;
+        case PULSE_MODE_COMP_PWM_LONG:  mode_name = "COMPPWMLONG"; break;
+        default: break;
+    }
+    snprintf(s_rsp_buf, sizeof(s_rsp_buf),
+             "MODE=%s;OUT=%s;12V=%u;CH=%u;FR=%lu;ST=%lu;OR=%lu;RX=%lu;LNK=%d",
+             mode_name,
+             PULSE_OUT_ENABLED ? "ON" : "OFF",
+             (unsigned)g_12v_enable,
+             (unsigned)(g_pulse_ctrl.channel + 1u),
+             (unsigned long)s_diag_frame_sent,   /* 已发送镜像帧数 */
+             (unsigned long)s_diag_storm_trips,  /* RXNE 风暴触发次数 */
+             (unsigned long)s_diag_ore_cnt,      /* ORE 超载次数 */
+             (unsigned long)s_diag_rx_bytes,     /* 累计接收字节 */
+             (int)s_link_state);                 /* 1=已连接 0=空闲 */
+    UcSendResp(s_rsp_buf);
+}
+
 /* 虚拟按键码 -> WouoUI InputMsg 注入 */
 static void UcInjectKey(uint8_t key)
 {
     if (p_cur_ui == NULL)
         return;
+
+    /* 鼠标滚轮: 按当前页面类型智能分发, 模拟标准 GUI 滚轮直觉 (菜单与数值方向都符合习惯)
+     *   - 数值弹窗 (ValWin/SpinWin): 上滚=增大(msg_right), 下滚=减小(msg_left)
+     *   - 菜单/列表/其它:           上滚=上移(msg_up),  下滚=下移(msg_down)
+     * 与板载编码器(msg_left/right)解耦, 不影响其物理旋转方向 */
+    if (key == UC_KEY_WHEEL_UP || key == UC_KEY_WHEEL_DOWN)
+    {
+        PageType pt = WouoUI_CheckPageType(WouoUI_GetCurrentPage());
+        bool is_val_win = (pt == type_slidevalwin) || (pt == type_spinwin);
+        if (is_val_win)
+            WOUOUI_MSG_QUE_SEND((key == UC_KEY_WHEEL_UP) ? msg_right : msg_left);
+        else
+            WOUOUI_MSG_QUE_SEND((key == UC_KEY_WHEEL_UP) ? msg_up : msg_down);
+        return;
+    }
+
     switch (key)
     {
         case UC_KEY_UP:    WOUOUI_MSG_QUE_SEND(msg_up);    break;
@@ -262,6 +321,9 @@ static void UcScpiExec(const char *line)
     tok = strtok(buf, ":");
     if (tok == NULL) { UcSendResp("ERR EMPTY"); return; }
 
+    /* ---------- *IDN? (仪器标识, PyVISA 兼容) ---------- */
+    if (strcmp(tok, "*IDN?") == 0) { UcSendResp("PulseGen,G474-PulseGen,0001,1.0"); return; }
+
     /* ---------- OUTP:ON / OUTP:OFF ---------- */
     if (strcmp(tok, "OUTP") == 0)
     {
@@ -277,16 +339,15 @@ static void UcScpiExec(const char *line)
     {
         sub = strtok(NULL, ":");
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
-        if      (strcmp(sub, "NPULSE") == 0)         PULSE_MODE = PULSE_MODE_NPULSE;
-        else if (strcmp(sub, "DPULSE") == 0)         PULSE_MODE = PULSE_MODE_DPULSE;
-        else if (strcmp(sub, "PWM") == 0)            PULSE_MODE = PULSE_MODE_PWM;
-        else if (strcmp(sub, "NPULSELONG") == 0)     PULSE_MODE = PULSE_MODE_NPULSE_LONG;
-        else if (strcmp(sub, "PWMLONG") == 0)        PULSE_MODE = PULSE_MODE_PWM_LONG;
-        else if (strcmp(sub, "COMPPWM") == 0)        PULSE_MODE = PULSE_MODE_COMP_PWM;
-        else if (strcmp(sub, "COMPPWMLONG") == 0)    PULSE_MODE = PULSE_MODE_COMP_PWM_LONG;
+        if      (strcmp(sub, "NPULSE") == 0)         UserUi_SwitchMode(PULSE_MODE_NPULSE);
+        else if (strcmp(sub, "DPULSE") == 0)         UserUi_SwitchMode(PULSE_MODE_DPULSE);
+        else if (strcmp(sub, "PWM") == 0)            UserUi_SwitchMode(PULSE_MODE_PWM);
+        else if (strcmp(sub, "NPULSELONG") == 0)     UserUi_SwitchMode(PULSE_MODE_NPULSE_LONG);
+        else if (strcmp(sub, "PWMLONG") == 0)        UserUi_SwitchMode(PULSE_MODE_PWM_LONG);
+        else if (strcmp(sub, "COMPPWM") == 0)        UserUi_SwitchMode(PULSE_MODE_COMP_PWM);
+        else if (strcmp(sub, "COMPPWMLONG") == 0)    UserUi_SwitchMode(PULSE_MODE_COMP_PWM_LONG);
         else { UcSendResp("ERR MODE"); return; }
-        Preset_ApplyMode();                          /* 与物理切模式完全一致 */
-        UcSendResp("OK");
+        UcSendResp("OK");                            /* 页面跳转/状态文本/Preset 已由 UserUi_SwitchMode 完成 */
         return;
     }
 
@@ -297,10 +358,7 @@ static void UcScpiExec(const char *line)
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         int ch = atoi(sub);
         if (ch < 1 || ch > 6) { UcSendResp("ERR CH"); return; }
-        if (PULSE_MODE == PULSE_MODE_COMP_PWM || PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
-            Pulse_Select_CompPair((uint8_t)(ch - 1));
-        else
-            Pulse_Select_Output((uint8_t)ch);
+        UserUi_SetChannel((uint8_t)ch);               /* 同步硬件 + 屏幕 content 显示 */
         UcSendResp("OK");
         return;
     }
@@ -311,9 +369,8 @@ static void UcScpiExec(const char *line)
         sub = strtok(NULL, ":");
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         int pol = atoi(sub);
-        if (pol == 0)      Pulse_SetPulsePolarity_High();
-        else if (pol == 1) Pulse_SetPulsePolarity_Low();
-        else { UcSendResp("ERR POL"); return; }
+        if (pol != 0 && pol != 1) { UcSendResp("ERR POL"); return; }
+        UserUi_SetPolarity((uint8_t)pol);             /* 同步硬件 + 屏幕 content 显示 */
         UcSendResp("OK");
         return;
     }
@@ -333,6 +390,23 @@ static void UcScpiExec(const char *line)
         Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
                            (float)n_pulse_option_array[5].val / 100.0f,
                            (uint32_t)n_pulse_option_array[4].val);
+        UcSendResp("OK");
+        return;
+    }
+    if (strcmp(tok, "DPULS") == 0)         /* 双脉冲: 1nd PW / Interval / 2nd PW, 单位 uS (整数 1~200) */
+    {
+        sub = strtok(NULL, ":");
+        if (sub == NULL) { UcSendResp("ERR ARG"); return; }
+        const char *vstr = strtok(NULL, ":");
+        if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
+        int v = atoi(vstr);
+        if      (strcmp(sub, "PW1") == 0)  double_pulse_option_array[3].val = v;
+        else if (strcmp(sub, "INTV") == 0) double_pulse_option_array[4].val = v;
+        else if (strcmp(sub, "PW2") == 0)  double_pulse_option_array[5].val = v;
+        else { UcSendResp("ERR SUB"); return; }
+        Pulse_dPulse_SetPW(double_pulse_option_array[3].val,
+                           double_pulse_option_array[4].val,
+                           double_pulse_option_array[5].val);
         UcSendResp("OK");
         return;
     }
@@ -399,7 +473,7 @@ static void UcScpiExec(const char *line)
     }
 
     /* ---------- 单发/使能 ---------- */
-    if (strcmp(tok, "TRIG") == 0)  { Pulse_TriggerFireAll();        UcSendResp("OK"); return; }
+    if (strcmp(tok, "TRIG") == 0)  { Trigger_Pulse();               UcSendResp("OK"); return; }
     if (strcmp(tok, "12V") == 0)
     {
         sub = strtok(NULL, ":");
@@ -419,36 +493,16 @@ static void UcScpiExec(const char *line)
         return;
     }
 
-    /* ---------- STAT? ---------- */
-    if (strcmp(tok, "STAT") == 0)
+    /* ---------- HELP ---------- */
+    if (strcmp(tok, "HELP") == 0)
     {
-        const char *mode_name = "?";
-        switch (PULSE_MODE)
-        {
-            case PULSE_MODE_NONE:           mode_name = "NONE";       break;
-            case PULSE_MODE_NPULSE:         mode_name = "NPULSE";     break;
-            case PULSE_MODE_DPULSE:         mode_name = "DPULSE";     break;
-            case PULSE_MODE_PWM:            mode_name = "PWM";        break;
-            case PULSE_MODE_NPULSE_LONG:    mode_name = "NPULSELONG"; break;
-            case PULSE_MODE_PWM_LONG:       mode_name = "PWMLONG";    break;
-            case PULSE_MODE_COMP_PWM:       mode_name = "COMPPWM";    break;
-            case PULSE_MODE_COMP_PWM_LONG:  mode_name = "COMPPWMLONG"; break;
-            default: break;
-        }
-        snprintf(s_rsp_buf, sizeof(s_rsp_buf),
-                 "MODE=%s;OUT=%s;12V=%u;CH=%u;FR=%lu;ST=%lu;OR=%lu;RX=%lu;LNK=%d",
-                 mode_name,
-                 PULSE_OUT_ENABLED ? "ON" : "OFF",
-                 (unsigned)g_12v_enable,
-                 (unsigned)(g_pulse_ctrl.channel + 1u),
-                 (unsigned long)s_diag_frame_sent,   /* 已发送镜像帧数 */
-                 (unsigned long)s_diag_storm_trips,  /* RXNE 风暴触发次数 */
-                 (unsigned long)s_diag_ore_cnt,      /* ORE 超载次数 */
-                 (unsigned long)s_diag_rx_bytes,     /* 累计接收字节 */
-                 (int)s_link_state);                 /* 1=已连接 0=空闲 */
-        UcSendResp(s_rsp_buf);
+        /* 单条精简命令总览 (RSP 载荷上限 127B, 详细说明见上位机帮助面板/README) */
+        UcSendResp("CMDS: OUTP:ON/OFF TRIG 12V:ON/OFF MODE CHAN POL PRESET:SAVE/LOAD STAT KEY:1-6 PULS DPULS PWM LPWM COMP BURST");
         return;
     }
+
+    /* ---------- STAT? ---------- */
+    if (strcmp(tok, "STAT") == 0) { UcSendStat(); return; }
 
     /* ---------- KEY:<n> ---------- */
     if (strcmp(tok, "KEY") == 0)
@@ -474,6 +528,13 @@ static void UcDispatch(uint8_t type, const uint8_t *payload, uint16_t len)
     {
         s_link_state = UC_LINKED;
         s_force_frame = true;    /* 连接刚建立: 立即推一帧当前画面, 消除 PC 端打开后纯色等待 */
+        /* 连接建立即更新状态快照: 否则首帧与"状态变化推送的 STAT"在同一轮都触发,
+         * 两者均为高优先级, 状态推送会覆盖 pending 中的首帧, 导致 PC 端收不到第一帧 */
+        s_last_stat_out  = PULSE_OUT_ENABLED ? 1u : 0u;
+        s_last_stat_12v  = g_12v_enable ? 1u : 0u;
+        s_last_stat_mode = PULSE_MODE;
+        s_last_stat_ch   = (uint8_t)g_pulse_ctrl.channel;
+        s_link_push_until = HAL_GetTick() + UC_LINK_PUSH_MS;   /* 启动首帧兜底推帧窗口 */
     }
 
     switch (type)
@@ -511,6 +572,7 @@ void UartComm_Init(void)
     s_tx_pending = UC_TX_NONE;
     s_rx_storm_cnt = 0u;
     s_rx_storm_off_until = 0u;
+    s_frame_cache_valid = false;   /* 复位缓存: 连接前清屏空白不再视为有效帧 */
 
     /* 上电延迟 50ms: 等电源/模块 TX 电平稳定后再使能 RXNE, 防上电瞬间噪声 */
     HAL_Delay(50);
@@ -593,19 +655,55 @@ void UartComm_Proc(void)
         s_rx_storm_cnt = 0u;
     }
 
-    /* 连接刚建立: 立即推一帧当前画面, 消除 PC 端打开后纯色等待 (需求 2) */
+    /* 连接刚建立: 立即推一帧当前画面, 消除 PC 端打开后纯色等待 (需求 2)
+     * 直接用当前显存 OLED_DisplayBuf, 不依赖缓存 —— 缓存可能在 TestUI_Init 清屏时
+     * 被空白污染; 用高优先级推送, 确保首帧不被待发 RSP/ACK 覆盖丢弃 */
     if (s_force_frame)
     {
         s_force_frame = false;
-        if (s_frame_cache_valid && s_link_state == UC_LINKED)
+        if (s_link_state == UC_LINKED)
         {
-            uint16_t rlen = UcRleEncode(s_frame_cache, UC_FRAME_LEN, s_rle_buf, UC_FRAME_RLE_MAX);
+            uint16_t rlen = UcRleEncode((const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, s_rle_buf, UC_FRAME_RLE_MAX);
             if (rlen > 0u)
-                UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, false);
+                UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, true);
             else
-                UcTxQueue(UC_TYPE_FRAME, s_frame_cache, UC_FRAME_LEN, false);
+                UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, true);
             s_last_frame_tick = now;
         }
+    }
+
+    /* 连接后周期性推帧兜底: 首帧偶发丢失时, 每 500ms 补推一帧直到 3s 窗口结束。
+     * 画面变化时的正常推流会刷新 s_last_frame_tick, 此处仅在静默时兜底 */
+    if (s_link_state == UC_LINKED && now < s_link_push_until &&
+        (uint32_t)(now - s_last_frame_tick) >= UC_LINK_PUSH_PERIOD)
+    {
+        uint16_t rlen = UcRleEncode((const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, s_rle_buf, UC_FRAME_RLE_MAX);
+        if (rlen > 0u)
+            UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, false);
+        else
+            UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, false);
+        s_last_frame_tick = now;
+    }
+
+    /* 状态变化主动推送: 板上本地切换输出/12V/模式/通道后, 检测到变化立即推 STAT,
+     * 上位机 0 延迟同步 (无需轮询)。快照在断开后复位为 0xFF 以触发下次重同步 */
+    if (s_link_state == UC_LINKED)
+    {
+        uint8_t out  = PULSE_OUT_ENABLED ? 1u : 0u;
+        uint8_t v12  = g_12v_enable ? 1u : 0u;
+        uint8_t mode = PULSE_MODE;
+        uint8_t ch   = (uint8_t)g_pulse_ctrl.channel;
+        if (out != s_last_stat_out || v12 != s_last_stat_12v ||
+            mode != s_last_stat_mode || ch != s_last_stat_ch)
+        {
+            s_last_stat_out = out;   s_last_stat_12v = v12;
+            s_last_stat_mode = mode; s_last_stat_ch = ch;
+            UcSendStat();
+        }
+    }
+    else
+    {
+        s_last_stat_out = s_last_stat_12v = s_last_stat_mode = s_last_stat_ch = 0xFFu;
     }
 
     /* 消费 RX ring (每轮最多 64 字节, 防止垃圾数据持续填充时饿死 UI 刷新) */
@@ -721,12 +819,14 @@ static uint16_t UcRleEncode(const uint8_t *src, uint16_t srclen, uint8_t *dst, u
 void UartComm_MirrorFrame(const uint8_t (*frame)[128])
 {
     uint32_t now = HAL_GetTick();
-    if (s_link_state != UC_LINKED)
-        return;                                    /* 未连接: 暂停推流 */
 
-    /* 缓存最近一帧 + 打标记 (连接建立后由 Proc 主动推一次) */
+    /* 缓存最近一帧 + 打标记 (未连接也缓存: 连接建立后由 Proc 主动推一次,
+     * 消除 PC 端打开后纯色等待) */
     memcpy(s_frame_cache, (const uint8_t *)frame, UC_FRAME_LEN);
     s_frame_cache_valid = true;
+
+    if (s_link_state != UC_LINKED)
+        return;                                    /* 未连接: 暂停推流 (但已缓存最近帧) */
 
     /* 节流: 距上一帧 <16ms 跳过 (~60fps 上限, 链路忙则 UcTxQueue 丢帧自动降频) */
     if ((uint32_t)(now - s_last_frame_tick) < UC_FRAME_MIN_MS)

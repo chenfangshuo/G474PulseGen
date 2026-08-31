@@ -1440,3 +1440,110 @@ void TestUI_Init(void) {
     WouoUI_ListWinPageInit(&polarity_sel_page, sizeof(polarity_sel_str_array)/sizeof(String), polarity_sel_str_array, true, PolaritySelPage_CallBack);
     WouoUI_ListWinPageInit(&comp_pair_sel_page, sizeof(comp_pair_sel_str_array)/sizeof(String), comp_pair_sel_str_array, true, CompPairSelPage_CallBack);
 }
+
+/* ============ SCPI 远程控制复用物理操作路径 (供 uart_comm.c 调用) ============ */
+
+/* 切模式: 与主菜单点击模式项完全一致 (设置 PULSE_MODE + 状态文本 + Preset + 页面跳转),
+ * 避免 SCPI 只改 PULSE_MODE 导致屏幕停在旧页面、与硬件模式脱节 (严重 bug) */
+void UserUi_SwitchMode(uint8_t mode)
+{
+    switch (mode)
+    {
+        case PULSE_MODE_NPULSE:
+            PULSE_MODE = PULSE_MODE_NPULSE;
+            n_pulse_option_array[8].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &n_pulse_page);
+            break;
+        case PULSE_MODE_NPULSE_LONG:
+            PULSE_MODE = PULSE_MODE_NPULSE_LONG;
+            n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &n_pulse_long_page);
+            break;
+        case PULSE_MODE_DPULSE:
+            PULSE_MODE = PULSE_MODE_DPULSE;
+            double_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &double_pulse_page);
+            break;
+        case PULSE_MODE_PWM:
+            PULSE_MODE = PULSE_MODE_PWM;
+            pwm_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &pwm_page);
+            break;
+        case PULSE_MODE_PWM_LONG:
+            PULSE_MODE = PULSE_MODE_PWM_LONG;
+            pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &pwm_long_page);
+            break;
+        case PULSE_MODE_COMP_PWM:
+            PULSE_MODE = PULSE_MODE_COMP_PWM;
+            comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &comp_pwm_page);
+            break;
+        case PULSE_MODE_COMP_PWM_LONG:
+            PULSE_MODE = PULSE_MODE_COMP_PWM_LONG;
+            comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
+            Preset_ApplyMode();
+            WouoUI_JumpToPage(&main_page, &comp_pwm_long_page);
+            break;
+        default:
+            break;
+    }
+}
+
+/* 切通道: ch=1..6 (1-based)。互补模式走通道对, 其它走单通道; 仅同步 content 显示, 不重置参数 */
+void UserUi_SetChannel(uint8_t ch)
+{
+    if (ch < 1u || ch > 6u) return;
+
+    if (PULSE_MODE == PULSE_MODE_COMP_PWM || PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    {
+        uint8_t pair = (uint8_t)(ch - 1u);
+        Pulse_Select_CompPair(pair);
+        if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+            comp_pwm_option_array[1].content = comp_pair_sel_str_array[pair];
+        else
+            comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[pair];
+    }
+    else
+    {
+        uint8_t idx = (uint8_t)(ch - 1u);
+        Pulse_Select_Output(ch);
+        if (PULSE_MODE == PULSE_MODE_NPULSE)
+            n_pulse_option_array[1].content = ch_sel_str_array[idx];
+        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+            n_pulse_long_option_array[1].content = ch_sel_str_array[idx];
+        else if (PULSE_MODE == PULSE_MODE_DPULSE)
+            double_pulse_option_array[1].content = ch_sel_str_array[idx];
+        else if (PULSE_MODE == PULSE_MODE_PWM)
+            pwm_option_array[1].content = ch_sel_str_array[idx];
+        else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+            pwm_long_option_array[1].content = ch_sel_str_array[idx];
+    }
+}
+
+/* 切极性: pol=0(+Pulse/High), 1(-Pulse/Low)。互补模式无极性选择, 不处理 */
+void UserUi_SetPolarity(uint8_t pol)
+{
+    if (pol == 0u)
+        Pulse_SetPulsePolarity_High();
+    else
+        Pulse_SetPulsePolarity_Low();
+
+    String txt = polarity_sel_str_array[pol];
+    if (PULSE_MODE == PULSE_MODE_NPULSE)
+        n_pulse_option_array[2].content = txt;
+    else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+        n_pulse_long_option_array[2].content = txt;
+    else if (PULSE_MODE == PULSE_MODE_DPULSE)
+        double_pulse_option_array[2].content = txt;
+    else if (PULSE_MODE == PULSE_MODE_PWM)
+        pwm_option_array[2].content = txt;
+    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+        pwm_long_option_array[2].content = txt;
+}

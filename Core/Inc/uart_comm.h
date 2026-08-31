@@ -40,6 +40,8 @@ extern "C" {
 #define UC_KEY_ENTER    0x05u   /* msg_click */
 #define UC_KEY_BACK     0x06u   /* msg_return */
 #define UC_KEY_HOME     0x07u   /* 保留 */
+#define UC_KEY_WHEEL_UP   0x08u /* 鼠标滚轮上滚: 固件按当前页面类型智能分发 */
+#define UC_KEY_WHEEL_DOWN 0x09u /* 鼠标滚轮下滚: 固件按当前页面类型智能分发 */
 
 /* 镜像帧载荷长度 = OLED_DisplayBuf 大小 */
 #define UC_FRAME_LEN    2048u
