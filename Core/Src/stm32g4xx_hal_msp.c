@@ -65,6 +65,10 @@ void HAL_MspInit(void)
 
   /* USER CODE BEGIN MspInit 0 */
 
+  /* 使能 FLASH ART 预取缓冲: 170MHz@4WS 下隐藏顺序取指等待, 提升代码执行吞吐。
+   * (I-Cache/D-Cache 复位默认已使能, 仅预取 PRFTEN 需显式打开) */
+  __HAL_FLASH_PREFETCH_BUFFER_ENABLE();
+
   /* USER CODE END MspInit 0 */
 
   __HAL_RCC_SYSCFG_CLK_ENABLE();
