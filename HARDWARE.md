@@ -6,7 +6,7 @@
 
 ## 1. 硬件平台概况
 
-- **主控芯片 (MCU)**: STM32G474CET6 (Arm® Cortex®-M4 @ 170MHz, 512KB Flash, 128KB SRAM, LQFP48 封装)
+- **主控芯片 (MCU)**: STM32G474CET6 (Arm® Cortex®-M4 @ 170MHz, 512KB Flash, 96KB SRAM, LQFP48 封装) — 链接脚本 `STM32G474XX_FLASH.ld` 映射 96KB（SRAM1 80KB + SRAM2 16KB，0x20000000~0x20018000），另有 32KB CCM SRAM 未纳入堆栈；使能 FLASH ART 预取缓冲
 - **板卡定位**: 高精度 5V 脉冲信号发生器 / 功率驱动信号板 (5V SigGen for DRV Board)
 - **时钟系统**: 外部无源晶振 24.000MHz (X1), PLL 倍频至 170MHz 系统主频 (HRTIM 运行于 170MHz x 32 = 5.44GHz 极高时间分辨率模式)
 - **电源拓扑**:
@@ -293,3 +293,6 @@ Y1–Y6 为 `SMA_Conn`（信号在 Pin 2）；Y7/Y8 为 `SMA-KE`（信号在 Pin
    - TIM3 作 1Hz~100kHz 周期猝发时基（0=单次）；仅在 N 脉冲模式生效。
 12. **PC 通信串口 (USART3)**:
    - PB10=TX/PB11=RX，460800 8N1；TX 走 DMA1_Channel2，RX 走 RXNE 中断；RXNE 风暴保护自动关中断 500ms。
+13. **FLASH 性能 (ART 预取)**:
+   - `stm32g4xx_hal_msp.c` 显式使能 ART 预取缓冲（PRFTEN），170MHz@4WS 下隐藏顺序取指等待。
+   - 链接脚本 `STM32G474XX_FLASH.ld` RAM 区为 96KB（SRAM1+SRAM2），`_estack=0x20018000`，CCM SRAM 32KB 未纳入。

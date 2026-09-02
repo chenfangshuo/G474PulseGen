@@ -16,7 +16,8 @@
 - **硬件故障封锁**：`PA15 = HRTIM1_FLT2` 低有效输入，触发后 A/B/D 三组输出 ns 级强制无效，并软件网关瞬间切断 12V 负载。
 - **12V_OUT 手动控制**：负载开关受 `PA12` 控制，掉电 / 故障 / 软件关断均在微秒级切断。
 - **Preset 参数存储**：全部模式参数写入片内 Flash 末页（CRC 校验），断电保存 / 一键调出。
-- **SCPI 远程控制 + OLED 镜像**：USB-TTL 串口（USART3, 460800 8N1）实现屏幕 1:1 镜像推流、SCPI 文本命令、虚拟按键注入。
+- **SCPI 远程控制 + OLED 镜像**：USB-TTL 串口（USART3, 460800 8N1）实现屏幕 1:1 镜像推流、SCPI 文本命令、虚拟按键注入；状态变化主动推送，上位机 0 延迟同步。
+- **UI 交互动效**：数值弹窗（SpinWin/ValWin）触界回弹、列表光标果冻形变（基于 WouoUI 框架增强）。
 
 ---
 
@@ -24,7 +25,7 @@
 
 | 项目 | 说明 |
 |:---|:---|
-| 主控 | STM32G474CET6，LQFP48，512KB Flash / 128KB SRAM |
+| 主控 | STM32G474CET6，LQFP48，512KB Flash / 96KB SRAM（SRAM1+SRAM2，链接脚本映射；另有 32KB CCM SRAM） |
 | 系统时钟 | HSE 24MHz → PLL 170MHz（PLLM=6, PLLN=85, PLLP=2, Voltage Scale1 Boost） |
 | 高精定时器 | HRTIM1（170MHz，`PrescalerRatio` 最高 MUL32 → 5.44GHz） |
 | 波形输出 | Y1~Y6 为 CH1~CH6（SMA），经 74LVCH8T245 电平转换；Y7=SYNC OUT，Y8=帧标记 |
@@ -118,11 +119,13 @@ G474-Test/
 
 | 命令 | 示例 | 说明 |
 |:---|:---|:---|
+| `*IDN?` | `*IDN?` | 仪器标识（PyVISA 兼容，返回 `PulseGen,G474-PulseGen,0001,1.0`） |
 | `OUTP:ON/OFF` | `OUTP:ON` | 输出使能/关闭 |
-| `MODE:<m>` | `MODE:COMPPWM` | 切模式：`NPULSE / DPULSE / PWM / NPULSELONG / PWMLONG / COMPPWM / COMPPWMLONG` |
-| `CHAN:<1..6>` | `CHAN:3` | 选择输出通道（互补模式选通道对） |
-| `POL:<0/1>` | `POL:0` | 极性：0=高有效 / 1=低有效 |
+| `MODE:<m>` | `MODE:COMPPWM` | 切模式：`NPULSE / DPULSE / PWM / NPULSELONG / PWMLONG / COMPPWM / COMPPWMLONG`（同步页面跳转 + Preset） |
+| `CHAN:<1..6>` | `CHAN:3` | 选择输出通道（互补模式选通道对），同步屏幕显示 |
+| `POL:<0/1>` | `POL:0` | 极性：0=高有效 / 1=低有效，同步屏幕显示 |
 | `PULS:WIDTH/COUNT/INTV:<v>` | `PULS:WIDTH:10` | N 脉冲参数（width/interval 单位 µs） |
+| `DPULS:PW1/INTV/PW2:<v>` | `DPULS:PW1:5` | 双脉冲参数（单位 µs，整数 1~200） |
 | `PWM:PER/DUTY:<v>` | `PWM:DUTY:50` | PWM 周期(µs)/占空比(%) |
 | `COMP:PER/DUTY/DTR/DTF:<v>` | `COMP:DTR:100` | 互补 PWM 周期/占空比/上升沿死区/下降沿死区(ns) |
 | `LPWM:PER/DUTY:<v>` | `LPWM:PER:2` | PWM Long 周期(s)/占空比(%) |
@@ -131,7 +134,10 @@ G474-Test/
 | `12V:ON/OFF` | `12V:OFF` | 12V_OUT 手动开关 |
 | `PRESET:SAVE/LOAD` | `PRESET:SAVE` | 保存/调出参数 |
 | `STAT` | `STAT` | 查询状态（模式/输出/12V/通道/诊断计数） |
-| `KEY:<n>` | `KEY:5` | 虚拟按键（1~6 = 上下左右/确定/返回） |
+| `HELP` | `HELP` | 返回命令清单 |
+| `KEY:<n>` | `KEY:5` | 虚拟按键（1~6 = 上下左右/确定/返回；8/9 = 滚轮上/下） |
+
+> 除按命令查询外，MCU 在 **OUT / 12V / 模式 / 通道** 状态变化时会**主动推送** `STAT` 帧（上位机 0 延迟同步），无需轮询。
 
 ---
 
@@ -139,11 +145,13 @@ G474-Test/
 
 `oled_mirror.py`（或已打包的 `dist/OLED_Mirror.exe`）提供：
 
-1. **1:1 OLED 镜像**：读取 FRAME/RLE 帧，像素级同步显示 128×128 屏幕。
-2. **虚拟方向键**：等价物理摇杆；鼠标滚轮模拟编码器（中键=确定，长按=返回）。
-3. **SCPI 命令行**：发送 CMD 帧并显示 RSP。
-4. **心跳维持**：每 500ms PING，未连接时 MCU 自动暂停推流。
-5. **串口/波特率运行时切换**：免重启重连。
+1. **1:1 OLED 镜像**：读取 FRAME/RLE 帧，像素级同步显示 128×128 屏幕；诊断行显示实时推流帧率 + 累计帧数 + CRC 失败计数。
+2. **虚拟方向键**：等价物理摇杆；鼠标滚轮按页面类型智能分发（菜单=上/下移，数值=增/减），中键=确定、长按=返回。
+3. **SCPI 命令行**：发送 CMD 帧并显示 RSP；支持命令历史（↑/↓）+ TAB 补全 + HELP 帮助面板 + RSP 折行。
+4. **后台 TCP SCPI 服务端**：监听 `127.0.0.1:5025`，供 PyVISA 等第三方工具直接自动化控制（无需 GUI）。
+5. **一键快照**：保存当前镜像为 PNG 到 `screenshots/` 文件夹。
+6. **心跳维持**：每 500ms PING，未连接时 MCU 自动暂停推流。
+7. **串口/波特率运行时切换** + 高 DPI 缩放 + 欢迎画面：免重启重连。
 
 ```bash
 # 源码运行（依赖 pygame + pyserial）
@@ -165,6 +173,7 @@ cmake --build cmake-build-debug
 cmake --build cmake-build-debug --target clean
 ```
 - 工具链：Arm GNU Toolchain（`arm-none-eabi-gcc`），CMake ≥ 3.22。
+- 优化：`cmake/gcc-arm-none-eabi.cmake` 已启用极致性能 `-O3 -flto -funroll-loops -ffp-contract=fast`，FPU 单精度硬件浮点 `fpv4-sp-d16 + hard`；FLASH ART 预取缓冲在 `stm32g4xx_hal_msp.c` 显式使能（170MHz@4WS 下隐藏取指等待）。
 - 自定义源码在根 `CMakeLists.txt` 的 `target_sources` 中登记；新增 `.c` 文件需同步加入，否则不参与编译。
 
 ### 7.2 烧录
@@ -190,3 +199,9 @@ cmake --build cmake-build-debug --target clean
 - **12V 门控**：`LTC_IS_ANY_PWR_VALID() && g_12v_enable` 双条件满足才 `LOADSW_ENABLE()`，掉电/故障微秒级切断。
 - **中断优先级分级**（发波关键路径优先）：EXTI1 触发 = 最高(0,0) → TIM5 长脉冲(1,0) → TIM3 PRF(1,0) → TIM7/TIM16 按键状态(2,x) → OLED SPI/DMA、TIM6、USART3(3,x) 最低，绝不阻塞发波。
 - **串口风暴保护**：RXNE 中断计数超阈值自动关闭接收中断 500ms，防噪声中断风暴拖死主循环。
+
+---
+
+## 9. 开源组件与致谢
+
+- **UI 框架**：本项目 OLED 菜单系统基于 [WouoUI-PageVersion](https://github.com/Sheep118/WouoUI-PageVersion)（WouoUI Page 版本，作者 Sheep118），提供列表 / 弹窗 / 数值编辑等交互控件；上游原始框架为 [RQNG/WouoUI](https://github.com/RQNG/WouoUI)。
