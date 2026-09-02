@@ -3,8 +3,8 @@
 - 架构领域：精通 STM32 架构（STM32G4/F4 等）、HAL 库以及高频数字电源/电机控制。
 
 # 常用终端构建指令 (Claude Code 自主验证使用)
-- 编译项目：`cmake --build cmake-build-debug` (或依据实际输出目录执行)
-- 清理项目：`cmake --build cmake-build-debug --target clean`
+- 编译项目：`cmake --build build/Debug`
+- 清理项目：`cmake --build build/Debug --target clean`
 
 # 硬件单一事实源（Single Source of Truth）
 - 严格遵循根目录 `HARDWARE.md`：所有 GPIO 引脚、HRTIM 通道映射、USART/SPI/I2C 外设以及外部跳线配置，必须 100% 严格以 `HARDWARE.md` 为唯一基准，严禁任何主观推测或使用通用例程默认引脚。
