@@ -139,6 +139,10 @@ WouoUI default_ui = {
         .y = {0, 0, 0},
         .w = {WOUOUI_BUFF_WIDTH, 0, 0},
         .h = {WOUOUI_BUFF_HEIGHT, 0, 0},
+        .squish_h = {0, 0, 0},
+        .squish_w = {0, 0, 0},
+        .squish_y = {0, 0, 0},
+        .squish_b = {0, 0, 0},
     },
     .scrollBar = {
         .display = true,
@@ -477,6 +481,23 @@ bool WouoUI_BlurProc(uint16_t time) {
 
 #define PAGE_USE_METHOD(page, method) (((Page*)page)->methods->method(page)) //使用这个宏调用方法，避免传错指针
 
+void WouoUI_IndicatorSquish(int8_t y_dir)
+{// 触边果冻形变：注入瞬间形变偏移，后续由 IndicatorProc 中的 WouoUI_Animation 阻尼衰减回 0
+    Indicator *ind = &(p_cur_ui->indicator);
+    ind->squish_h.pos_cur = -IND_SQUISH_H;              // 瞬间压缩高度(负)
+    ind->squish_h.pos_err = 0;
+    ind->squish_w.pos_cur =  IND_SQUISH_W;              // 瞬间膨胀宽度(正)
+    ind->squish_w.pos_err = 0;
+    // 竖直锚定触边一侧：y_dir>0 触顶→顶边固定(y位移0)，底边上升；
+    //                     y_dir<0 触底→底边固定(顶边下移 H，与 squish_h=-H 镜像，全程保持底边不动)
+    ind->squish_y.pos_cur = (y_dir > 0) ? 0 : IND_SQUISH_H;
+    ind->squish_y.pos_err = 0;
+    // Y轴弹回：触顶向上挤压(负)/触底向下挤压(正)，注入后阻尼衰减回0
+    ind->squish_b.pos_cur =  -y_dir * IND_SQUISH_B;
+    ind->squish_b.pos_err = 0;
+    // pos_tgt 保持 0(静止态)，由每帧衰减平滑回落
+}
+
 void WouoUI_IndicatorProc(Page *p)
 { //同样为了提高对消息的响应能力，tgt和cur的坐标设置需要在Animation函数调用前，
 // 这样可以保证在soft动态刷新时一有消息进入，就可以接力到anim_is_finish到false使状态机全速运行
@@ -486,6 +507,12 @@ void WouoUI_IndicatorProc(Page *p)
     WouoUI_Animation(&p_cur_ui->indicator.y, p_cur_ui->upara->ani_param[IND_ANI], p_cur_ui->time,&(p_cur_ui->anim_is_finish));
     WouoUI_Animation(&p_cur_ui->indicator.w, p_cur_ui->upara->ani_param[IND_ANI], p_cur_ui->time,&(p_cur_ui->anim_is_finish));
     WouoUI_Animation(&p_cur_ui->indicator.h, p_cur_ui->upara->ani_param[IND_ANI], p_cur_ui->time,&(p_cur_ui->anim_is_finish));
+    // 触边果冻形变衰减(纯视觉，不纳入全局 anim_is_finish，避免影响文字滚动/页面切换时序)
+    uint8_t squish_fin = true;
+    WouoUI_Animation(&p_cur_ui->indicator.squish_h, IND_SQUISH_ANI, p_cur_ui->time, &squish_fin);
+    WouoUI_Animation(&p_cur_ui->indicator.squish_w, IND_SQUISH_ANI, p_cur_ui->time, &squish_fin);
+    WouoUI_Animation(&p_cur_ui->indicator.squish_y, IND_SQUISH_ANI, p_cur_ui->time, &squish_fin);
+    WouoUI_Animation(&p_cur_ui->indicator.squish_b, IND_SQUISH_ANI, p_cur_ui->time, &squish_fin);
 }
 
 void WouoUI_ScrollBarProc(Page* p)

@@ -134,4 +134,14 @@
 #define DEFAULT_LIST_WIN_TEXT_U_S           3          // 列表每行文字的上边距
 #define DEFAULT_LIST_WIN_TEXT_D_S           3          // 列表每行文字的上边距
 
+//---------------与指示器触边果冻形变(Squish & Stretch)相关的默认参数
+#define DEFAULT_IND_SQUISH_H                4          // 触边时高度压缩量(px)，注入为负
+#define DEFAULT_IND_SQUISH_W                5          // 触边时宽度膨胀量(px)，注入为正(仅在右侧增加)
+#define DEFAULT_IND_SQUISH_B                1          // 触边时Y轴弹回(远离边缘)的微小位移量(px)
+#define DEFAULT_IND_SQUISH_ANI              120         // 形变衰减动画时间常数(ms)，越小回弹越快
+
+//---------------与弹窗触界回弹(Win Bump)相关的默认参数
+#define DEFAULT_WIN_BUMP_DIST               3          // 弹窗触界时窗口整体偏移量(px)：SpinWin上下/ValWin左右
+#define DEFAULT_WIN_BUMP_ANI                100        // 触界回弹衰减动画时间常数(ms)，越小回弹越快
+
 #endif

@@ -103,12 +103,26 @@ typedef struct UiPara {
 } UiPara;                             // UI参数集合类型
 extern UiPara g_default_ui_para;      // 共外部使用的全局UI参数变量
 
+// 指示器触边果冻形变参数别名(默认值见 WouoUI_conf.h)
+#define IND_SQUISH_H     DEFAULT_IND_SQUISH_H   // 触边高度压缩量
+#define IND_SQUISH_W     DEFAULT_IND_SQUISH_W   // 触边宽度膨胀量(仅右侧)
+#define IND_SQUISH_B     DEFAULT_IND_SQUISH_B   // 触边Y轴弹回位移量
+#define IND_SQUISH_ANI   DEFAULT_IND_SQUISH_ANI // 形变衰减动画时间常数
+
+// 弹窗触界回弹参数别名(默认值见 WouoUI_conf.h)
+#define WIN_BUMP_DIST    DEFAULT_WIN_BUMP_DIST   // 触界窗口整体偏移量
+#define WIN_BUMP_ANI     DEFAULT_WIN_BUMP_ANI    // 触界回弹衰减动画时间常数
+
 // 指示器
 typedef struct Indicator {
     AnimPos x;
     AnimPos y;
     AnimPos w;
     AnimPos h;
+    AnimPos squish_h;   // 触边果冻形变：高度偏移(负=压缩)，衰减回0
+    AnimPos squish_w;   // 触边果冻形变：宽度偏移(正=膨胀，仅右侧)，衰减回0
+    AnimPos squish_y;   // 触边果冻形变：Y锚定偏移(触顶=0/触底=+H)，衰减回0
+    AnimPos squish_b;   // 触边果冻形变：Y弹回偏移(远离边缘)，衰减回0
 } Indicator;
 
 typedef struct ScrollBar {
@@ -276,6 +290,13 @@ void WouoUI_JumpToPage(PageAddr self_page, PageAddr terminate_page);
  * @return 当前页面指针
  */
 Page *WouoUI_GetCurrentPage(void);
+
+/**
+ * @brief 触发指示器触边果冻形变（注入瞬间偏移，由 IndicatorProc 阻尼衰减回0）
+ * @param y_dir 触边方向：+1=触顶(向下挤压)，-1=触底(向上挤压)
+ * @attention 建议在列表/列表弹窗页面的触边(clamp)分支调用
+ */
+void WouoUI_IndicatorSquish(int8_t y_dir);
 
 #ifdef __cplusplus
 }

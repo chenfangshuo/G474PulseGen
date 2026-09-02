@@ -203,6 +203,7 @@ void WouoUI_ConfWinPageToggleBtn(ConfWin *cw);
 struct ValWinVar
 {
     AnimPos win_y;  //弹窗的竖直动画
+    AnimPos bump;   // 触界回弹：窗口整体左右偏移，衰减回0
     SlideStr text_ss;  //文本的滚动动画
     SlideStr val_ss;  //数值的滚动动画
     SlideStr min_ss; //最小值的滚动动画
@@ -291,6 +292,7 @@ bool WouoUI_ValWinPageValDecrease(ValWin *vw);
 struct SpinWinVar
 {
     AnimPos win_y;       // 弹窗的竖直动画
+    AnimPos bump;        // 触界回弹：窗口整体上下偏移，衰减回0
     SlideStr text_ss;    // 文本的滚动动画
     SlideStr min_ss;     // 最小值的滚动动画
     SlideStr max_ss;     // 最大值的滚动动画

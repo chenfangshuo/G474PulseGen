@@ -375,9 +375,14 @@ void WouoUI_ListPageIndicatorCtrl(PageAddr page_addr)
     p_cur_ui->indicator.y.pos_tgt = lp->ind_y_tgt;
     p_cur_ui->indicator.w.pos_tgt = p_cur_ui->lp_var.indicator_w_temp;
     p_cur_ui->indicator.h.pos_tgt = LIST_LINE_H;
+    // 触边果冻形变：将瞬态偏移叠加到光标几何(负坐标由绘制函数安全裁剪)
+    int16_t sx = p_cur_ui->indicator.x.pos_cur;                                               // 左侧贴边，宽度仅在右侧膨胀
+    int16_t sy = p_cur_ui->indicator.y.pos_cur + p_cur_ui->indicator.squish_y.pos_cur
+               + p_cur_ui->indicator.squish_b.pos_cur;                                        // 触边Y位移 + 弹回
+    int16_t sw = p_cur_ui->indicator.w.pos_cur + p_cur_ui->indicator.squish_w.pos_cur;         // 宽度膨胀(仅右侧)
+    int16_t sh = p_cur_ui->indicator.h.pos_cur + p_cur_ui->indicator.squish_h.pos_cur;         // 高度压缩(负)
     WouoUI_GraphSetPenColor(2); // 反色绘制
-    WouoUI_CanvasDrawRBox(&(p_cur_ui->w_all), p_cur_ui->indicator.x.pos_cur, p_cur_ui->indicator.y.pos_cur,
-                             p_cur_ui->indicator.w.pos_cur, p_cur_ui->indicator.h.pos_cur, LIST_IND_BOX_R);
+    WouoUI_CanvasDrawRBox(&(p_cur_ui->w_all), sx, sy, sw, sh, LIST_IND_BOX_R);
     WouoUI_GraphSetPenColor(1); // 恢复实色绘制
 }
 
@@ -500,7 +505,8 @@ void WouoUI_ListPageLastItem(ListPage *lp)
                 p_cur_ui->lp_var.optInt.pos_tgt = WOUOUI_BUFF_HEIGHT - (lp->item_num) * list_line_h; // 更改文字到最底
             } else                                                                            // 没有超出数目则是到最后一个
                 lp->ind_y_tgt = (lp->item_num - 1) * list_line_h;
-        }
+        } else                                                                          // loop关闭，触顶钳位：触发果冻形变
+            WouoUI_IndicatorSquish(1);
     } else {                                                                              // 没有选中第一个
         lp->select_item--;                                                                // 选中减1
         if ((lp->select_item - 1) < -((p_cur_ui->lp_var.optInt.pos_tgt) / list_line_h)) { // 光标盒子到页面顶了
@@ -529,7 +535,8 @@ void WouoUI_ListPageNextItem(ListPage* lp)
             p_cur_ui->lp_var.optInt.pos_tgt = 0;
             lp->select_item = 0;
             lp->ind_y_tgt = 0;
-        }
+        } else                                                // loop关闭，触底钳位：触发果冻形变
+            WouoUI_IndicatorSquish(-1);
     } else { // 不是最后一个选项
         lp->select_item++;
         if ((lp->select_item + 1) > ((lp->line_n) - (p_cur_ui->lp_var.optInt.pos_tgt) / list_line_h)) { // 光标到页面底

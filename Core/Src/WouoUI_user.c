@@ -465,7 +465,7 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &setting_page);
         }
         else if(!strcmp(select_item->text, "! About")){
-            WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"BYD SEMI\n\nIPM\nLV Devices GRP\n\nPowered by WouoUI Page");
+            WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"Farshore\nchenfangshuo\n\nPowered by WouoUI Page");
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);
         }
     }
