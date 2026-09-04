@@ -53,7 +53,7 @@ FRAME_LEN = 2048
 WIDTH, HEIGHT = 128, 128
 
 # 可循环切换的常用波特率 (CH9111L 高速模块可稳定 921600/2M; 保留低速兜底)
-BAUDS = [460800, 921600, 2000000, 115200, 230400]
+BAUDS = [2000000, 921600, 460800, 115200, 230400]
 
 # 中键长按判定阈值 (s): 超过视为"返回", 否则"确定" (镜像板载编码器 KEY_LONG)
 MID_LONG_PRESS_S = 0.6
@@ -221,9 +221,12 @@ class UartReader(threading.Thread):
     def run(self):
         while not self._stop.is_set():
             try:
-                # 块读取: 逐字节 read(1) 在 921600 下每秒 9.2 万次系统调用, 读线程跟不上
-                # 导致 CH340 缓冲溢出丢字节、CRC 全错 (上位机纯色), 改为一次读尽缓冲
-                data = self.ser.read(4096)
+                # 读尽当前缓冲立即返回, 避免 read(4096) 阻塞等满 4096 字节/超时
+                # (timeout=0.5s) 导致帧被延迟最多 0.5s —— 动画结束时 MCU 停止推流,
+                # 最后一帧会卡在这个等待里造成 ~1s 延迟。in_waiting>0 时一次读尽,
+                # 无数据时 read(1) 阻塞等待 (高频推流时系统调用开销可接受)。
+                n = self.ser.in_waiting
+                data = self.ser.read(n) if n > 0 else self.ser.read(1)
             except Exception:
                 self.on_frame('DISCONNECT', None)
                 break
@@ -317,7 +320,7 @@ class App:
     RED = (235, 90, 90)
     BLUE = (90, 160, 230)
 
-    def __init__(self, port=None, baud=460800, scale=4, demo=False, dpi=1.0):
+    def __init__(self, port=None, baud=2000000, scale=4, demo=False, dpi=1.0):
         global pygame
         import pygame  # 惰性: 仅在 GUI 启动时加载
         self.scale = scale
@@ -1134,13 +1137,13 @@ class App:
                 self.conn_time = now
             self._heartbeat(now)
             self._draw(now)
-            self.clock.tick(30)
+            self.clock.tick(60)
 
 
 def main():
     ap = argparse.ArgumentParser(description="STM32G474 OLED mirror + SCPI controller")
     ap.add_argument("--port", help="serial port e.g. COM5 (省略则从界面选择)")
-    ap.add_argument("--baud", type=int, default=460800)
+    ap.add_argument("--baud", type=int, default=2000000)
     ap.add_argument("--scale", type=int, default=4)
     ap.add_argument("--demo", action="store_true", help="run without serial (test pattern)")
     args = ap.parse_args()

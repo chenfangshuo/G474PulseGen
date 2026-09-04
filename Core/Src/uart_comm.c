@@ -83,7 +83,7 @@ static volatile bool s_force_frame = false;        /* 连接刚建立: 强制推
 
 /* 镜像推流节流: RLE 压缩后帧远小于 2048B (OLED 点阵大量连续 0x00/0xFF),
  * 921600 下压缩帧可到 60fps; 节流 16ms 即 ~60fps 上限, 链路忙则丢帧自动降频 */
-#define UC_FRAME_MIN_MS      16u    /* ~60fps 上限: RLE 压缩帧短, 460800 下菜单画面(大量空白)可近 60fps */
+#define UC_FRAME_MIN_MS      8u     /* ~120fps 上限: 匹配 TIM6 ~90Hz 动画步进, 避免 16ms 节流与 11ms 步进错拍致 45fps */
 
 static volatile uint32_t s_rx_storm_cnt = 0u;
 static volatile uint32_t s_rx_storm_off_until = 0u;  /* 关闭 RXNE 截止 tick (0=未关闭) */

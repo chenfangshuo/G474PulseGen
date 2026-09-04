@@ -29,7 +29,7 @@ void MX_USART3_UART_Init(void)
   /* USER CODE END USART3_Init 0 */
 
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 460800;                     /* 460800: CH340 在此波特率下不丢字节(921600 会丢), RLE 压缩后帧短仍可流畅 */
+  huart3.Init.BaudRate = USART3_BAUDRATE;            /* 2Mbps: CH9111L 高速模块; 换 CH340 时改 USART3_BAUDRATE 为 460800u */
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;

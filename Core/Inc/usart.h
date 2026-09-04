@@ -17,6 +17,11 @@ extern "C" {
 
 #include "main.h"
 
+/* 串口波特率 (PC 端必须选择相同值, 两端一致才能通信):
+ * 2000000 = CH9111L 高速模块 (480Mbps, 推荐)
+ *  460800 = CH340  低速模块 (12Mbps, 兜底; 921600 会丢字节) */
+#define USART3_BAUDRATE   2000000u
+
 extern UART_HandleTypeDef huart3;
 extern DMA_HandleTypeDef hdma_usart3_tx;   /* USART3_TX -> DMA1_Channel2 */
 

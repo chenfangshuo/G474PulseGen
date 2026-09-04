@@ -75,7 +75,7 @@ UiPara g_default_ui_para = {
         [LIST_ANI] = 100, // 列表动画速度
         [WAVE_ANI] = 100, // 波形动画速度
         [WIN_ANI] = 60,  // 弹窗动画速度
-        [FADE_ANI] = 30,  // 页面渐变退出速度
+        [FADE_ANI] = 15,  // 页面渐变退出速度 (30→15, 减少切换延迟)
     },
     .ufd_param = {
         [TILE_UFD] = false, // 磁贴图标从头展开开关
@@ -603,9 +603,17 @@ void WouoUI_Proc(uint16_t time){
             p_cur_ui->is_motionless = p_cur_ui->anim_is_finish && p_cur_ui->slide_is_finish; //anim和slide动画都完成了
 #endif
 #if HARDWARE_DYNAMIC_REFRESH
-        if (memcmp(p_cur_ui->screen_dynamic_buff, p_cur_ui->screen_buff, sizeof(ScreenBuff))) {
-            memcpy(p_cur_ui->screen_dynamic_buff, p_cur_ui->screen_buff, sizeof(ScreenBuff));
-                              WouoUI_BuffSend();
+        {
+            static uint8_t s_had_change = 0;  /* 画面变化→静止跳变沿检测 */
+            if (memcmp(p_cur_ui->screen_dynamic_buff, p_cur_ui->screen_buff, sizeof(ScreenBuff))) {
+                memcpy(p_cur_ui->screen_dynamic_buff, p_cur_ui->screen_buff, sizeof(ScreenBuff));
+                WouoUI_BuffSend();
+                s_had_change = 1;
+            } else if (s_had_change) {
+                /* 动画/滚动刚结束瞬间: 强制推最后一帧, 避免 memcmp 漏检 <1px 变化导致最后一帧延迟 */
+                WouoUI_BuffSend();
+                s_had_change = 0;
+            }
         }
 #else
            WouoUI_BuffSend();
