@@ -246,17 +246,26 @@ static void UcInjectKey(uint8_t key)
         return;
 
     /* 鼠标滚轮: 按当前页面类型智能分发, 模拟标准 GUI 滚轮直觉 (菜单与数值方向都符合习惯)
-     *   - 数值弹窗 (ValWin/SpinWin): 上滚=增大(msg_right), 下滚=减小(msg_left)
-     *   - 菜单/列表/其它:           上滚=上移(msg_up),  下滚=下移(msg_down)
+     *   - 滑动数值弹窗 (ValWin):  上滚=增大(msg_right), 下滚=减小(msg_left)
+     *   - 微调数值弹窗 (SpinWin): 上滚=增大/选中位左移(msg_up), 下滚=减小/选中位右移(msg_down)
+     *     ⚠ SpinWin 的 msg_right/msg_left 语义与 ValWin 相反 (msg_right=减小/右移), 不能复用同一映射
+     *   - 菜单/列表/其它:          上滚=上移(msg_up), 下滚=下移(msg_down)
      * 与板载编码器(msg_left/right)解耦, 不影响其物理旋转方向 */
     if (key == UC_KEY_WHEEL_UP || key == UC_KEY_WHEEL_DOWN)
     {
         PageType pt = WouoUI_CheckPageType(WouoUI_GetCurrentPage());
-        bool is_val_win = (pt == type_slidevalwin) || (pt == type_spinwin);
-        if (is_val_win)
-            WOUOUI_MSG_QUE_SEND((key == UC_KEY_WHEEL_UP) ? msg_right : msg_left);
-        else
-            WOUOUI_MSG_QUE_SEND((key == UC_KEY_WHEEL_UP) ? msg_up : msg_down);
+        InputMsg up_msg, down_msg;
+        if (pt == type_spinwin) {
+            up_msg = msg_up;    /* SpinWin: msg_up=增大/选中位左移 */
+            down_msg = msg_down;
+        } else if (pt == type_slidevalwin) {
+            up_msg = msg_right; /* ValWin:  msg_right=增大 */
+            down_msg = msg_left;
+        } else {
+            up_msg = msg_up;    /* 菜单/列表: msg_up=上移 */
+            down_msg = msg_down;
+        }
+        WOUOUI_MSG_QUE_SEND((key == UC_KEY_WHEEL_UP) ? up_msg : down_msg);
         return;
     }
 
