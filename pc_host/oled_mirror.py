@@ -591,11 +591,12 @@ class App:
                             # 完整内容打印到终端 (GUI 窗口裁剪, 终端可见 FR/ST/OR/RX/LNK 全字段)
                             print("[RSP] " + txt)
                             self.rsp_lines.append("> " + txt)
-                        # 所有 RSP 入队给 TCP 客户端消费 (客户端发命令前会清空积压)
-                        try:
-                            self._tcp_rsp_queue.put_nowait(txt)
-                        except queue.Full:
-                            pass
+                        # RSP 入队给 TCP 客户端消费 (轮询 STAT 不进入, 避免污染请求/响应对应)
+                        if not is_poll:
+                            try:
+                                self._tcp_rsp_queue.put_nowait(txt)
+                            except queue.Full:
+                                pass
                     else:
                         # ACK 只更新连接指示, 不污染 rsp_lines (否则 500ms 刷屏淹没 RSP)
                         pass
@@ -747,13 +748,13 @@ class App:
                     except OSError:
                         return
                     continue
-                rsp = None
-                for _ in range(2):  # 超时重发一次 (连接初始化阶段偶发丢首条命令)
-                    try:
-                        rsp = self._tcp_rsp_queue.get(timeout=3.0)
-                        break
-                    except queue.Empty:
-                        self._send(frame_cmd(cmd))
+                # 期望查询 STAT 的命令才接受状态串; 其余命令过滤掉轮询/主动推送的 STAT 干扰
+                want_stat = (cmd.upper() == "STAT")
+                rsp = self._await_tcp_response(want_stat)
+                if rsp is None and cmd.upper() != "TRIG":
+                    # 首次命令偶发丢帧: 非 TRIG 可安全重发一次 (TRIG 重发会二次触发, 跳过)
+                    self._send(frame_cmd(cmd))
+                    rsp = self._await_tcp_response(want_stat)
                 if rsp is not None:
                     try:
                         conn.sendall(rsp.encode('ascii', 'ignore') + b"\n")
@@ -765,6 +766,25 @@ class App:
                     except OSError:
                         return
         conn.close()
+
+    def _await_tcp_response(self, want_stat, timeout=3.0):
+        """等待一条与当前命令匹配的响应。
+
+        非 STAT 查询时丢弃状态串 (来自 5s 轮询/固件状态变化主动推送的 STAT),
+        避免请求/响应错位。want_stat=True 时接受任意响应 (STAT 查询只需最新状态)。
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                rsp = self._tcp_rsp_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if want_stat:
+                return rsp
+            if "OUT=" in rsp:   # STAT 状态串 (含 OUT= 字段), 干扰项, 丢弃继续等
+                continue
+            return rsp
+        return None
 
     # ------------------------------------------------------------ 事件
     def _handle_events(self):
