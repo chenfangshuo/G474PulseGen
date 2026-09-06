@@ -63,9 +63,17 @@ static uint8_t   s_rx_payload[UC_CMD_MAX];     /* 接收方向载荷上限 (恰�
 /* TX Ping-Pong 双缓冲 */
 #define UC_MAX_FRAME   UC_TOTAL_MAX             /* = 2056 字节整帧 */
 #define UC_TX_NONE     2u                       /* bank 无在飞/无待发 */
+/* TX 发送优先级: 越高越优先, 新帧优先级 > 待发帧才覆盖, 否则丢新帧。
+ * 命令响应(CRIT)永不丢弃, 可覆盖 ACK/STAT 推送/镜像帧, 保证请求-响应对应 */
+typedef enum {
+    UC_TX_PRIO_FRAME = 0u,   /* 镜像帧: 忙则丢帧 */
+    UC_TX_PRIO_SOFT  = 1u,   /* ACK/STAT 主动推送/首帧: 可被命令响应覆盖 */
+    UC_TX_PRIO_CRIT  = 2u    /* 命令响应 RSP: 最高, 不可丢弃 */
+} UcTxPrio;
 static uint8_t  s_tx_frames[2][UC_MAX_FRAME] = {0u};
 static volatile uint8_t  s_tx_active = UC_TX_NONE;  /* 当前在飞 bank 索引 */
 static volatile uint8_t  s_tx_pending = UC_TX_NONE; /* 待发 bank 索引 (主循环写, ISR 读) */
+static volatile uint8_t  s_tx_pending_prio = UC_TX_PRIO_FRAME;  /* 待发帧优先级 (主循环写, ISR 读) */
 static volatile uint16_t s_tx_len[2] = {0u, 0u};    /* 每 bank 帧长 (ISR 读) */
 
 /* RSP 响应缓冲 */
@@ -167,32 +175,31 @@ static void UcTxKick(void)
     {
         uint8_t bank = s_tx_pending;
         s_tx_pending = UC_TX_NONE;
+        s_tx_pending_prio = UC_TX_PRIO_FRAME;     /* 待发帧已移交 DMA, 清空优先级 */
         if (HAL_UART_Transmit_DMA(&huart3, s_tx_frames[bank], s_tx_len[bank]) == HAL_OK)
             s_tx_active = bank;                   /* 启动成功, 标记在飞 */
     }
 }
 
 /* 入队一帧发送。
- * high_prio=true (RSP/ACK): 允许覆盖待发的低优先级 FRAME, 保证响应即时。
- * high_prio=false (FRAME):  若已有待发帧则丢帧 (镜像允许丢帧)。 */
-static bool UcTxQueue(uint8_t type, const uint8_t *payload, uint16_t plen, bool high_prio)
+ * prio: UC_TX_PRIO_* 优先级。新帧优先级 > 待发帧才覆盖, 否则丢新帧。
+ * 命令响应(CRIT)永不丢弃, 可覆盖 ACK/STAT 推送/镜像帧, 保证请求-响应对应。 */
+static bool UcTxQueue(uint8_t type, const uint8_t *payload, uint16_t plen, uint8_t prio)
 {
     uint8_t bank;
 
-    if (high_prio)
+    if (s_tx_pending != UC_TX_NONE)
     {
-        if (s_tx_pending != UC_TX_NONE)
-            bank = s_tx_pending;                  /* 覆盖待发的 FRAME (丢弃其帧数据) */
-        else
-            bank = (s_tx_active == UC_TX_NONE) ? 0u : (uint8_t)(1u - s_tx_active);
+        if (prio <= s_tx_pending_prio)
+            return false;                          /* 待发帧优先级不低, 丢新帧 (保护待发命令响应) */
+        bank = s_tx_pending;                       /* 新帧优先级更高, 覆盖待发帧 */
     }
     else
     {
-        if (s_tx_pending != UC_TX_NONE)
-            return false;                          /* 已有待发帧, 镜像丢帧 */
         bank = (s_tx_active == UC_TX_NONE) ? 0u : (uint8_t)(1u - s_tx_active);
     }
 
+    s_tx_pending_prio = prio;
     s_tx_len[bank] = UcBuildFrame(type, payload, plen, bank);
     s_tx_pending = bank;
     if (type == UC_TYPE_FRAME || type == UC_TYPE_FRAME_RLE)
@@ -201,16 +208,24 @@ static bool UcTxQueue(uint8_t type, const uint8_t *payload, uint16_t plen, bool 
     return true;
 }
 
-/* 发送 RSP 文本 (高优先级) */
+/* 发送 RSP 文本 (命令响应, 最高优先级 CRIT, 不可丢弃) */
 static void UcSendResp(const char *txt)
 {
     uint16_t len = (uint16_t)strlen(txt);
     if (len > UC_CMD_MAX - 1u) len = UC_CMD_MAX - 1u;
-    UcTxQueue(UC_TYPE_RSP, (const uint8_t *)txt, len, true);
+    UcTxQueue(UC_TYPE_RSP, (const uint8_t *)txt, len, UC_TX_PRIO_CRIT);
 }
 
-/* 构建并发送 STAT 状态响应: 供 SCPI STAT? 查询与本地状态变化主动推送共用 */
-static void UcSendStat(void)
+/* 发送 RSP 文本 (软优先级 SOFT: 状态主动推送, 可被命令响应覆盖) */
+static void UcSendRespSoft(const char *txt)
+{
+    uint16_t len = (uint16_t)strlen(txt);
+    if (len > UC_CMD_MAX - 1u) len = UC_CMD_MAX - 1u;
+    UcTxQueue(UC_TYPE_RSP, (const uint8_t *)txt, len, UC_TX_PRIO_SOFT);
+}
+
+/* 构建并发送 STAT 状态响应: 供 SCPI STAT 查询(critical=true)与本地状态变化主动推送(critical=false)共用 */
+static void UcSendStat(bool critical)
 {
     const char *mode_name = "?";
     switch (PULSE_MODE)
@@ -236,7 +251,10 @@ static void UcSendStat(void)
              (unsigned long)s_diag_ore_cnt,      /* ORE 超载次数 */
              (unsigned long)s_diag_rx_bytes,     /* 累计接收字节 */
              (int)s_link_state);                 /* 1=已连接 0=空闲 */
-    UcSendResp(s_rsp_buf);
+    if (critical)
+        UcSendResp(s_rsp_buf);        /* 查询响应: 不可丢弃 */
+    else
+        UcSendRespSoft(s_rsp_buf);    /* 主动推送: 可被命令响应覆盖 */
 }
 
 /* 虚拟按键码 -> WouoUI InputMsg 注入 */
@@ -285,7 +303,7 @@ static void UcInjectKey(uint8_t key)
 static void UcHandlePing(void)
 {
     uint8_t st = (uint8_t)s_link_state;
-    UcTxQueue(UC_TYPE_ACK, &st, 1u, true);
+    UcTxQueue(UC_TYPE_ACK, &st, 1u, UC_TX_PRIO_SOFT);
 }
 
 /* 同步当前模式的 @ Enable Output 复选框 val 到 UI。
@@ -468,13 +486,11 @@ static void UcScpiExec(const char *line)
         UcSendResp("OK");
         return;
     }
-    if (strcmp(tok, "BURST") == 0)
+    if (strcmp(tok, "BURST") == 0)         /* BURST:<prf Hz> 两段式 (0=单次, 1~100000) */
     {
         sub = strtok(NULL, ":");
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
-        const char *vstr = strtok(NULL, ":");
-        if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
-        uint32_t prf = (uint32_t)strtoul(vstr, NULL, 10);
+        uint32_t prf = (uint32_t)strtoul(sub, NULL, 10);
         n_pulse_option_array[6].val = (int32_t)prf;
         Pulse_BurstPRF_Set(prf);               /* 0=单次, 1~100000Hz */
         UcSendResp("OK");
@@ -511,7 +527,7 @@ static void UcScpiExec(const char *line)
     }
 
     /* ---------- STAT? ---------- */
-    if (strcmp(tok, "STAT") == 0) { UcSendStat(); return; }
+    if (strcmp(tok, "STAT") == 0) { UcSendStat(true); return; }
 
     /* ---------- KEY:<n> ---------- */
     if (strcmp(tok, "KEY") == 0)
@@ -579,6 +595,7 @@ void UartComm_Init(void)
     s_rx_state = RX_SYNC0;
     s_tx_active = UC_TX_NONE;
     s_tx_pending = UC_TX_NONE;
+    s_tx_pending_prio = UC_TX_PRIO_FRAME;
     s_rx_storm_cnt = 0u;
     s_rx_storm_off_until = 0u;
     s_frame_cache_valid = false;   /* 复位缓存: 连接前清屏空白不再视为有效帧 */
@@ -674,9 +691,9 @@ void UartComm_Proc(void)
         {
             uint16_t rlen = UcRleEncode((const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, s_rle_buf, UC_FRAME_RLE_MAX);
             if (rlen > 0u)
-                UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, true);
+                UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, UC_TX_PRIO_SOFT);
             else
-                UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, true);
+                UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, UC_TX_PRIO_SOFT);
             s_last_frame_tick = now;
         }
     }
@@ -688,9 +705,9 @@ void UartComm_Proc(void)
     {
         uint16_t rlen = UcRleEncode((const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, s_rle_buf, UC_FRAME_RLE_MAX);
         if (rlen > 0u)
-            UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, false);
+            UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, UC_TX_PRIO_FRAME);
         else
-            UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, false);
+            UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)OLED_DisplayBuf, UC_FRAME_LEN, UC_TX_PRIO_FRAME);
         s_last_frame_tick = now;
     }
 
@@ -707,7 +724,7 @@ void UartComm_Proc(void)
         {
             s_last_stat_out = out;   s_last_stat_12v = v12;
             s_last_stat_mode = mode; s_last_stat_ch = ch;
-            UcSendStat();
+            UcSendStat(false);
         }
     }
     else
@@ -845,9 +862,9 @@ void UartComm_MirrorFrame(const uint8_t (*frame)[128])
     /* RLE 压缩: 压缩后更小发 RLE, 否则回退原始帧 */
     uint16_t rlen = UcRleEncode((const uint8_t *)frame, UC_FRAME_LEN, s_rle_buf, UC_FRAME_RLE_MAX);
     if (rlen > 0u)
-        UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, false);
+        UcTxQueue(UC_TYPE_FRAME_RLE, s_rle_buf, rlen, UC_TX_PRIO_FRAME);
     else
-        UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)frame, UC_FRAME_LEN, false);
+        UcTxQueue(UC_TYPE_FRAME, (const uint8_t *)frame, UC_FRAME_LEN, UC_TX_PRIO_FRAME);
 }
 
 UartComm_LinkState UartComm_GetLinkState(void)

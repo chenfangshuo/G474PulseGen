@@ -133,6 +133,8 @@ int main(void)
   // 按键与状态检测
   HAL_NVIC_SetPriority(TIM7_DAC_IRQn, 2, 0);
   HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, 2, 1);
+  // USART3 接收(SCPI 命令): 提至优先级 2, 高于刷屏(3), 防 2Mbps 下 RXNE 被刷屏中断抢占致 ORE 丢字节
+  HAL_NVIC_SetPriority(USART3_IRQn, 2, 0);
   // 刷屏与 DMA 降至最低优先级 3，绝不阻塞发波
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 3, 0);
   HAL_NVIC_SetPriority(SPI1_IRQn, 3, 1);
