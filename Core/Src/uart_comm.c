@@ -266,7 +266,7 @@ static void UcInjectKey(uint8_t key)
     /* 鼠标滚轮: 按当前页面类型智能分发, 模拟标准 GUI 滚轮直觉 (菜单与数值方向都符合习惯)
      *   - 滑动数值弹窗 (ValWin):  上滚=增大(msg_right), 下滚=减小(msg_left)
      *   - 微调数值弹窗 (SpinWin): 上滚=增大/选中位左移(msg_up), 下滚=减小/选中位右移(msg_down)
-     *     ⚠ SpinWin 的 msg_right/msg_left 语义与 ValWin 相反 (msg_right=减小/右移), 不能复用同一映射
+     *     ⚠ SpinWin 用 msg_up/down(滚轮)而非 msg_left/right(编码器): 两者值方向相反(up=增大/left=减小), 需各自定方向
      *   - 菜单/列表/其它:          上滚=上移(msg_up), 下滚=下移(msg_down)
      * 与板载编码器(msg_left/right)解耦, 不影响其物理旋转方向 */
     if (key == UC_KEY_WHEEL_UP || key == UC_KEY_WHEEL_DOWN)

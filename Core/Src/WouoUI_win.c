@@ -756,19 +756,29 @@ bool WouoUI_SpinWinPageReact(PageAddr page_addr)
     bool ret = false;
     if(spw->page.auto_deal_with_msg){
         switch (msg){
-            case msg_up:
-            case msg_left:
+            case msg_up:                        // 滚轮上: 增大 / 光标左移
                 if(spw->sel_flag) //选中状态
                     WouoUI_SpinWinPageChangeSelbit(spw,1);  //增加 (+1=增大)
                 else  //未选中状态
-                    WouoUI_SpinWinPageShiftSelbit(spw, 0);
+                    WouoUI_SpinWinPageShiftSelbit(spw, 0);  //左移
             break;
-            case msg_down:
-            case msg_right:
+            case msg_left:                      // 编码器向前: 减小 / 光标左移
                 if(spw->sel_flag) //选中状态
                     WouoUI_SpinWinPageChangeSelbit(spw,-1); //减少 (-1=减小)
                 else  //未选中状态
-                    WouoUI_SpinWinPageShiftSelbit(spw, 1);
+                    WouoUI_SpinWinPageShiftSelbit(spw, 0);  //左移
+            break;
+            case msg_down:                      // 滚轮下: 减小 / 光标右移
+                if(spw->sel_flag) //选中状态
+                    WouoUI_SpinWinPageChangeSelbit(spw,-1); //减少 (-1=减小)
+                else  //未选中状态
+                    WouoUI_SpinWinPageShiftSelbit(spw, 1);  //右移
+            break;
+            case msg_right:                     // 编码器向后: 增大 / 光标右移
+                if(spw->sel_flag) //选中状态
+                    WouoUI_SpinWinPageChangeSelbit(spw,1);  //增加 (+1=增大)
+                else  //未选中状态
+                    WouoUI_SpinWinPageShiftSelbit(spw, 1);  //右移
             break;
             case msg_click:
                 WouoUI_SpinWinPageToggleSelState(spw);
