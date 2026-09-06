@@ -430,7 +430,7 @@ void Pulse_SetPulsePolarity_Low(void)
 /* 软件重触发方案的固定开销补偿: 每个脉冲间隙会多出中断响应 + TxRST 重触发的时间,
    实测稳定约 2us, 故将用户设定的 Interval 减去该值后再写入硬件周期。
    (补偿后最小可实现实际间隔 ≈ 2us, 即该开销本身) */
-#define NPULSE_INTERVAL_COMP_US   2.0f
+#define NPULSE_INTERVAL_COMP_US   0.9f
 #define NPULSE_INTERVAL_MIN_US    0.05f   /* 补偿后最小硬件间隔, 避免 tick 取整退化为 0 */
 
 /* 为 N 脉冲选择分频比并计算周期与比较值:
