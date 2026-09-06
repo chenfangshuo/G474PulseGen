@@ -759,14 +759,14 @@ bool WouoUI_SpinWinPageReact(PageAddr page_addr)
             case msg_up:
             case msg_left:
                 if(spw->sel_flag) //选中状态
-                    WouoUI_SpinWinPageChangeSelbit(spw,-1); //增加
+                    WouoUI_SpinWinPageChangeSelbit(spw,1);  //增加 (+1=增大)
                 else  //未选中状态
                     WouoUI_SpinWinPageShiftSelbit(spw, 0);
             break;
             case msg_down:
             case msg_right:
                 if(spw->sel_flag) //选中状态
-                    WouoUI_SpinWinPageChangeSelbit(spw,1); //减少
+                    WouoUI_SpinWinPageChangeSelbit(spw,-1); //减少 (-1=减小)
                 else  //未选中状态
                     WouoUI_SpinWinPageShiftSelbit(spw, 1);
             break;
