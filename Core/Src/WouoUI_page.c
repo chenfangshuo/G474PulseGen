@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) Sheep118 (WouoUI-PageVersion)
+ *           https://github.com/Sheep118/WouoUI-PageVersion
+ * Copyright (c) 2025 chenfangshuo (modifications)
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 #include "WouoUI_page.h"
 #include "WouoUI.h" //包含自己的顶层文件其实不好(但需要调用到p_cur_ui,后期再改吧)
 #include "math.h"

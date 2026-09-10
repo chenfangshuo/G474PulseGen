@@ -588,5 +588,26 @@ G474-Test/
 
 ## 13. 开源组件与致谢
 
-- OLED 菜单框架基于 **[WouoUI-PageVersion](https://github.com/Sheep118/WouoUI-PageVersion)**（作者 Sheep118），提供列表 / 弹窗 / 数值编辑等交互控件。
-- 上游原始框架：**[RQNG/WouoUI](https://github.com/RQNG/WouoUI)**。
+- OLED 菜单框架基于 **[WouoUI-PageVersion](https://github.com/Sheep118/WouoUI-PageVersion)**（作者 Sheep118，MPL-2.0），提供列表 / 弹窗 / 数值编辑等交互控件；上游原始框架为 **[RQNG/WouoUI](https://github.com/RQNG/WouoUI)**。
+- OLED 驱动、字库与按键扫描部分改编自 B 站 **「江协科技」**（<https://jiangxiekeji.com/>）公开的 STM32 教学库，详见文末致谢。
+- 底层依赖 **STM32G4 HAL 驱动**（STMicroelectronics，BSD-3-Clause）与 **Arm CMSIS**（Apache-2.0）。
+
+---
+
+## 14. 许可证
+
+本项目采用 **MIT + MPL-2.0 混合许可**：
+
+- **[MIT](LICENSE)** —— 除下列 MPL 文件外的全部内容：`Pulse.c` / `uart_comm.c` / `Preset.c` / `Key.c` / `WouoUI_user.c` / `WouoUI_user.h` / `pc_host/` 等自有代码，以及 `README.md` / `HARDWARE.md`。
+- **[MPL-2.0](https://mozilla.org/MPL/2.0/)** —— `Core/Src/` 与 `Core/Inc/` 下的 **16 个 WouoUI 框架文件**（`WouoUI_user.c` / `WouoUI_user.h` 除外）。这部分源自 WouoUI-PageVersion（© Sheep118），按 MPL-2.0 §3.1 必须保持同一许可。
+- **第三方组件**（不在上述授权范围内，各自保留原声明）：STM32 HAL（BSD-3-Clause）、CMSIS（Apache-2.0）、STM32CubeMX 生成代码（STMicroelectronics）。
+
+简单说：**自己的代码随你怎么用，WouoUI 框架那 16 个文件改了要开源。**
+
+---
+
+## 致谢
+
+特别感谢 **B 站「江协科技」**（<https://jiangxiekeji.com/>）。本项目的 OLED 驱动、字库与按键扫描部分改编自其公开的 STM32 教学库——这些中文教学资料质量很高，帮这个项目的 UI 部分省了大量时间。原作品公开发布供学习下载，但未声明明确的开源许可，此处保留署名以致敬原作者。
+
+同样感谢 **Sheep118** 的 [WouoUI-PageVersion](https://github.com/Sheep118/WouoUI-PageVersion)，这个丝滑的 UI 框架是整个菜单系统的地基。

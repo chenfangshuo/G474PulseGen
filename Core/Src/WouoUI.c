@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) Sheep118 (WouoUI-PageVersion)
+ *           https://github.com/Sheep118/WouoUI-PageVersion
+ * Copyright (c) 2025 chenfangshuo (modifications)
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 #include "WouoUI.h"
 
 // 静态函数声明(方便全局变量初始化函数指针)

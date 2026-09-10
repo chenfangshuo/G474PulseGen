@@ -1,4 +1,13 @@
 /*
+ * Copyright (c) Sheep118 (WouoUI-PageVersion)
+ *           https://github.com/Sheep118/WouoUI-PageVersion
+ * Copyright (c) 2025 chenfangshuo (modifications)
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+/*
 版本更新日志：
 Version-1.0.0[2025.02.09]:
 1. 适配多尺寸屏幕，可以通过WouoUI_conf.h中的宽长的宏定义更改屏幕宽长，所有页面的元素都会自动居中

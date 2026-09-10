@@ -1,0 +1,64 @@
+MIT License
+
+Copyright (c) 2025 chenfangshuo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+适用范围 / Scope
+================================================================================
+
+上述 MIT 许可适用于本仓库中由本项目作者编写的内容，包括但不限于：
+
+    Core/Src/Pulse.c            Core/Inc/Pulse.h
+    Core/Src/uart_comm.c        Core/Inc/uart_comm.h
+    Core/Src/Preset.c           Core/Inc/Preset.h
+    Core/Src/WouoUI_user.c      Core/Inc/WouoUI_user.h
+
+    Core/Src/Key.c、Core/Inc/Key.h 与 Core/Src/OLED*.c、Core/Inc/OLED*.h
+        改编自 B 站「江协科技」公开的 STM32 教学库 (https://jiangxiekeji.com/)。
+        原作品公开发布供学习下载, 但未声明明确的开源许可, 此处保留署名以致谢
+        原作者; 本项目作者编写与修改的部分按上述 MIT 许可发布。
+
+    Core/ 下由 CubeMX 生成的 .c/.h 文件中，位于 /* USER CODE BEGIN */ 与
+        /* USER CODE END */ 保护块内由本项目作者编写的代码
+    pc_host/                    上位机工具、打包脚本与自动化演示脚本
+    README.md / HARDWARE.md / CLAUDE.md
+
+--------------------------------------------------------------------------------
+以下第三方组件【不适用】上述 MIT 许可，各自适用其原有许可：
+
+  Core/Src/WouoUI*.c、Core/Inc/WouoUI*.h
+      （WouoUI_user.c / WouoUI_user.h 除外, 该两个文件属本项目自有代码, 适用 MIT）
+      Mozilla Public License 2.0 (MPL-2.0)
+      源自 WouoUI-PageVersion, Copyright (c) Sheep118
+      https://github.com/Sheep118/WouoUI-PageVersion
+
+  Drivers/STM32G4xx_HAL_Driver/、startup_stm32g474xx.s
+      BSD-3-Clause License, Copyright (c) STMicroelectronics
+      https://opensource.org/licenses/BSD-3-Clause
+
+  Drivers/CMSIS/
+      Apache License 2.0, Copyright (c) Arm Limited / STMicroelectronics
+      https://www.apache.org/licenses/LICENSE-2.0
+
+  Core/ 下由 STM32CubeMX 生成的文件（main.c 等）
+      Copyright (c) STMicroelectronics，条款同 STM32 HAL（BSD-3-Clause）
+
+详见 README.md 的「许可证」一节。
