@@ -349,7 +349,7 @@ static void UcScpiExec(const char *line)
     if (tok == NULL) { UcSendResp("ERR EMPTY"); return; }
 
     /* ---------- *IDN? (仪器标识, PyVISA 兼容) ---------- */
-    if (strcmp(tok, "*IDN?") == 0) { UcSendResp("PulseGen,G474-PulseGen,0001,1.0"); return; }
+    if (strcmp(tok, "*IDN?") == 0) { UcSendResp("PulseGen,G474PulseGen,0001,1.0"); return; }
 
     /* ---------- OUTP:ON / OUTP:OFF ---------- */
     if (strcmp(tok, "OUTP") == 0)

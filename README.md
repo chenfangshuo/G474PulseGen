@@ -1,4 +1,4 @@
-# 5V SigGen —— 功率器件栅极驱动的双脉冲 / 多脉冲发波板
+# G474PulseGen —— 功率器件栅极驱动的双脉冲 / 多脉冲发波板
 
 一句话：**给功率半导体栅极驱动和双脉冲（Double Pulse Test）测试用的硬件发波控制器。**
 
@@ -437,7 +437,7 @@ TPS22810 关断后 QOD 通路会把 `12V_OUT` 泄放到地，不是悬空。
 
 | 命令 | 示例 | 说明 |
 |:---|:---|:---|
-| `*IDN?` | | 返回 `PulseGen,G474-PulseGen,0001,1.0`（PyVISA 兼容） |
+| `*IDN?` | | 返回 `PulseGen,G474PulseGen,0001,1.0`（PyVISA 兼容） |
 | `STAT` | | 查询状态，裸写不带 `?` |
 | `HELP` | | 命令清单 |
 | `OUTP:ON\|OFF` | `OUTP:ON` | 输出使能 |
@@ -507,7 +507,7 @@ python demo_scripts.py --dry-run single --end 5      # 只打印命令不发送
 
 ```bash
 cmake --preset Debug            # 生成 build/Debug
-cmake --build build/Debug       # 产物: build/Debug/G474-Test.elf
+cmake --build build/Debug       # 产物: build/Debug/G474PulseGen.elf
 cmake --build build/Debug --target clean
 ```
 
@@ -517,7 +517,7 @@ cmake --build build/Debug --target clean
 
 ### 9.2 烧录
 
-SWD 接口 J1（`PA13 = SWDIO` / `PA14 = SWCLK`），ST-Link / J-Link / `st-flash` 都行，烧 `build/Debug/G474-Test.elf`。
+SWD 接口 J1（`PA13 = SWDIO` / `PA14 = SWCLK`），ST-Link / J-Link / `st-flash` 都行，烧 `build/Debug/G474PulseGen.elf`。
 
 BOOT0 跳线 J2：短接 **2-3** → 主 Flash 启动（正常用这个）；短接 1-2 → 系统存储器启动。
 
@@ -552,7 +552,7 @@ BOOT0 跳线 J2：短接 **2-3** → 主 Flash 启动（正常用这个）；短
 ## 11. 工程结构
 
 ```
-G474-Test/
+G474PulseGen/
 ├── Core/
 │   ├── Inc/                 # 头文件（Pulse.h / uart_comm.h / WouoUI 框架等）
 │   └── Src/

@@ -52,7 +52,7 @@ SCPI_REFERENCE = """\
     特例: *IDN? 带 '?'; STAT 为裸命令不带 '?' (STAT? 会被判 ERR CMD)。
 
 [系统/查询]
-  *IDN?               查询设备标识 -> PulseGen,G474-PulseGen,0001,1.0
+  *IDN?               查询设备标识 -> PulseGen,G474PulseGen,0001,1.0
   STAT                查询状态 (裸写, 不带 '?'), 返回字段见下方 [STAT 字段]
   HELP                查询命令清单 (精简版)
 
