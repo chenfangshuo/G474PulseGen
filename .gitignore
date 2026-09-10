@@ -51,7 +51,8 @@ __pycache__/
 *.spec
 pc_host/build/
 pc_host/dist/
-screenshots/
+# 注: screenshots/ 已取消忽略 —— README.md 需要引用这些实拍图/波形图,
+# 推到 GitHub 后必须能正常渲染。代价是仓库会增大 (波形图单张约 7MB)。
 
 # ========================================================
 # 6. Claude Code 本地配置 (勿提交到仓库)

@@ -46,7 +46,7 @@
 | **19** | VSSA | GND | 电源 | 模拟地 |
 | **20** | VREF+ | 3.3V | 电源 | ADC/DAC 参考电压正，接 3.3V |
 | **21** | VDDA | 3.3V | 电源 | 模拟供电正，接 3.3V |
-| **22** | PB10 | PB10/USART3_TX | USART3_TX (AF7) | **PC 上位机串口发送**（460800 8N1，DMA1_Channel2 TX），连接 J5 Pin 2 |
+| **22** | PB10 | PB10/USART3_TX | USART3_TX (AF7) | **PC 上位机串口发送**（默认 **2 Mbps** 8N1，DMA1_Channel2 TX），连接 J5 Pin 2 |
 | **23** | VSS | GND | 电源 | 数字地 |
 | **24** | VDD | 3.3V | 电源 | 数字供电正，接 3.3V |
 | **25** | PB11 | PB11/USART3_RX | USART3_RX (AF7) | **PC 上位机串口接收**（RXNE 中断，内部上拉），连接 J5 Pin 3 |
@@ -87,7 +87,7 @@
 | TIM7 | 按键扫描节拍 | — | (2,0) |
 | TIM16 | 输出状态刷新 (~2Hz) | — | (2,1) |
 | SPI1 | OLED 128×128（SSD1315 兼容, DMA 发送） | PB3=SCK, PB5=MOSI, PB4=CS, PB6=DC, PB7=RES | (3,0)/(3,1) |
-| USART3 | PC 上位机 (460800 8N1) | PB10=TX, PB11=RX | (3,3) |
+| USART3 | PC 上位机 (**2 Mbps** 8N1) | PB10=TX, PB11=RX | (2,0) |
 | EXTI1 | 硬件触发输入（下降沿） | PB1 (KEY_TRG) | (0,0) 最高 |
 | GPIO | 按键/摇杆（MAX6818 消抖） | PC13 / PA4 / PA5 / PA6 / PA7 / PB0 | 轮询 |
 | GPIO | 12V 负载开关 / 电源状态 | PA12=OUT；PC14/15=IN | 主循环轮询 |
@@ -150,7 +150,7 @@
 ### 4.3 蓝牙接口 (J5 - BLE 6-Pin Header)
 网表中 **仅 4 个引脚有网络**。模块供电必须使用 Pin 6，**不可按 Pin 5 供电**。
 
-> **固件实际用途**：USART3（PB10=TX / PB11=RX）当前作为 **PC 上位机串口**（460800 8N1），经 J5 Pin 2/3 连接 USB-TTL（CH340/CH9111 等）实现 OLED 镜像 + SCPI 远程控制，而非蓝牙模块。
+> **固件实际用途**：USART3（PB10=TX / PB11=RX）当前作为 **PC 上位机串口**（默认 **2 Mbps** 8N1，见 `usart.h` 的 `USART3_BAUDRATE`），经 J5 Pin 2/3 连接 USB-TTL（CH9111L 等高速模块）实现 OLED 镜像 + SCPI 远程控制，而非蓝牙模块。**换用 CH340 时须把 `USART3_BAUDRATE` 改为 `460800u`**，否则 2 Mbps 下会丢字节。
 
 | J5 Pin | 网络 / 连接 | 说明 |
 |:---|:---|:---|
@@ -292,7 +292,9 @@ Y1–Y6 为 `SMA_Conn`（信号在 Pin 2）；Y7/Y8 为 `SMA-KE`（信号在 Pin
 11. **Burst PRF 时基 (TIM3)**:
    - TIM3 作 1Hz~100kHz 周期猝发时基（0=单次）；仅在 N 脉冲模式生效。
 12. **PC 通信串口 (USART3)**:
-   - PB10=TX/PB11=RX，460800 8N1；TX 走 DMA1_Channel2，RX 走 RXNE 中断；RXNE 风暴保护自动关中断 500ms。
+   - PB10=TX/PB11=RX，**默认 2 Mbps** 8N1（`usart.h::USART3_BAUDRATE = 2000000u`，换 CH340 时改 `460800u`）；TX 走 DMA1_Channel2，RX 走 RXNE 中断。
+   - 中断优先级 (**2,0**)，**高于刷屏 (3,x)**——2 Mbps 下若被刷屏中断抢占会导致 RXNE 来不及读而 ORE 丢字节、命令偶发超时。
+   - RXNE 风暴保护自动关中断 500ms；诊断计数见 SCPI `STAT` 的 `OR`(超载) / `ST`(风暴) 字段，正常 `OR` 应保持 0。
 13. **FLASH 性能 (ART 预取)**:
    - `stm32g4xx_hal_msp.c` 显式使能 ART 预取缓冲（PRFTEN），170MHz@4WS 下隐藏顺序取指等待。
    - 链接脚本 `STM32G474XX_FLASH.ld` RAM 区为 96KB（SRAM1+SRAM2），`_estack=0x20018000`，CCM SRAM 32KB 未纳入。
