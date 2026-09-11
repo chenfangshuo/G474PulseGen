@@ -1057,7 +1057,33 @@ void Pulse_PWM_Init(void)
     Pulse_SetPulsePolarity_High();
 }
 
-/* 硬件级与软件级紧急关断 (Safe-State 硬件保护) */
+/**
+ * @brief  紧急关断: 切断 12V 负载并封锁全部发波输出 (硬件 Safe-State 总闸)
+ *
+ * @note  五步关断顺序是安全设计的一部分, 不可调整:
+ *        1) LOADSW_DISABLE() —— 拉低 PA12 切断 12V_OUT。必须第一句且零依赖
+ *           (不查时钟、不解引用句柄), 因为这可能是 NMI/HardFault 路径中唯一
+ *           还能可靠执行的操作;
+ *        2) HRTIM 全通道 ODISR=0xFFFFFFFF + MCR 清 Timer A/B/C/D 使能位;
+ *        3) TIM5 关断并强制长脉冲引脚无效;
+ *        3b) 互补模式主路/互补路两路同时拉低 —— 严禁物理电平重叠造成上下桥直通;
+ *        4) TIM3 (PRF 猝发) 关断 + 帧标记拉低;
+ *        5) 复位内部状态机 (is_enabled / 剩余计数) 并同步上下文。
+ *
+ * @note  第 2/3/4 步都先校验 RCC 时钟使能位、第 3 步还校验 htim5.Instance 非 NULL。
+ *        这不是多余的防御: 本函数会被 NMI_Handler / HardFault_Handler 调用, 若因
+ *        访问未使能的外设而再次触发异常, 会形成 HardFault 递归锁死。
+ *
+ * @warning ODISR 写 0xFFFFFFFF 会**连带关断 TC2**, 即 Y7 的 SYNC OUT。全工程只有
+ *          Pulse_Sync_Init() 会重新调用 WaveformOutputStart(TC2), 而它仅在上电时
+ *          执行一次 —— 因此 **Fault/HardFault/NMI 发生后 Y7 不再输出 SYNC, 直到复位**。
+ *          这是既有的设计缺口, 本注释仅作记录; 若要修复须在产品层面确认
+ *          (例如在故障恢复流程中重新使能 TC2), 不可顺手改动。
+ *
+ * @warning 调用点共 4 处, 修改本函数等同于同时改变这 4 条异常路径的行为:
+ *          HAL_HRTIM_Fault2Callback (本文件)、NMI_Handler 与 HardFault_Handler
+ *          (stm32g4xx_it.c)、Error_Handler (main.c)。
+ */
 void Pulse_EmergencyStop(void)
 {
     /* 1. 瞬时强制拉低 PA12 (LOADSW) 切断 12V（零依赖，必须第一句执行） */
@@ -1409,10 +1435,33 @@ void Pulse_Select_CompPair(uint8_t pair_idx)
     if (was_enabled) Pulse_Enable_Output();
 }
 
-/* 死区时间 -> HRTIM 死区时钟分频档与 9bit 计数值
-   fHRTIM = 170MHz, fDTG = fHRTIM 倍频/分频, 单 tick 时间见下表:
-     MUL8=0.735ns / MUL4=1.471ns / MUL2=2.941ns / DIV1=5.882ns / DIV2=11.765ns / DIV4=23.529ns
-   9bit 值(0~511) 结合 DIV4 档可覆盖至约 12us 死区 */
+/**
+ * @brief  死区时间 -> HRTIM 死区分频档 + 9bit 计数值
+ * @param  dt_rise_ns    上升沿死区 [ns]
+ * @param  dt_fall_ns    下降沿死区 [ns]
+ * @param  out_psc       [out] HRTIM_TIMDEADTIME_PRESCALERRATIO_* 分频档
+ * @param  out_rise_val  [out] 上升沿死区计数值 (0~511)
+ * @param  out_fall_val  [out] 下降沿死区计数值 (0~511)
+ *
+ * @note   分频档由 max(dt_rise, dt_fall) 决定, 保证 9bit (0~511) 能容纳较大者。
+ *         fHRTIM = 170MHz, 各档单 tick 时间与切档阈值:
+ *           MUL8 = 1/(170M×8) = 0.735294 ns  (dt_max ≤ 375  ns)
+ *           MUL4 = 1/(170M×4) = 1.470588 ns  (≤ 751  ns)
+ *           MUL2 = 1/(170M×2) = 2.941176 ns  (≤ 1502 ns)
+ *           DIV1 = 1/170M     = 5.882353 ns  (≤ 3006 ns)
+ *           DIV2 = 2/170M     = 11.764706 ns (≤ 6012 ns)
+ *           DIV4 = 4/170M     = 23.529412 ns (其余, 覆盖至约 12µs 死区)
+ *         阈值 ≈ (2^9 − 1) × tick_ns 向下取整, 即 9bit 恰好够用的最大时间。
+ *
+ * @warning 各档阈值为**实测标定值**, 与上述算式互为印证。改动阈值或 tick_ns
+ *          常量会直接改变实际死区宽度, 必须用示波器逐档复测 (含确认任何一档都
+ *          不出现上下桥重叠)。
+ * @warning 511 是硬件限制 (HRTIM_DTR 寄存器的 DTRx[8:0] 为 9bit), 不可放宽;
+ *          超过 511 钳位而非报错, 意味着**超大死区请求会被静默截断**。
+ * @note   本函数只做换算、不写寄存器; 实际写入见 Pulse_CompPWM_SetPW()。
+ * @note   本函数保证 9bit 不溢出, 调用方保证死区不吞掉整个脉冲 (钳到半周期),
+ *         两者是独立的两道防线。
+ */
 static void Pulse_CompPWM_CalcDeadTime(uint32_t dt_rise_ns, uint32_t dt_fall_ns,
                                        uint32_t *out_psc, uint32_t *out_rise_val, uint32_t *out_fall_val)
 {
@@ -1438,7 +1487,31 @@ static void Pulse_CompPWM_CalcDeadTime(uint32_t dt_rise_ns, uint32_t dt_fall_ns,
     if (out_fall_val) *out_fall_val = fv;
 }
 
-/* 高精度互补 PWM: 周期 1~1500us, 占空比 0~100%, 上升/下降沿死区 0~12000ns */
+/**
+ * @brief  配置高精度互补 PWM 的周期 / 占空比 / 死区
+ * @param  period_us           周期 [µs], 合法范围 1.0 ~ 1500.0
+ * @param  duty_cycle_percent  占空比 [%], 合法范围 0 ~ 100 (整数)
+ * @param  dt_rise_ns          上升沿死区 [ns], 合法范围 0 ~ 12000
+ * @param  dt_fall_ns          下降沿死区 [ns], 合法范围 0 ~ 12000
+ * @retval true   配置成功
+ * @retval false  任一参数越界, 或周期换算后小于下限 96
+ *
+ * @note   互补路波形由 HRTIM **硬件死区发生器**从 Tx1 参考生成 (Tx2 的 Set/Reset
+ *         源为 NONE, 见 Pulse_CompPWM_Init), 软件不干预互补沿 —— 这是防上下桥
+ *         直通的核心机制, 不可改成软件 Set/Reset。
+ *
+ * @note   must_realign 的三条判据 (换分频档 / PER 收缩 / 停机态) 都读**旧 PER**
+ *         而非当前 CNT: CNT 在运行中持续变化, 用它判断会得到不确定结果。需重对齐
+ *         时先关输出 -> 写时基 -> SoftwareUpdate + CNT=0 -> 再恢复输出, 避免 CNT
+ *         冲向 0xFFFF 产生一个畸变周期。
+ *
+ * @warning `cmp_min_tab` 的 8 个值随分频档变化, 含义是「比较事件的最小宽度」。
+ *          低于该值时 Reset 事件可能被硬件漏掉, 输出会卡在有效电平 —— 等效
+ *          100% 占空比, 对功率级是危险状态, 故该钳位不可去掉。
+ * @warning 死区会被钳到半个周期以内 (见函数内钳位), 防止死区吞掉整个脉冲。
+ *          改动该钳位需重新评估最小可达占空比。
+ * @warning 本函数会被 UI/SCPI 在运行中调用, 不得移除 must_realign 门控。
+ */
 bool Pulse_CompPWM_SetPW(float period_us, int32_t duty_cycle_percent, uint32_t dt_rise_ns, uint32_t dt_fall_ns)
 {
     if (period_us < 1.0f || period_us > 1500.0f)         return false;
@@ -1647,7 +1720,32 @@ void Pulse_CompPWM_Init(void)
 
 /* ==================== 互补 PWM Long (TIM5 超长, 软件死区) ==================== */
 
-/* 超长互补 PWM: 周期 0.001~1000s, 占空比 0.01~100%, 死区 1~5000ms */
+/**
+ * @brief  配置超长互补 PWM (TIM5 软件死区) 的周期 / 占空比 / 死区
+ * @param  period_s      周期 [s], 合法范围 0.001 ~ 1000.0
+ * @param  duty_percent  占空比 [%], 合法范围 0.01 ~ 100.0
+ * @param  dt_ms         死区 [ms], 合法范围 1 ~ 5000
+ * @retval true   配置成功
+ * @retval false  任一参数越界
+ *
+ * @note   与 CompPWM 不同, 本模式**没有 HRTIM 硬件死区**: 死区完全由 TIM5 的三个
+ *         比较事件按固定顺序翻转 GPIO 实现 (软件死区)。四事件顺序:
+ *           CC3 (死区点 dt_ticks)          主路开
+ *           CC1 (占空比点 duty_ticks)      主路关
+ *           CC2 (占空比 + 死区)            互补路开
+ *           更新事件 (周期末)              互补路关
+ *         即「先关后开」, 两路导通区间被 dt_ticks 隔开。
+ *
+ * @warning cc1/cc2/cc3 的**数值关系就是死区本身**, 顺序错 = 上下桥直通。
+ *          修改这三个表达式前, 必须先在纸面确认 cc3 < cc1 < cc2 在钳位后的
+ *          所有取值下恒成立。
+ *
+ * @note   周期分两档: ≤20s 用 psc=0 (170MHz 计数, 1 tick ≈ 5.9ns);
+ *         >20s 用 psc=169 (分频后 1MHz 计数, 1 tick = 1µs) 以获得足够量程。
+ *         这解释了下方 dt_ticks 为何要按 psc 分别换算。
+ * @note   占空比被钳到 [dt+1, period−dt−1], 保证主路与互补路的导通时间都大于
+ *         死区 —— 与上面的顺序约束是同一条安全边界。
+ */
 bool Pulse_CompLPWM_SetPW(float period_s, float duty_percent, uint32_t dt_ms)
 {
     if (period_s < 0.001f || period_s > 1000.0f) return false;
@@ -1965,7 +2063,22 @@ void Pulse_Sync_Init(void)
     HAL_HRTIM_WaveformCountStart(&hhrtim1, HRTIM_TIMERID_TIMER_C);
 }
 
-/* 触发发波: 同一写操作同步复位「波形定时器」与「SYNC Timer C」, 保证首脉冲与 SYNC ns 级对齐 */
+/**
+ * @brief  触发发波: 同步复位「波形定时器」与「SYNC Timer C (TC2)」
+ *
+ * @note   本函数的全部意义在于**同一次** CR2 写操作同时置 TCRST 与 TxRST:
+ *         SYNC (Y7) 与首脉冲 (Y1~Y6) 的 ns 级对齐完全依赖这次写的原子性 ——
+ *         HRTIM 的 CR2 各位在同一个 APB 写周期内生效。
+ *
+ * @warning 严禁拆成两次写 (例如先写 TCRST 再写 TxRST): 那会引入至少 1 个 APB
+ *          周期 (≈5.9ns @170MHz) 的固定偏移, 示波器上直接可见, 且随代码路径
+ *          长短漂移。也严禁引入读-改-写以外的重构方式。
+ *
+ * @note   验证方式: 示波器双通道, CH1=Y7 (PB13/TC2), CH2=Y1 (PA11/TB2),
+ *         测触发后两沿的相对抖动, 改动前后应逐点一致。
+ *
+ * @note   PULSE_OUT_ENABLED 为 false 时直接返回, 不发波。
+ */
 void Pulse_TriggerFireAll(void)
 {
     if (!PULSE_OUT_ENABLED) return;
@@ -2060,8 +2173,19 @@ void Pulse_BurstPRF_OnTick(void)
 
 /* ==================== PA15 = HRTIM_FLT2 硬件故障封锁 ==================== */
 
-/* HLRTIM FLT2 故障中断回调: 硬件已把输出 ns 级强制无效,
-   这里软件安全网关断 12V 并复位发波状态机 */
+/**
+ * @brief  HRTIM FLT2 硬件故障中断回调 (软件安全网关)
+ * @param  hhrtim  未使用 (HAL 回调签名固定, 不可改)
+ *
+ * @note   进入本回调时硬件已把 Timer A/B/D 的输出扣到无效电平, 因此这里只做两件
+ *         事: 断 12V + 复位发波状态机 (Pulse_EmergencyStop), 并置 g_fault_flag。
+ *         硬件负责"波形立刻安全"(ns 级), 软件负责"切断功率级"。
+ *
+ * @warning ISR 内刻意**不做 UI 收尾** (不弹窗、不操作 WouoUI): 在中断里跑 UI
+ *          会拉长中断时间, 且可能触碰非重入的绘图状态。UI 收尾由 main 循环消费
+ *          g_fault_flag 后调用 Pulse_Fault_HandleUI() 完成 (见 main.c)。
+ *          改这个分工需要同时改 main.c 的消费点。
+ */
 void HAL_HRTIM_Fault2Callback(HRTIM_HandleTypeDef *hhrtim)
 {
     (void)hhrtim;
@@ -2069,8 +2193,27 @@ void HAL_HRTIM_Fault2Callback(HRTIM_HandleTypeDef *hhrtim)
     g_fault_flag = true;   /* 通知 main 循环做 UI 收尾 (ISR 内不做弹窗) */
 }
 
-/* 初始化硬件故障封锁: PA15(AF13) -> HRTIM1_FLT2, 低有效(内部上拉, 悬空/正常=高=无故障)
-   触发后 Timer A/B/D 的输出被 HRTIM 死区级扣到无效电平, 与软件彻底解耦 */
+/**
+ * @brief  初始化 PA15 = HRTIM1_FLT2 硬件故障封锁通道
+ *
+ * @note   电气配置与 HARDWARE.md §5.3 严格一致, 不得改动:
+ *         - PA15 / AF13_HRTIM1 / 内部上拉 (GPIO_PULLUP): 悬空或正常时读到高电平
+ *           = 无故障, **拉低即触发故障** (HRTIM_FAULTPOLARITY_LOW);
+ *         - Filter = HRTIM_FAULTFILTER_2: fHRTIM 采样 N=4, 兼顾抗毛刺与响应速度。
+ *
+ * @note   触发后的分工是「硬件封锁 + 软件收尾」:
+ *         - 硬件路径: HRTIM 在死区级把 Timer A/B/D 的输出强制扣到无效电平, 与软件
+ *           彻底解耦, 响应为 ns 级 —— 这是不依赖 CPU 的最后一道保护;
+ *         - 软件路径: HRTIM1_FLT_IRQHandler -> HAL_HRTIM_Fault2Callback
+ *           -> Pulse_EmergencyStop() 断 12V 并复位状态机。
+ *         硬件保证波形立刻安全, 软件负责切断功率级。
+ *
+ * @warning 各发波模式还需在各自的 *_Init() 中使能 FaultEnable=FAULT2 并设
+ *          FaultLevel=INACTIVE。而 MX_HRTIM1_Init() (hrtim.c, CubeMX 托管区) 中
+ *          FaultEnable=NONE —— 因此**从上电到首次调用任一 Pulse_*_Init() 之间,
+ *          硬件故障封锁尚未生效**, 这段窗口内只有软件保护。
+ *          另: SYNC (Timer C) 刻意设为 FaultEnable=NONE, 不受故障封锁。
+ */
 void Pulse_Fault_Init(void)
 {
     GPIO_InitTypeDef       gpio = {0};

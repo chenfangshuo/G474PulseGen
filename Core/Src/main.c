@@ -168,7 +168,20 @@ int main(void)
       Pulse_Fault_HandleUI();
     }
 
-    /* 12V_OUT 手动控制：用户使能且供电正常才开启, 掉电微秒级瞬间切断 (安全优先) */
+    /* 12V_OUT 互锁 (与逻辑): 只有「LTC4421 检测到任一电源有效」且「用户已使能」
+     * 两者同时成立时才导通 PA12; 任一不成立立即关断 (安全优先)。
+     *
+     * 电气极性 (严格对应 HARDWARE.md §5.3):
+     *   - LTC_IS_ANY_PWR_VALID() = PC14/PC15 读到 HIGH 即有效 (经 Q6/Q7 倒相后接入);
+     *   - LOADSW_ENABLE()        = PA12 输出 HIGH 才导通 (TPS22810 高有效)。
+     *   注意这里的极性关系是"电源有效为高、开关使能为高", 不要凭 MAX6818 或
+     *   LTC4421 的其它状态脚极性类比推断。
+     *
+     * 响应速度: 本处是**掉电场景唯一**的切断点, 且只能做到主循环级延迟 (非 ISR 级)。
+     * ns 级的波形保护由 HRTIM FLT2 硬件路径 + Pulse_EmergencyStop() 承担, 两者
+     * 场景不同: 本处负责"电源本身掉电", 硬件 Fault 负责"外部故障信号拉低 PA15"。
+     *
+     * g_12v_enable 由 UI (Setting 页) 与 SCPI (12V:ON/OFF) 写入, 故为 volatile。 */
     if (LTC_IS_ANY_PWR_VALID() && g_12v_enable)
     {
       LOADSW_ENABLE();

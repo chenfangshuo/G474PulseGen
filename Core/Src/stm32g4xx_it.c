@@ -79,6 +79,11 @@ extern TIM_HandleTypeDef htim16;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
+  /* NMI = 不可屏蔽中断 (时钟安全系统 CSS 失锁 / 存储器 ECC 等硬件级故障)。
+   * 进入即执行紧急关断: 切断 12V 负载并封锁全部发波输出 —— 此时软件状态已不可信,
+   * 唯一目标是让功率级回到安全态。关断后落入下方死循环, 等待看门狗或复位。
+   * 注: Pulse_EmergencyStop() 内部对 RCC 时钟使能位与 htim5 句柄做了防护, 正是为了
+   * 避免在异常路径中再次触发异常造成 HardFault 递归锁死。 */
   Pulse_EmergencyStop(); // NMI 异常时硬件级紧急关断发波与 12V 负载输出
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
@@ -94,6 +99,10 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+  /* HardFault = 空指针解引用 / 非对齐访问 / 非法指令等。进入即紧急关断, 理由同 NMI:
+   * 软件已不可信, 优先让功率级回到安全态。关断后死循环等待看门狗。
+   * 注意: 本路径调用 Pulse_EmergencyStop() 时同样依赖其对 RCC 与 htim5 的防护 ——
+   * 若在 HardFault 里再触发一次访存错误, 会递归锁死且无法再关断输出。 */
   Pulse_EmergencyStop(); // HardFault 异常时硬件级紧急关断发波与 12V 负载输出
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
