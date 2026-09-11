@@ -186,14 +186,20 @@ advise_match("G474PulseGen.ioc"
 # .ioc 侧不得残留 Overrun Disable / DMA Disable on RX error
 # 用 advise_not_match 而非 require_not_match: 若代码侧已是干净的、只是 .ioc 还勾着,
 # 当前构建其实没问题 (要下次重新生成才会出问题), 此时只提示即可。
+#
+# ⚠ 注意 CubeMX 的命名陷阱: 这两个参数是**永远写出、用值区分开关**的:
+#     USART3.OverrunDisableParam=ADVFEATURE_OVERRUN_ENABLE          <- 好 (溢出检测开启)
+#     USART3.OverrunDisableParam=ADVFEATURE_OVERRUN_DISABLE         <- 坏
+#   即参数名里带 "Disable" 但值为 _ENABLE 才表示该禁用特性未被启用。
+#   所以这里匹配的是**坏值**, 不能只匹配参数名 (否则永远误报)。
 advise_not_match("G474PulseGen.ioc"
-    "USART3.OverrunDisableParam"
-    ".ioc 中未勾选 USART3 Overrun Disable"
-    "与上一条配套: .ioc 里勾着, 重新生成就会再次打开 OVRDIS。请在 CubeMX 的 USART3 -> Advanced Features 中取消勾选。")
+    "USART3.OverrunDisableParam=ADVFEATURE_OVERRUN_DISABLE"
+    ".ioc 中未开启 USART3 Overrun Disable"
+    "与上一条配套: .ioc 里是 _DISABLE, 重新生成就会再次打开 OVRDIS。请在 CubeMX 的 USART3 -> Advanced Features 中取消勾选。")
 
 advise_not_match("G474PulseGen.ioc"
-    "USART3.DMADisableonRxErrorParam"
-    ".ioc 中未勾选 DMA Disable on RX error"
+    "USART3.DMADisableonRxErrorParam=ADVFEATURE_DMA_DISABLEONRXERROR"
+    ".ioc 中未开启 DMA Disable on RX error"
     "本工程接收不走 DMA, 该项无实际作用, 但保持与 Overrun Disable 一致的关闭状态以免混淆。")
 
 message(STATUS "")
