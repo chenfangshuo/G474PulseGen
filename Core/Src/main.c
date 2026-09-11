@@ -27,7 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "oled.h"
+#include "OLED.h"
 #include "WouoUI.h"
 #include "WouoUI_user.h"
 #include "Key.h"

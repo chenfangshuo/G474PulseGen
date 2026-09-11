@@ -80,7 +80,7 @@ HRTIM1->sTimerxRegs[0].CMP4xR = period_value - 1U;
 
 需要改外设配置（时钟、引脚、外设开关）时，请改 `.ioc` 文件后重新生成，**不要手改生成代码**。完整流程见 [`README.md` §9.5](README.md)。
 
-> 特别提醒：本项目有一条 `cmake/check_regen_invariants.cmake` 构建前置检查（15 项）。它存在的理由是一次真实事故——重新生成把 `TICK_INT_PRIORITY` 从 0 静默改回 15，**编译通过、运行正常**，只是悄悄恢复了 ISR 死锁的前提条件。如果你的 PR 触发了 FATAL 项，说明该配置应该写进 `.ioc` 而不是手改源码。
+> 特别提醒：本项目有一条 `cmake/check_regen_invariants.cmake` 构建前置检查（16 项）。它存在的理由是一次真实事故——重新生成把 `TICK_INT_PRIORITY` 从 0 静默改回 15，**编译通过、运行正常**，只是悄悄恢复了 ISR 死锁的前提条件。如果你的 PR 触发了 FATAL 项，说明该配置应该写进 `.ioc` 而不是手改源码。
 
 ### 5. 第三方库的修改要登记
 
@@ -140,7 +140,7 @@ scripts/verify_refactor.sh check
 ### PR 前自查
 
 - [ ] `cmake --preset Debug && cmake --build build/Debug` 通过，**零告警**
-- [ ] 构建末尾的 15 项 CubeMX 不变量检查全部通过
+- [ ] 构建末尾的 16 项 CubeMX 不变量检查全部通过
 - [ ] 跑过 `scripts/verify_refactor.sh`，结果符合预期（见上）
 - [ ] 若改了 HRTIM / 时序 / 保护逻辑：**附上示波器实测波形**，并说明测量条件
 - [ ] 若改了 `HARDWARE.md` 描述的引脚或电气特性：代码与文档同步更新

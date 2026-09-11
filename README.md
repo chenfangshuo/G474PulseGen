@@ -580,7 +580,7 @@ Release 构建把 `--preset` 换成 `Release` 即可。两者只差调试信息�
 - 告警：`-Wall -Wextra`（**不加 `-Werror`**，理由见上）
 - 另外在 `stm32g4xx_hal_msp.c` 里显式开了 FLASH ART 预取（170 MHz + 4 等待周期下藏取指延迟）
 
-每次构建前会先跑一遍 `cmake/check_regen_invariants.cmake`（15 项 CubeMX 重新生成不变量检查），**FATAL 项不通过会直接中断构建**——这是刻意的，详见 §11。
+每次构建前会先跑一遍 `cmake/check_regen_invariants.cmake`（16 项 CubeMX 重新生成不变量检查），**FATAL 项不通过会直接中断构建**——这是刻意的，详见 §11。
 
 > **新增 `.c` 文件必须手动加进根 `CMakeLists.txt` 的 `add_executable()` 列表**，否则不参与编译。
 >
@@ -623,7 +623,7 @@ BOOT0 跳线 J2：短接 **2-3** → 主 Flash 启动（正常用这个）；短
 
 1. 用 CubeMX 打开根目录的 `G474PulseGen.ioc`，改配置，重新生成。
 2. **自定义代码一律只写在 `/* USER CODE BEGIN xxx */` 与 `/* USER CODE END xxx */` 之间**。保护区之外是生成区，改了会在下次生成时**静默丢失**。
-3. 生成后**立刻编译一次**。构建前置的 `check_regen_invariants.cmake` 会校验 15 项「游离于 `.ioc` 之外」的关键配置。
+3. 生成后**立刻编译一次**。构建前置的 `check_regen_invariants.cmake` 会校验 16 项「游离于 `.ioc` 之外」的关键配置。
 
 > ⚠ **为什么要有第 3 步**：2026-09 的一次重新生成，把 `TICK_INT_PRIORITY` 从 0 静默改回 15——**编译通过、运行正常**，只是悄悄恢复了中断优先级反转与 ISR 死锁的前提条件。这类问题比编译失败危险得多，所以做成了构建的硬依赖（FATAL 项不通过则编译中断）。
 >
@@ -677,7 +677,7 @@ G474PulseGen/
 ├── screenshots/             # 屏幕截图与示波器实测图（被 README 引用）
 ├── cmake/
 │   ├── gcc-arm-none-eabi.cmake      # 工具链与编译选项
-│   └── check_regen_invariants.cmake # ★ CubeMX 重新生成防线（15 项，构建前置）
+│   └── check_regen_invariants.cmake # ★ CubeMX 重新生成防线（16 项，构建前置）
 ├── scripts/
 │   └── verify_refactor.sh           # ★ 重构静态验证（改动前后比对固件产物）
 ├── HARDWARE.md              # 硬件架构与引脚映射（单一事实源）

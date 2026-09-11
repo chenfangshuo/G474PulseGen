@@ -1,8 +1,14 @@
 # =============================================================================
-# CubeMX 重新生成防线
+# 构建期防线
 #
 # 用法:  cmake -P cmake/check_regen_invariants.cmake
 #        (由 CMakeLists.txt 作为构建前置步骤自动调用, 无需手动跑)
+#
+# 本脚本收拢的是同一类问题: **在开发机上不会暴露、换个人或换个平台才炸的
+# 静默失败**。目前两类:
+#   A. CubeMX 重新生成把游离于 .ioc 之外的配置拆掉 (下面的主要篇幅)
+#   B. 引号式 include 的大小写与实际文件名不符 (Windows 编得过, Linux 编不过)
+# 两者都是"本地一切正常"型的坑, 只有自动检查拦得住。
 #
 # 背景
 # ----
@@ -216,6 +222,68 @@ require_equal_values(
     "#define[ \t]+PULSE_HRTIM_CLK_HZ[ \t]+([0-9]+)UL"
     "Pulse.h 的 PULSE_HRTIM_CLK_HZ"
     "改时钟树或改 APB2 分频后, 必须同步修改 Core/Inc/Pulse.h 的 PULSE_HRTIM_CLK_HZ。两者不等时编译不会报错, 但所有输出时间会按两者之比整体偏移。")
+
+# ---- 引号式 include 的大小写必须与实际文件名一致 ---------------------------
+#
+# Windows 的文件系统不区分大小写, 写错大小写本地照样编译通过; Linux (含 CI)
+# 上直接报 "No such file or directory"。开发机上**永远不会暴露**。
+#
+# 本工程已踩过两次, 且两次都不是同一个文件:
+#   OLED_Driver.h -> OLED_driver.h   (2026-09, Core/Inc/OLED.h)
+#   oled.h        -> OLED.h          (2026-09, Core/Src/main.c)
+# 第二次是在 CI 首次运行时才发现的 —— 正是这个检查存在的理由。
+#
+# 判定规则: 只有当"存在大小写不敏感的近似名、但没有精确匹配"时才报错。
+# 这样不会误伤指向 Core/ 之外 (HAL、CMSIS) 的 include。
+file(GLOB_RECURSE _inc_srcs "${PROJECT_ROOT}/Core/*.c" "${PROJECT_ROOT}/Core/*.h")
+
+set(_inc_realnames "")
+foreach(_p ${_inc_srcs})
+    get_filename_component(_n "${_p}" NAME)
+    list(APPEND _inc_realnames "${_n}")
+endforeach()
+list(REMOVE_DUPLICATES _inc_realnames)
+
+set(_inc_bad "")
+foreach(_f ${_inc_srcs})
+    file(READ "${_f}" _txt)
+    string(REGEX MATCHALL "#include[ \t]+\"[^\"]+\"" _incs "${_txt}")
+    foreach(_i ${_incs})
+        string(REGEX REPLACE "#include[ \t]+\"([^\"]+)\"" "\\1" _name "${_i}")
+        get_filename_component(_base "${_name}" NAME)
+        string(TOLOWER "${_base}" _base_lc)
+
+        set(_exact FALSE)
+        set(_ci "")
+        foreach(_n ${_inc_realnames})
+            if(_n STREQUAL "${_base}")
+                set(_exact TRUE)
+            else()
+                string(TOLOWER "${_n}" _n_lc)
+                if(_n_lc STREQUAL "${_base_lc}")
+                    set(_ci "${_n}")
+                endif()
+            endif()
+        endforeach()
+
+        if(NOT _exact AND NOT _ci STREQUAL "")
+            get_filename_component(_rel "${_f}" NAME)
+            list(APPEND _inc_bad "${_rel} 里 #include \"${_base}\" —— 实际文件名是 \"${_ci}\"")
+        endif()
+    endforeach()
+endforeach()
+
+if(_inc_bad)
+    list(REMOVE_DUPLICATES _inc_bad)
+    message(STATUS "  [FAIL] 引号式 include 的大小写与实际文件名一致")
+    foreach(_b ${_inc_bad})
+        message(STATUS "         ${_b}")
+    endforeach()
+    message(STATUS "         Windows 不区分大小写所以本地编得过, Linux/CI 上会直接编译失败。")
+    set(_failed 1)
+else()
+    message(STATUS "  [OK]   引号式 include 的大小写与实际文件名一致")
+endif()
 
 message(STATUS "--- ADVISORY: .ioc 侧待办 (不阻断构建) ---")
 
