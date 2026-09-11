@@ -84,10 +84,26 @@ set_source_files_properties(
 
 # 4) 第三方移植库文件: 只抑制三类**经人工逐条确认非缺陷**的告警, 其余保持可见。
 #    来源为 WouoUI-PageVersion (MPL-2.0) 与江协科技教学库, 不在本项目维护范围。
-#    -Wno-unused-parameter      框架回调签名固定, 参数未用属正常
-#    -Wno-empty-body            断言/日志宏关闭时展开为空语句 (已核对, 非缺陷)
-#    -Wno-implicit-fallthrough  switch 有意贯穿 (已核对, 但见 README 待确认项)
+#    -Wno-unused-parameter      框架回调签名固定, 参数未用属正常 (共 2 处, 均 page_addr)
+#    -Wno-empty-body            断言/日志宏关闭时展开为空语句 (共 5 处, 全部是
+#                               if(宏断言)LOG(...) 在断言关闭后的形态, 已逐处核对)
+#    -Wno-implicit-fallthrough  switch 有意贯穿。共 3 处, 全在 WouoUI_win.c
+#                               (ConfWin:298 / ValWin:543 / ListWin:995),
+#                               三处是同一模式: case msg_click 先按 auto_set_bg_opt
+#                               把选中值写回背景页, 再**有意贯穿**到 case msg_return
+#                               执行关闭弹窗 —— 即"点击既提交又关闭", 语义正确。
 #    注意: 自有代码 WouoUI_user.c 与 Key.c **刻意不在此列**, 其告警保持可见。
+#
+#    ⚠ 复核本名单时的陷阱 (2026-09 实际踩过, 记录于此以免重蹈):
+#       -Wimplicit-fallthrough 是**中端 (GIMPLE/CFG) 告警**, 用 `gcc -fsyntax-only`
+#       复核**必然得到 0 条** —— 语法阶段根本走不到控制流分析。必须用真实编译
+#       (-c) 或直接 cmake --build 才能看到。
+#       曾据 -fsyntax-only 的空白输出误判此抑制为"死配置"并移除, 真实构建随即报出
+#       3 条, 已回退。**判断某个告警抑制是否还有用时, 必须以真实构建为准。**
+#
+#    2026-09 复核确实可缩减的一项: 移出 Core/Src/OLED_driver.c —— 它原先唯一的
+#    告警源是空壳函数 OLED_UpdateArea() 的 4 个未用形参; 该函数已删除 (记录见
+#    OLED_driver.h), 删除后该文件在三个告警全开下零输出 (经真实构建确认)。
 set_source_files_properties(
     Core/Src/WouoUI.c
     Core/Src/WouoUI_anim.c
@@ -98,7 +114,6 @@ set_source_files_properties(
     Core/Src/WouoUI_win.c
     Core/Src/OLED.c
     Core/Src/OLED_Fonts.c
-    Core/Src/OLED_driver.c
     PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-empty-body;-Wno-implicit-fallthrough"
 )
 

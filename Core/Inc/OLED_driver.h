@@ -41,8 +41,18 @@ void OLED_Init(void);
 void OLED_Update_DisplayBuf(uint8_t DisplayBuf[128/8][128]);
 // oled全局刷新函数
 void OLED_Update(void);
-// oled局部刷新函数
-void OLED_UpdateArea(uint8_t X, uint8_t Y, uint8_t Width, uint8_t Height);
+/* 已删除: void OLED_UpdateArea(uint8_t X, uint8_t Y, uint8_t Width, uint8_t Height)
+ *
+ * 原为江协库的"局部刷新"API, 但函数体只有一句 OLED_Update() —— 四个形参
+ * X/Y/Width/Height 全部未使用, 实为全屏刷新的空壳, 不提供任何局部刷新能力。
+ * 2026-09 核查确认全工程无任何调用点后删除。
+ *
+ * 保留此记录的缘由: 该函数的签名会让人误以为本库支持局部刷新, 删掉它同时
+ * 也去掉了 OLED_driver.c 唯一的 -Wunused-parameter 告警源 (4 条), 使该文件
+ * 得以从 CMakeLists.txt 的第三方告警抑制名单中移出。
+ *
+ * 若将来确需局部刷新, 需实现带窗口设置的 SSD1306 命令序列
+ * (0x21 列地址 / 0x22 页地址), 不能靠"调全屏刷新"来冒充。 */
 // 设置颜色模式
 void OLED_SetColorMode(bool colormode);
 // OLED 设置亮度函数

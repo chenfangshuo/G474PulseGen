@@ -212,10 +212,8 @@ void OLED_Update_DisplayBuf(uint8_t DisplayBuf[16][128])
     OLED_Update();
 }
 
-void OLED_UpdateArea(uint8_t X, uint8_t Y, uint8_t Width, uint8_t Height)
-{
-    OLED_Update();
-}
+/* 此处原有 OLED_UpdateArea() —— 空壳局部刷新函数, 2026-09 删除,
+ * 缘由见 OLED_driver.h 中的同名记录。 */
 
 extern void OLED_Clear(void);
 

@@ -1,0 +1,699 @@
+<title>G474PulseGen 实机验收</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+/* ============================================================
+   Tokens — light 是完整调色板, dark 只重定义 token。
+   三态: 裸 :root(浅) / prefers-color-scheme:dark / [data-theme=dark]
+   ============================================================ */
+:root{
+  --paper:      #F2F4F2;
+  --surface:    #FFFFFF;
+  --surface-2:  #FAFBFA;
+  --ink:        #191C1A;
+  --muted:      #5C6660;
+  --faint:      #8B958E;
+  --rule:       #D3D9D4;
+  --grid:       #E7EBE7;
+  --accent:     #0F6B68;
+  --accent-ink: #FFFFFF;
+  --accent-sf:  #E4F0EE;
+  --pass:       #2C7A4B;
+  --pass-sf:    #E3F1E8;
+  --fail:       #AE3B2C;
+  --fail-sf:    #F7E6E2;
+  --hold:       #8A6D2F;
+  --hold-sf:    #F5EEDC;
+  --shadow:     0 1px 2px rgba(25,28,26,.06), 0 4px 12px -6px rgba(25,28,26,.10);
+
+  --step: 4px;
+  --r:    3px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:      #131614;
+    --surface:    #1A1E1C;
+    --surface-2:  #171B19;
+    --ink:        #E4E8E4;
+    --muted:      #98A29B;
+    --faint:      #6E7873;
+    --rule:       #2C332E;
+    --grid:       #1F2521;
+    --accent:     #4FB8B0;
+    --accent-ink: #08201F;
+    --accent-sf:  #16302E;
+    --pass:       #5FBF83;
+    --pass-sf:    #16291E;
+    --fail:       #E27C6C;
+    --fail-sf:    #2E1C18;
+    --hold:       #C9A85E;
+    --hold-sf:    #2A2418;
+    --shadow:     0 1px 2px rgba(0,0,0,.4), 0 4px 14px -6px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:      #131614;
+  --surface:    #1A1E1C;
+  --surface-2:  #171B19;
+  --ink:        #E4E8E4;
+  --muted:      #98A29B;
+  --faint:      #6E7873;
+  --rule:       #2C332E;
+  --grid:       #1F2521;
+  --accent:     #4FB8B0;
+  --accent-ink: #08201F;
+  --accent-sf:  #16302E;
+  --pass:       #5FBF83;
+  --pass-sf:    #16291E;
+  --fail:       #E27C6C;
+  --fail-sf:    #2E1C18;
+  --hold:       #C9A85E;
+  --hold-sf:    #2A2418;
+  --shadow:     0 1px 2px rgba(0,0,0,.4), 0 4px 14px -6px rgba(0,0,0,.5);
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  background-color:var(--paper);
+  /* 淡网格: 呼应示波器刻度盘, 极低对比不干扰阅读 */
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:28px 28px;
+  color:var(--ink);
+  font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{ max-width:940px; margin:0 auto; padding:0 20px 96px; }
+
+/* ---------------- 页头 ---------------- */
+header.masthead{ padding:44px 0 22px; }
+.eyebrow{
+  font-family:"IBM Plex Sans Condensed", sans-serif;
+  font-weight:600; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent);
+}
+h1{
+  font-family:"IBM Plex Sans Condensed", sans-serif;
+  font-weight:600; font-size:clamp(28px,4.6vw,40px); line-height:1.1;
+  letter-spacing:-.01em; margin:10px 0 0; text-wrap:balance;
+}
+.sub{ color:var(--muted); margin:12px 0 0; max-width:62ch; }
+.branch{
+  font-family:"IBM Plex Mono", monospace; font-size:12.5px;
+  background:var(--accent-sf); color:var(--accent);
+  border:1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  padding:2px 7px; border-radius:var(--r); white-space:nowrap;
+}
+
+/* ---------------- 进度条 (sticky) ---------------- */
+.progress{
+  position:sticky; top:0; z-index:20;
+  display:flex; align-items:center; gap:16px;
+  margin:26px 0 8px; padding:12px 16px;
+  background:color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter:blur(8px);
+  border:1px solid var(--rule); border-radius:var(--r);
+  box-shadow:var(--shadow);
+}
+.meter{ flex:1; min-width:80px; height:6px; background:var(--rule); border-radius:99px; overflow:hidden; }
+.meter > i{ display:block; height:100%; width:0%; background:var(--accent); border-radius:99px; transition:width .28s ease; }
+.count{
+  font-family:"IBM Plex Mono", monospace; font-size:13px;
+  font-variant-numeric:tabular-nums; color:var(--ink); white-space:nowrap;
+}
+.count b{ color:var(--accent); font-weight:500; }
+
+button.reset{
+  font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:600;
+  font-size:12px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--muted); background:transparent;
+  border:1px solid var(--rule); border-radius:var(--r);
+  padding:5px 11px; cursor:pointer;
+}
+button.reset:hover{ color:var(--fail); border-color:var(--fail); }
+button.reset:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ---------------- 阶段 ---------------- */
+.phase{ margin-top:40px; }
+.phase-head{ display:flex; align-items:baseline; gap:14px; padding-bottom:10px; border-bottom:2px solid var(--ink); }
+.phase-num{
+  font-family:"IBM Plex Mono", monospace; font-size:12px; font-weight:500;
+  color:var(--accent-ink); background:var(--accent);
+  padding:3px 8px; border-radius:var(--r); white-space:nowrap;
+}
+.phase-head h2{
+  font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:600;
+  font-size:20px; letter-spacing:-.005em; margin:0; text-wrap:balance;
+}
+.phase-note{ color:var(--muted); font-size:13.5px; margin:12px 0 0; max-width:66ch; }
+
+/* ---------------- 步骤行 ---------------- */
+.step{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:8px 16px;
+  align-items:start;
+  padding:16px 4px;
+  border-bottom:1px solid var(--rule);
+}
+.step:last-child{ border-bottom:0; }
+.step.done{ background:var(--surface-2); }
+.step.done .step-title{ color:var(--muted); }
+
+/* 自绘复选框 */
+.tick{ position:relative; width:22px; height:22px; margin-top:2px; flex:none; }
+.tick input{ position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+.tick span{
+  display:block; width:22px; height:22px; border:1.5px solid var(--rule);
+  border-radius:var(--r); background:var(--surface); transition:.14s;
+}
+.tick input:checked + span{
+  background:var(--pass); border-color:var(--pass);
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 10.5l3.6 3.6L15.5 6.5'/%3E%3C/svg%3E");
+  background-size:16px 16px; background-position:center; background-repeat:no-repeat;
+}
+.tick input:focus-visible + span{ outline:2px solid var(--accent); outline-offset:2px; }
+
+.step-body{ min-width:0; }
+.step-id{
+  font-family:"IBM Plex Mono", monospace; font-size:11.5px; font-weight:500;
+  color:var(--accent); letter-spacing:.02em;
+}
+.step-title{ font-weight:600; font-size:15.5px; margin-left:8px; }
+.step-do{ color:var(--muted); font-size:14px; margin:6px 0 0; max-width:64ch; }
+.crit{
+  margin:8px 0 0; font-size:13.5px; padding:7px 11px;
+  background:var(--surface); border-left:2px solid var(--accent);
+  border-radius:0 var(--r) var(--r) 0; max-width:64ch;
+}
+.crit b{ font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:600;
+  font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
+
+/* 基线 / 实测 字段 */
+.fields{ display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end; }
+.field{ display:flex; flex-direction:column; gap:3px; }
+.field label{
+  font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:600;
+  font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--faint);
+}
+.field input{
+  font-family:"IBM Plex Mono", monospace; font-size:13px;
+  font-variant-numeric:tabular-nums;
+  width:104px; padding:5px 8px;
+  color:var(--ink); background:var(--surface);
+  border:1px solid var(--rule); border-radius:var(--r);
+}
+.field input::placeholder{ color:var(--faint); }
+.field input:focus{ outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent); }
+.field.base input{ background:var(--surface-2); }
+
+/* 标签 */
+.tag{
+  display:inline-block; font-family:"IBM Plex Sans Condensed", sans-serif;
+  font-weight:600; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+  padding:2px 7px; border-radius:var(--r); margin-left:9px; vertical-align:1px;
+}
+.tag.must{ color:var(--fail); background:var(--fail-sf); }
+.tag.code{ color:var(--hold); background:var(--hold-sf); }
+
+/* 命令块 */
+pre{
+  font-family:"IBM Plex Mono", monospace; font-size:12.5px; line-height:1.75;
+  background:var(--surface); color:var(--ink);
+  border:1px solid var(--rule); border-radius:var(--r);
+  padding:12px 14px; margin:10px 0 0; overflow-x:auto;
+}
+pre .c{ color:var(--faint); }
+code{
+  font-family:"IBM Plex Mono", monospace; font-size:.92em;
+  background:var(--surface-2); border:1px solid var(--rule);
+  padding:1px 5px; border-radius:var(--r);
+}
+
+/* ---------------- 附录 ---------------- */
+.notes{ margin-top:52px; }
+.note{
+  background:var(--surface); border:1px solid var(--rule); border-radius:var(--r);
+  padding:16px 18px; margin-top:14px; box-shadow:var(--shadow);
+}
+.note h3{
+  font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:600;
+  font-size:14px; letter-spacing:.02em; margin:0 0 8px;
+  display:flex; align-items:center; gap:9px;
+}
+.note h3::before{ content:""; width:3px; height:15px; background:var(--accent); border-radius:99px; flex:none; }
+.note p{ margin:0 0 8px; font-size:14px; color:var(--muted); max-width:70ch; }
+.note p:last-child{ margin-bottom:0; }
+.note strong{ color:var(--ink); font-weight:600; }
+
+footer{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule);
+  font-size:12.5px; color:var(--faint); font-family:"IBM Plex Mono", monospace; }
+
+@media (max-width:720px){
+  .step{ grid-template-columns:auto 1fr; }
+  .fields{ grid-column:2; justify-content:flex-start; }
+}
+@media (prefers-reduced-motion: reduce){
+  *{ transition:none !important; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">Core 代码卫生方案 · 18 次提交已就绪</div>
+  <h1>G474PulseGen 实机验收</h1>
+  <p class="sub">
+    逐项核验代码改动是否影响波形、保护与交互。分支
+    <span class="branch">code-hygiene</span>，
+    基线固件 <span class="branch">4fdba09</span>。
+  </p>
+</header>
+
+<div class="progress">
+  <span class="count"><b id="done">0</b> / <span id="total">15</span> 完成</span>
+  <span class="meter"><i id="bar"></i></span>
+  <button class="reset" id="reset" type="button">清空</button>
+</div>
+
+<!-- ================= 阶段 0 ================= -->
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-num">00</span>
+    <h2>采基线 · 原始固件</h2>
+  </div>
+  <p class="phase-note">
+    这一步不能跳过。没有改动前的基线，后面所有对比都失去锚点。先在原始固件上采集完全部基线，再切回新固件。
+  </p>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s00"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">00</span><span class="step-title">切到原始固件并烧录</span>
+      <pre><span class="c"># 工作区已是干净的，checkout 不会再被拦</span>
+git checkout 4fdba09
+cmake --build build/Debug
+<span class="c"># 用惯用方式烧录（CLion Run / STM32CubeProgrammer）</span></pre>
+    </div>
+    <div class="fields"></div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s01"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">0-1</span><span class="step-title">SYNC 对齐抖动</span>
+      <p class="step-do">
+        示波器 CH1 → <code>Y7 / PB13</code>，CH2 → <code>Y1 / PA11</code>。触发一次发波，测两沿的相对抖动。
+      </p>
+      <p class="crit"><b>留档</b> 存示波器截图，并记下抖动数值 —— 1-1 要逐点对比。</p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b01">基线</label><input id="b01" placeholder="ns"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s02"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">0-2</span><span class="step-title">死区宽度</span>
+      <p class="step-do">
+        进互补 PWM 模式，从最小死区逐档加到最大（共 6 档），每档测上下桥死区宽度。
+      </p>
+      <p class="crit"><b>留档</b> 记下 6 个档位的实测值。</p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b02">6 档基线</label><input id="b02" placeholder="ns ×6"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s03"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">0-3</span><span class="step-title">N 脉冲间隔</span>
+      <p class="step-do">多脉冲模式，测相邻脉冲组的间隔。</p>
+      <p class="crit"><b>留档</b> 基线固件的补偿常量为 <code>NPULSE_INTERVAL_COMP_US = 0.9f</code>；新固件已按五点实测重新标定为 <code>0.97f</code>，故本项数值预期会变短约 70ns（详见 3-1 的 H5）。</p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b03">基线</label><input id="b03" placeholder="µs"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s04"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">0-4</span><span class="step-title">OLED 逐页照片</span>
+      <p class="step-do">
+        逐页拍照：主页面、7 个模式页、通道 / 极性 / 互补对选择页、Setting、About。
+      </p>
+      <p class="crit"><b>留档</b> 照片要能在 1-3 逐页比对时看清字符与图标。</p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b04">页数</label><input id="b04" placeholder="张"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s05"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">0-5</span><span class="step-title">SCPI 响应记录</span>
+      <p class="step-do">
+        上位机连上，对 8 个解析点各发四类输入：正常值、边界值、非法串（如
+        <code>PULSE:WIDTH abc</code>）、空参数。记录响应原文。
+      </p>
+      <p class="crit"><b>留档</b> 保存为文本，2-1 要逐字节对比。</p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b05">记录条数</label><input id="b05" placeholder="条"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 阶段 1 ================= -->
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-num">01</span>
+    <h2>最高优先级 · 改了运行代码的两批</h2>
+  </div>
+  <p class="phase-note">
+    批次 7 与 14 是唯一改动了运行代码的提交，先验它们。其余批次要么是纯注释，要么已被证明是二进制等价的。
+  </p>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s11"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">1-1</span><span class="step-title">SYNC 对齐<span class="tag must">改了代码</span></span>
+      <p class="step-do">
+        接线同 0-1，触发一次发波，测两沿相对抖动。
+      </p>
+      <p class="crit">
+        <b>判据</b> 抖动分布与 0-1 的记录<b>逐点一致</b>。这是最敏感的一项 ——
+        <code>Pulse_TriggerFireAll</code> 依赖单次 CR2 写来保证 ns 级对齐，若被破坏这里立刻暴露。
+      </p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b11">基线</label><input id="b11" placeholder="ns"></div>
+      <div class="field"><label for="m11">实测</label><input id="m11" placeholder="ns"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s12"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">1-2</span><span class="step-title">死区宽度<span class="tag must">改了代码</span></span>
+      <p class="step-do">同 0-2，6 个档位逐档测上下桥死区。</p>
+      <p class="crit">
+        <b>判据</b> 6 个数值与 0-2 一致，且<b>任何一档都不能出现上下桥重叠</b> —— 重叠即直通，必须立即停机。
+      </p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b12">基线</label><input id="b12" placeholder="ns ×6"></div>
+      <div class="field"><label for="m12">实测</label><input id="m12" placeholder="ns ×6"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s13"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">1-3</span><span class="step-title">OLED 逐页比对<span class="tag must">改了代码</span></span>
+      <p class="step-do">对照 0-4 的照片逐页看。</p>
+      <p class="crit">
+        <b>判据</b> 像素级一致。这是批次 14 唯一的验收手段 —— 绘图 API 形参由
+        <code>int16_t</code> 加宽为 <code>int</code>，消除了原本的隐式截断。屏幕坐标远小于上限，
+        理论上无差异，但必须目视确认。
+      </p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b13">基线页数</label><input id="b13" placeholder="张"></div>
+      <div class="field"><label for="m13">一致页数</label><input id="m13" placeholder="张"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 阶段 2 ================= -->
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-num">02</span>
+    <h2>行为契约与安全路径</h2>
+  </div>
+  <p class="phase-note">
+    这些改动理论上不影响运行，但"理论上"正需要实测来证伪。
+  </p>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s21"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">2-1</span><span class="step-title">SCPI 报文逐字节对比</span>
+      <p class="step-do">重发 0-5 的全部输入，逐条对响应。</p>
+      <p class="crit">
+        <b>判据</b> 响应<b>逐字节一致</b>，特别是非法输入仍返回 0 而不是报错 ——
+        批次 15 把 <code>atoi/atof</code> 换成了 <code>strtol/strtod</code>，刻意保留了原有的容错语义。
+      </p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b21">基线条数</label><input id="b21" placeholder="条"></div>
+      <div class="field"><label for="m21">一致条数</label><input id="m21" placeholder="条"></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s22"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">2-2</span><span class="step-title">Fault 硬件封锁</span>
+      <p class="step-do">拉低 PA15（HRTIM_FLT2）。</p>
+      <p class="crit">
+        <b>判据</b> 输出立即封锁 ＋ <code>12V_OUT</code> 断电 ＋ UI 弹 "Fault!" ＋
+        Enable 复选框自动置 0。
+      </p>
+    </div>
+    <div class="fields"></div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s23"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">2-3</span><span class="step-title">12V 互锁</span>
+      <p class="step-do">断开 LTC4421 输入。</p>
+      <p class="crit"><b>判据</b> <code>12V_OUT</code> 在一个主循环周期内断开。</p>
+    </div>
+    <div class="fields"></div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s24"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">2-4</span><span class="step-title">串口链路</span>
+      <p class="step-do">上位机连续推流 OLED 镜像 ＋ SCPI 命令。</p>
+      <p class="crit">
+        <b>判据</b> 无丢帧、ORE 计数不增长 —— 验证批次 5 的 extern 集中化没有破坏
+        <code>uart_comm.c</code> 的跨文件契约。
+      </p>
+    </div>
+    <div class="fields"></div>
+  </div>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s25"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">2-5</span><span class="step-title">按键与 OLED</span>
+      <p class="step-do">按键长短按、双击，页面切换刷新。</p>
+      <p class="crit">
+        <b>判据</b> 与改动前一致 —— 验证批次 3 的 <code>static</code> 化没有影响
+        <code>Key.c</code> 与 <code>OLED_driver.c</code> 的中断通信。
+      </p>
+    </div>
+    <div class="fields"></div>
+  </div>
+</section>
+
+<!-- ================= 阶段 3 ================= -->
+<section class="phase">
+  <div class="phase-head">
+    <span class="phase-num">03</span>
+    <h2>发版前全回归</h2>
+  </div>
+  <p class="phase-note">
+    阶段 1、2 是针对性抽检，只覆盖"最可能被破坏的项"。这一步排除<b>跨批次累积效应</b> ——
+    例如 <code>static</code> 化 ＋ 重命名叠加后被 <code>-O3</code> 重新优化出不同布局。
+  </p>
+
+  <div class="step">
+    <div class="tick"><input type="checkbox" id="s31"><span></span></div>
+    <div class="step-body">
+      <span class="step-id">3-1</span><span class="step-title">H1–H10 完整跑一遍</span>
+      <p class="step-do">
+        把 0-1 到 0-5 的全部测量在新固件上重做一次，另外补上尚未抽检的两项：
+      </p>
+      <p class="crit">
+        <b>H5 N 脉冲间隔</b> —— <b>会比 0-3 基线短约 70ns，这是修正不是回归</b>。
+        补偿常量已按五点实测由 0.9 重新标定为 0.97。实测结果（已归档于
+        <code>screenshots/verification_2026-09/</code>）：
+        1/2/4/8/16µs → <b>1.005~1.045 / 1.98~2.00 / 3.98~4.02 / 7.99~8.01 / 15.98~16.01</b>。
+        2~16µs 各点中心残差 ≤10ns，已无可检测的系统性偏差；1µs 因下限钳位停在约 1.02µs，属预期<br>
+        <b>H6 长脉冲 / 互补 lPWM</b> —— 验证 TIM5 软件死区的四事件顺序，无直通，边沿顺序与改动前一致
+      </p>
+    </div>
+    <div class="fields">
+      <div class="field base"><label for="b31">通过项</label><input id="b31" placeholder="/10"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 附录 ================= -->
+<section class="notes">
+  <div class="phase-head">
+    <span class="phase-num">附</span>
+    <h2>两处已确认的取舍 · 回退方法</h2>
+  </div>
+
+  <div class="note">
+    <h3>批次 14 让 FLASH 增加 1640 字节</h3>
+    <p>
+      136028 → 137668 字节（占用 26.26%）。原因是 <code>int16_t</code> 形参让 GCC 能证明取值范围、
+      消除部分冗余边界检查；加宽后这些检查保留，且 <code>-funroll-loops</code> 下寄存器压力上升。
+    </p>
+    <p><strong>已确认保留。</strong> 若日后改变主意：<code>git revert 010a365</code>，改用
+      <code>.clang-tidy</code> 抑制 narrowing 作为替代。</p>
+  </div>
+
+  <div class="note">
+    <h3>批次 7 让 FLASH 增加 48 字节</h3>
+    <p>
+      来自 <code>Pulse_dPulse_SetPW</code> 的防御性返回值检查。修的是一个当前不可达、
+      但将来放宽参数校验后会静默算出错误占空比的潜在缺陷。
+    </p>
+    <p><strong>已确认保留。</strong> 不建议回退。</p>
+  </div>
+
+  <div class="note">
+    <h3>本清单未覆盖批次 13</h3>
+    <p>
+      批次 13 列出的"冗余圆括号 / 形参可设 const / 冗余 cast"等，<strong>全部是 CLion 自带的检查</strong>，
+      既不是编译器告警也不是 Clang-Tidy —— <code>-Wall -Wextra</code> 对它们本来就是零输出。
+    </p>
+    <p>
+      它只影响 IDE 面板整洁度。建议在 CLion 的
+      <strong>Settings → Editor → Inspections</strong> 里按项关闭，而不是逐条改约 100 处源码。
+    </p>
+  </div>
+
+  <div class="note">
+    <h3>出问题时二分定位</h3>
+    <p>13 个提交，每一批都可独立回退：</p>
+<pre>git log --oneline master..code-hygiene
+git bisect start code-hygiene master</pre>
+  </div>
+</section>
+
+<footer>
+  code-hygiene · 18 次提交 · 基线 4fdba09 · 状态保存在本机浏览器
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "g474pulsgen-acceptance-v1";
+  var steps = Array.prototype.slice.call(document.querySelectorAll(".step"));
+
+  function readStore() {
+    try {
+      var raw = window.localStorage.getItem(KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function writeStore(data) {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (e) {
+      /* 隐私模式、站点数据被禁等 —— 页面仍可正常使用，只是不记忆 */
+    }
+  }
+
+  var state = readStore();
+
+  function fieldsOf(step) {
+    return Array.prototype.slice.call(step.querySelectorAll(".field input"));
+  }
+
+  function render() {
+    var done = 0;
+    steps.forEach(function (step, i) {
+      var saved = state["step-" + i] || {};
+      var box = step.querySelector('input[type="checkbox"]');
+      var fields = fieldsOf(step);
+
+      if (box) box.checked = !!saved.checked;
+      fields.forEach(function (input, fi) {
+        input.value = (saved.fields && saved.fields[fi]) || "";
+      });
+
+      step.classList.toggle("done", !!(box && box.checked));
+      if (box && box.checked) done++;
+    });
+
+    document.getElementById("done").textContent = done;
+    document.getElementById("total").textContent = steps.length;
+    document.getElementById("bar").style.width =
+      steps.length ? (done / steps.length) * 100 + "%" : "0%";
+  }
+
+  function snapshot() {
+    steps.forEach(function (step, i) {
+      var entry = state["step-" + i] || {};
+      var box = step.querySelector('input[type="checkbox"]');
+      entry.checked = !!(box && box.checked);
+      entry.fields = fieldsOf(step).map(function (input) { return input.value; });
+      state["step-" + i] = entry;
+    });
+    writeStore(state);
+  }
+
+  steps.forEach(function (step) {
+    var box = step.querySelector('input[type="checkbox"]');
+    if (box) {
+      box.addEventListener("change", function () {
+        var i = steps.indexOf(step);
+        var entry = state["step-" + i] || {};
+        entry.checked = box.checked;
+        state["step-" + i] = entry;
+        writeStore(state);
+        step.classList.toggle("done", box.checked);
+        render();
+      });
+    }
+    fieldsOf(step).forEach(function (input) {
+      input.addEventListener("input", function () {
+        var i = steps.indexOf(step);
+        var entry = state["step-" + i] || {};
+        entry.fields = fieldsOf(step).map(function (f) { return f.value; });
+        state["step-" + i] = entry;
+        writeStore(state);
+      });
+    });
+  });
+
+  var reset = document.getElementById("reset");
+  if (reset) {
+    reset.addEventListener("click", function () {
+      if (!window.confirm("清空全部勾选与已填数值？")) return;
+      state = {};
+      try { window.localStorage.removeItem(KEY); } catch (e) {}
+      render();
+    });
+  }
+
+  render();
+})();
+</script>
