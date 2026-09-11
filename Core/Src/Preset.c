@@ -190,8 +190,7 @@ static bool Preset_ProgramPage(const PresetData_t *d)
  */
 bool Preset_Save(void)
 {
-    PresetData_t d;
-    memset(&d, 0, sizeof(d));
+    PresetData_t d = {0};
     d.magic   = PRESET_MAGIC;
     d.version = PRESET_VERSION;
 

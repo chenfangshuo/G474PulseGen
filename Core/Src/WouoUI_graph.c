@@ -87,7 +87,7 @@ void WouoUI_BuffSend(void) {
  * @param : 动态更新整个buff到oled：画面无变化时不更新
  */
 void WouoUI_BuffSendDynamic(void) {
-    if (memcmp(*(cur_screen.p_buff_dynamic), *(cur_screen.p_buff), sizeof(ScreenBuff))) {
+    if (memcmp(*(cur_screen.p_buff_dynamic), *(cur_screen.p_buff), sizeof(ScreenBuff)) != 0) {
         memcpy(*(cur_screen.p_buff_dynamic), *(cur_screen.p_buff), sizeof(ScreenBuff));
         cur_screen.p_fun_send_buff(*(cur_screen.p_buff_dynamic));
     }

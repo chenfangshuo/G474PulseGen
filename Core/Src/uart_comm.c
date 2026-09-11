@@ -127,7 +127,7 @@ static volatile uint32_t s_link_push_until = 0u;
 static uint16_t UcRleEncode(const uint8_t *src, uint16_t srclen, uint8_t *dst, uint16_t dstmax);
 
 /* CRC16-CCITT 单字节更新 */
-static inline uint16_t UcCrcByte(uint16_t crc, uint8_t b)
+static uint16_t UcCrcByte(uint16_t crc, uint8_t b)
 {
     crc ^= (uint16_t)b << 8;                     /* 一次 CRC16-CCITT 迭代 */
     for (uint8_t i = 0; i < 8u; i++)

@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#include "OLED_Driver.h"			//oled底层驱动头文件
+#include "OLED_driver.h"			//oled底层驱动头文件 (注意文件名大小写: OLED_driver.h, 不是 OLED_Driver.h —— 在大小写敏感的文件系统上会编译失败)
 #include "OLED_Fonts.h"				//oled字体库头文件
 #include "stdbool.h"
 
