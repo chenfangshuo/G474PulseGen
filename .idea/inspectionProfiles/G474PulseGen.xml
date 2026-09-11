@@ -1,0 +1,8 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="G474PulseGen" />
+    <inspection_tool class="CppJoinDeclarationAndAssignment" enabled="true" level="HINT" enabled_by_default="true" editorAttributes="HINT" />
+    <inspection_tool class="CppParameterMayBeConstPtrOrRef" enabled="true" level="HINT" enabled_by_default="true" editorAttributes="HINT" />
+    <inspection_tool class="CppTooWideScope" enabled="true" level="HINT" enabled_by_default="true" editorAttributes="HINT" />
+  </profile>
+</component>

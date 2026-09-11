@@ -33,6 +33,15 @@ obj/
 # 拼写错误 (区别于"全局关闭拼写检查")。
 !.idea/dictionaries/
 !.idea/dictionaries/project.xml
+# 例外: 项目级代码检查配置 —— 与词典同理, 它是"本工程的约定"而非个人偏好。
+# 两个文件缺一不可:
+#   G474PulseGen.xml       定义 profile 内容 (哪些检查被降级/关闭)
+#   profiles_settings.xml  记录"当前激活哪个 profile"
+# 只提交前者的话, 别人克隆后 profile 文件在、但没有任何 profile 被选中,
+# 配置静默失效 —— 比不提交更难排查。
+!.idea/inspectionProfiles/
+!.idea/inspectionProfiles/G474PulseGen.xml
+!.idea/inspectionProfiles/profiles_settings.xml
 .vscode/
 *.launch
 *.uvoptx
