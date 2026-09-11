@@ -68,6 +68,15 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 /* 手动触发发波: 物理 TRG 按键与 SCPI TRIG 共用 (定义于 main.c, 含长脉冲 TIM5 触发) */
 void Trigger_Pulse(void);
+
+/* 12V_OUT 手动开关状态 (定义于 main.c)。
+ * 写入方: Setting 页 (WouoUI_user.c) 与 SCPI "12V:ON/OFF" (uart_comm.c);
+ * 读取方: main 循环的 12V 互锁 (LTC_IS_ANY_PWR_VALID() && g_12v_enable)。
+ * 跨文件且跨上下文, 必须保持 volatile; 不可加 static。
+ *
+ * ⚠ 声明必须写在 USER CODE BEGIN EFP 内 —— 这是 CubeMX 认识的标记名。
+ *   (2026-09 曾误用自造的 "EFP_VAR" 标记, 重新生成时被整个丢弃, 已修正。) */
+extern volatile bool g_12v_enable;
 /* USER CODE END EFP */
 
 /* USER CODE BEGIN EFP_VAR */

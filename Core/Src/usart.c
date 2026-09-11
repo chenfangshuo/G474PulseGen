@@ -5,7 +5,12 @@
   * @brief   USART3 底层驱动 (PB10=TX / PB11=RX, J5 3.3V TTL 接头)
   *          PC 端 1:1 OLED 镜像同步 + 双模远程控制 (SCPI & 虚拟按键)
   *          波特率 2Mbps 8N1, TX 走 DMA1_Channel2, RX 走 RXNE 中断逐字节入队
-  * @note    手写自维护文件 (工程初始无 USART 配置, 不依赖 CubeMX 重生成)
+  * @note    本文件现由 **CubeMX 生成并维护** (USART3 已纳入 .ioc)。
+  *          手写内容一律写在 USER CODE 区内 —— 重新生成时只有这些能存活。
+  *          波特率 / GPIO 上下拉 / DMA 配置 / NVIC 优先级**全部以 .ioc 为准**:
+  *          要改这些参数请在 CubeMX 里改, 改本文件的非 USER CODE 区是无效的
+  *          (下次重新生成即被覆盖)。各参数的选择理由记录在下面的
+  *          USART3_MspInit 0 / USART3_Init 0 区内。
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -25,11 +30,15 @@ DMA_HandleTypeDef hdma_usart3_tx;
 void MX_USART3_UART_Init(void)
 {
   /* USER CODE BEGIN USART3_Init 0 */
-
+  /* 下面的初始化参数全部由 CubeMX 依据 .ioc 生成。几处需要知道的理由:
+   *   - BaudRate = 2000000 (2Mbps): PC 端必须配同一值。历史备注: 2Mbps 对应
+   *     CH9111L 高速模块; 若换用 CH340 低速模块, 应在 .ioc 中改为 460800
+   *     (921600 在 CH340 上会丢字节), 重新生成即可, 本文件无需改动。
+   *   - 8N1 / 无硬件流控 / Oversampling 16: 与上位机协议约定一致。 */
   /* USER CODE END USART3_Init 0 */
 
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = USART3_BAUDRATE;            /* 2Mbps: CH9111L 高速模块; 换 CH340 时改 USART3_BAUDRATE 为 460800u */
+  huart3.Init.BaudRate = 2000000;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -54,7 +63,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   if(uartHandle->Instance==USART3)
   {
   /* USER CODE BEGIN USART3_MspInit 0 */
-
+  /* 本函数体 (时钟使能 / GPIO / DMA / NVIC) 由 CubeMX 依据 .ioc 生成, 不要直接改。
+   * 三处"看起来特殊"的配置其实都来自 .ioc, 理由记录于此备查:
+   *   - PB11(RX) 上拉 (GPIO_PULLUP): 串口模块未供电时其 TX 输出悬空, 上拉可避免
+   *     浮空噪声被识别成起始位 —— 表现为持续收到垃圾字节甚至误触发;
+   *   - DMA1_Channel2 与 USART3 中断优先级均为 (3,3): 刻意压低, 确保绝不抢占
+   *     HRTIM 发波关键路径 (FLT2 硬件故障中断为 (0,0), 见 Pulse_Fault_Init);
+   *   - USART3_TX 走 DMA1_Channel2, 请求号 DMA_REQUEST_USART3_TX (DMAMUX 29)。
+   * 要调整以上任一项, 请改 .ioc 后重新生成。 */
   /* USER CODE END USART3_MspInit 0 */
     /* USART3 clock enable */
     __HAL_RCC_USART3_CLK_ENABLE();

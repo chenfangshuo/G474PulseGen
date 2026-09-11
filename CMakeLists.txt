@@ -132,3 +132,23 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
     # Add user defined libraries
 )
+
+# ---------------------------------------------------------------------------
+# CubeMX 重新生成防线
+#
+# 每次构建前校验若干"游离于 .ioc 之外"的关键配置是否被重新生成破坏。
+# 背景: 2026-09 的一次重新生成把 TICK_INT_PRIORITY 从 0 静默改回 15, 恢复了
+#       中断优先级反转的前提条件 —— 编译通过、运行正常, 极难发现。
+#       详见 cmake/check_regen_invariants.cmake 的说明。
+#
+# 分级: FATAL 项会令本目标失败, 从而中断整个构建 (这是刻意的);
+#       .ioc 侧的 ADVISORY 项只打印提示, 不阻断。
+# 手动运行: cmake -P cmake/check_regen_invariants.cmake
+# ---------------------------------------------------------------------------
+add_custom_target(check_regen_invariants ALL
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_regen_invariants.cmake
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "校验 CubeMX 重新生成不变量"
+    VERBATIM
+)
+add_dependencies(${CMAKE_PROJECT_NAME} check_regen_invariants)
