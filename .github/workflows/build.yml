@@ -25,21 +25,34 @@ jobs:
 
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        # v5 起改用 Node 24 运行时 (v4 是 Node 20, 已弃用)
+        uses: actions/checkout@v5
 
       - name: 安装工具链
         run: |
           sudo apt-get update
-          # Ninja 是 CMakePresets.json 里指定的生成器, 缺了会直接配置失败。
-          # gcc-arm-none-eabi 用发行版仓库的版本 —— 与 README §9.1 推荐的
-          # ST 官方 14.3.rel1 可能不同, 但本工程刻意不加 -Werror, 因此工具链
-          # 小版本差异不会卡死构建 (这正是当初不加 -Werror 的理由之一)。
-          sudo apt-get install -y --no-install-recommends \
-            gcc-arm-none-eabi ninja-build cmake
+          # 三个包缺一不可:
+          #   gcc-arm-none-eabi        编译器本体
+          #   libnewlib-arm-none-eabi  **C 标准库头文件** (string.h / stdint.h 等)
+          #                            Ubuntu 上它是 gcc-arm-none-eabi 的 Recommends,
+          #                            不是 Depends —— 一旦加 --no-install-recommends
+          #                            就会漏装, 症状是编译到第一个 #include <string.h>
+          #                            的文件时报 "No such file or directory"。
+          #                            (2026-09 实际踩过: HAL 那些不用标准库头的文件
+          #                             都编过了, 直到 OLED.c 才炸, 很具迷惑性。)
+          #   ninja-build              CMakePresets.json 指定的生成器
+          # 故此处**刻意不加** --no-install-recommends。
+          sudo apt-get install -y \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi ninja-build cmake
           echo "--- 实际使用的工具链版本 ---"
           arm-none-eabi-gcc --version | head -1
           cmake --version | head -1
           ninja --version
+          # 标准库头可用的冒烟检查: 缺了就在这一步失败, 而不是编译到一半才炸
+          printf '#include <string.h>\n#include <stdint.h>\nint main(void){return 0;}\n' > /tmp/probe.c
+          arm-none-eabi-gcc -c /tmp/probe.c -o /tmp/probe.o \
+            && echo "✓ newlib 标准头可用" \
+            || { echo "::error::newlib 头文件缺失, 检查 libnewlib-arm-none-eabi 是否装上"; exit 1; }
 
       - name: 配置
         run: cmake --preset ${{ matrix.preset }}
@@ -76,7 +89,8 @@ jobs:
           arm-none-eabi-size build/${{ matrix.preset }}/G474PulseGen.elf | tee size.txt
 
       - name: 上传固件与体积报告
-        uses: actions/upload-artifact@v4
+        # 同上, 避免 Node 20 弃用告警
+        uses: actions/upload-artifact@v5
         with:
           name: G474PulseGen-${{ matrix.preset }}
           path: |
