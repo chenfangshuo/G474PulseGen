@@ -5,8 +5,8 @@
  *
  * 本项目作者编写与修改的部分, 按 MIT 许可证发布, 详见根目录 LICENSE 文件。
  */
-#ifndef __KEY_H
-#define __KEY_H
+#ifndef KEY_H
+#define KEY_H
 
 #include "main.h"
 

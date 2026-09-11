@@ -1,5 +1,5 @@
-#ifndef __PULSE_H
-#define __PULSE_H
+#ifndef PULSE_H
+#define PULSE_H
 
 #include "main.h"
 #include <stdbool.h>
@@ -146,4 +146,4 @@ void Pulse_BurstPRF_OnTick(void);        /* TIM3 更新中断: 周期重发一�
 void Pulse_Fault_Init(void);
 extern volatile bool g_fault_flag;   /* Fault 发生标志 (ISR 置位, main 循环消费) */
 
-#endif /* __PULSE_H */
+#endif /* PULSE_H */

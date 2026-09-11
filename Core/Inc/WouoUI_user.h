@@ -1,5 +1,5 @@
-#ifndef __TEST_UI_H__
-#define __TEST_UI_H__
+#ifndef WOUOUI_USER_H
+#define WOUOUI_USER_H
 
 #ifdef __cplusplus
 extern "C" {

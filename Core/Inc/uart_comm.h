@@ -9,8 +9,8 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
-#ifndef __UART_COMM_H__
-#define __UART_COMM_H__
+#ifndef UART_COMM_H
+#define UART_COMM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,4 +84,4 @@ UartComm_LinkState UartComm_GetLinkState(void);
 }
 #endif
 
-#endif /* __UART_COMM_H__ */
+#endif /* UART_COMM_H */
