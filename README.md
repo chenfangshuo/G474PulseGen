@@ -12,6 +12,21 @@
 
 > 引脚、电气特性、网表依据一律以根目录 [`HARDWARE.md`](HARDWARE.md) 为准。本文只讲怎么用、为什么这么设计。
 
+### 拿到这个仓库，你能做什么 / 不能做什么
+
+**先说清楚，免得白花时间。**
+
+| | 状态 |
+|:---|:---|
+| ✅ **固件** | 完整可用，可直接编译烧录（见 §9）。**这是这个仓库的主体。** |
+| ✅ **算法与设计说明** | HRTIM 分频选档、多脉冲软件重触发补偿、三层防炸机逻辑、CubeMX 重新生成防线——都有文档和实测数据，**可以拿去用在别的板子上** |
+| ✅ **上位机** | `pc_host/` 的 OLED 镜像 + SCPI 自动化工具完整可用（见 §8） |
+| ⚠️ **硬件复刻** | **做不到。** 原理图、PCB、BOM **均未公开**，仓库里只有网表与 `HARDWARE.md` |
+| ⚠️ **直接投产** | **不行。** 当前是**工程样板**，有若干已知硬件偏差，见 §12 |
+
+如果你想要的是"照着做一个"，这个仓库目前给不了——需要等硬件源文件补齐（有实际需求且有精力改版时会做）。
+如果你想要的是"HRTIM 怎么做到亚纳秒级脉冲、怎么防上下桥直通、怎么让 CubeMX 重新生成不把配置改回去"，**这里的资料比大多数开源工程都详细，欢迎直接用**。
+
 ---
 
 ## 1. 它能干什么
@@ -53,7 +68,7 @@
 
 ### 2.2 输出端是串联电阻做的端接
 
-MCU 引脚经 U8 缓冲后，每一路都串了一个电阻（R49~R56，原理图标 20 Ω）再进 SMA。**网表里不带阻值，最终以 BOM 为准。**
+MCU 引脚经 U8 缓冲后，每一路都串了一个电阻（R49~R56，原理图标 20 Ω）再进 SMA。**本仓库不提供 BOM，原理图与 PCB 源文件也未公开**（见 §12），所以这里的阻值无法在仓库内核对——`20 Ω` 是原理图标注值，实装以实物为准。
 
 这里要说明白：74LVCH8T245 是总线收发器，不是有明确输出阻抗的线驱动器，所以它**不构成严格的 50 Ω 源端匹配**。实测边沿过冲很小（高电平最高 5.09 V，基本没有振铃），是串联电阻 + SMA 短线共同的结果。如果你的负载环境更恶劣，这个电阻值有调整空间。
 
@@ -280,6 +295,10 @@ Timer C 已经从发波里剥离，改成专用辅助信号（`Pulse.h` 定义�
 标定方法是：多脉冲模式（脉冲数 ≥ 5，关闭 PRF 猝发），用示波器量**同一路输出上相邻脉冲的上升沿间隔**，取第 2 个及以后的间隙——首个脉冲由硬件触发，开销与后续的软件重触发不同。跨通道测量不可取，探头偏斜在 4 µs 上量 70 ns 时足以盖过信号。
 
 五点实测（1 / 2 / 4 / 8 / 16 µs）反推的开销下界全部落在 0.96，且跨多个分频档无漂移，说明这个开销是**与分频档无关的恒定时间量**，用常数偏移补偿是正确模型。改到 0.97 后复测，2 / 4 / 8 / 16 µs 各点中心残差均 ≤10 ns，远小于 20~40 ns 的抖动展宽，已无可检测的系统性偏差。
+
+> ⚠ **这个常量与编译优化等级耦合。** 它补偿的是「中断响应 + 重触发」的延迟，而中断响应延迟直接受 `-O3` 与 `arm-none-eabi-gcc` 版本影响。**改动优化等级、或升级工具链版本后，必须用上面的方法重新标定**，否则多脉冲间隔会系统性偏移。`Pulse.c` 里那段注释有完整的 `@warning`。
+>
+> 顺带一提，本工程 Debug 与 Release 的优化等级都是 `-O3`（只差调试信息），所以目前不存在这个问题——但改构建配置的人要知道这里有颗地雷（见 §12）。
 
 > 一个边界要留意：**设定间隔小于约 1.02 µs 时，实际间隔不再跟随设定值**，会停在 1.02 µs 附近——`NPULSE_INTERVAL_MIN_US` 的钳位在那里兜底。
 
@@ -515,7 +534,35 @@ python demo_scripts.py --dry-run single --end 5      # 只打印命令不发送
 
 ## 9. 编译与烧录
 
-### 9.1 编译
+### 9.1 准备工具链（全新克隆必读）
+
+需要三样东西，**缺一不可**：
+
+| 工具 | 要求 | 本项目实测版本 |
+|:---|:---|:---|
+| `arm-none-eabi-gcc` | 必须支持 C11；建议用 ST 官方打包版 | **GNU Tools for STM32 14.3.rel1**（GCC 14.3.1） |
+| CMake | ≥ 3.22（`CMakeLists.txt` 里的 `cmake_minimum_required`） | 4.3.1 |
+| Ninja | 任意近期版本 | 1.13.2 |
+
+**推荐做法：装 STM32CubeCLT**，它把上面三样一次装齐，且是 ST 官方渠道、无需自己配 PATH。
+
+- 下载：<https://www.st.com/en/development-tools/stm32cubeclt.html>（需注册 ST 账号）
+- 装完后确认 `arm-none-eabi-gcc` 在 PATH 里：
+  ```bash
+  arm-none-eabi-gcc --version
+  ```
+  如果找不到，把 `<安装目录>/GNU-tools-for-STM32/bin` 加进 PATH。本项目实测路径形如
+  `C:/ST/STM32CubeCLT_1.22.0/GNU-tools-for-STM32/bin`。
+
+**或者自己装**：`arm-none-eabi` 从 [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) 取（选 `arm-none-eabi` 那个，别选 `aarch64-none-elf`），Ninja 从 [ninja-build.org](https://ninja-build.org/) 或各平台包管理器取。
+
+> ⚠ **关于版本**：本工程是 `-O3 -flto`，**LTO 对 GCC 小版本较敏感**。换工具链版本后如果出现只在链接期暴露的问题，先怀疑版本差异，用上面那个实测版本复现一次再排查。
+>
+> 同理，`cmake/gcc-arm-none-eabi.cmake` 里刻意**没有加 `-Werror`**——否则任何一次工具链小版本升级引入的新告警都会直接卡死构建。
+
+**不需要装的东西**：CubeMX。`Drivers/` 里的 HAL 与 CMSIS 已随仓库入库，不装 CubeMX 也能完整编译。**只有要改外设配置（时钟、引脚、外设开关）时才需要它**，见 §9.5。
+
+### 9.2 编译
 
 ```bash
 cmake --preset Debug            # 生成 build/Debug
@@ -523,17 +570,40 @@ cmake --build build/Debug       # 产物: build/Debug/G474PulseGen.elf
 cmake --build build/Debug --target clean
 ```
 
-- 工具链：Arm GNU Toolchain（`arm-none-eabi-gcc`），CMake ≥ 3.22，生成器 Ninja。
-- 优化：`cmake/gcc-arm-none-eabi.cmake` 里配的是 `-O3 -flto -funroll-loops -ffp-contract=fast`，FPU 走 `fpv4-sp-d16` 硬浮点。另外在 `stm32g4xx_hal_msp.c` 里显式开了 FLASH ART 预取（170 MHz + 4 等待周期下藏取指延迟）。
-- **新增 `.c` 文件必须手动加进根 `CMakeLists.txt` 的 `target_sources`**，否则不参与编译。
+Release 构建把 `--preset` 换成 `Release` 即可。两者只差调试信息（`-g3` / `-g0`），**优化等级都是 `-O3`**——所以 Debug 构建并不适合单步调试，见 §12。
 
-### 9.2 烧录
+编译配置在 `cmake/gcc-arm-none-eabi.cmake`：
 
-SWD 接口 J1（`PA13 = SWDIO` / `PA14 = SWCLK`），ST-Link / J-Link / `st-flash` 都行，烧 `build/Debug/G474PulseGen.elf`。
+- 目标：`-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard`
+- 优化：`-O3 -flto -funroll-loops -ffp-contract=fast`
+- 告警：`-Wall -Wextra`（**不加 `-Werror`**，理由见上）
+- 另外在 `stm32g4xx_hal_msp.c` 里显式开了 FLASH ART 预取（170 MHz + 4 等待周期下藏取指延迟）
+
+每次构建前会先跑一遍 `cmake/check_regen_invariants.cmake`（14 项 CubeMX 重新生成不变量检查），**FATAL 项不通过会直接中断构建**——这是刻意的，详见 §11。
+
+> **新增 `.c` 文件必须手动加进根 `CMakeLists.txt` 的 `add_executable()` 列表**，否则不参与编译。
+>
+> 构建成功后出现 `lto-wrapper.exe: warning: using serial compilation of 3 LTRANS jobs` 是**正常提示**，不是错误——它只是说 LTO 的后端编译是串行跑的，不影响产物。
+
+### 9.3 烧录
+
+SWD 接口 J1（`PA13 = SWDIO` / `PA14 = SWCLK`）。三种方式任选：
+
+```bash
+# OpenOCD（ST-Link）
+openocd -f interface/stlink.cfg -f target/stm32g4x.cfg \
+        -c "program build/Debug/G474PulseGen.elf verify reset exit"
+
+# st-flash（需先转成 bin）
+arm-none-eabi-objcopy -O binary build/Debug/G474PulseGen.elf build/Debug/G474PulseGen.bin
+st-flash write build/Debug/G474PulseGen.bin 0x8000000
+```
+
+或者直接用 STM32CubeProgrammer / ST-Link Utility 的图形界面加载 `.elf`。
 
 BOOT0 跳线 J2：短接 **2-3** → 主 Flash 启动（正常用这个）；短接 1-2 → 系统存储器启动。
 
-### 9.3 第一次接线，建议这么来
+### 9.4 第一次接线，建议这么来
 
 1. **先别接被测驱动板。** 只给板子供电，看 OLED 是否正常点亮、菜单能不能翻。
 2. 进 `Setting`，确认 `12V Output` 状态符合预期（默认是开的）。
@@ -543,6 +613,28 @@ BOOT0 跳线 J2：短接 **2-3** → 主 Flash 启动（正常用这个）；短
 6. 确认无误后，再考虑接驱动板，并且**先接 12V_OUT 之外的低压信号**，最后接功率级。
 
 > 顺带一提：示波器用 1× 探头 + 1 MΩ 输入就够了，别用 50 Ω 档——这不是 50 Ω 源端匹配的传输线环境。
+
+### 9.5 改外设配置：CubeMX 重新生成
+
+只有要动**时钟树、引脚分配、外设开关**时才需要这一步。生成器版本：**STM32CubeMX 6.16.0** + **STM32Cube FW_G4 V1.6.1**（记录在 `G474PulseGen.ioc` 的 `MxCube.Version` / `ProjectManager.FirmwarePackage`）。
+
+**流程与红线**：
+
+1. 用 CubeMX 打开根目录的 `G474PulseGen.ioc`，改配置，重新生成。
+2. **自定义代码一律只写在 `/* USER CODE BEGIN xxx */` 与 `/* USER CODE END xxx */` 之间**。保护区之外是生成区，改了会在下次生成时**静默丢失**。
+3. 生成后**立刻编译一次**。构建前置的 `check_regen_invariants.cmake` 会校验 14 项「游离于 `.ioc` 之外」的关键配置。
+
+> ⚠ **为什么要有第 3 步**：2026-09 的一次重新生成，把 `TICK_INT_PRIORITY` 从 0 静默改回 15——**编译通过、运行正常**，只是悄悄恢复了中断优先级反转与 ISR 死锁的前提条件。这类问题比编译失败危险得多，所以做成了构建的硬依赖（FATAL 项不通过则编译中断）。
+>
+> 若某项 FATAL 报错，说明该配置应写进 `.ioc` 而非手改源码。手动单独运行检查：
+> ```bash
+> cmake -P cmake/check_regen_invariants.cmake
+> ```
+
+**其它几条容易踩的**：
+
+- `usart.c` / `usart.h` 属 CubeMX 管辖（已写进 `.ioc`），**不要手改**——包括波特率。要改波特率请改 `.ioc` 的 `USART3.BaudRate` 后重新生成，见 §7.1。
+- 改了外设配置后，`Drivers/` 下可能被重新拷入 `CMSIS/DSP` 与 `CMSIS/NN`。**这两个子库本工程不使用**，已在 `.gitignore` 里排除，重新出现属预期，不要提交。
 
 ---
 
@@ -571,7 +663,7 @@ G474PulseGen/
 │       ├── main.c           # 主循环：12V 门控、按键派发、Fault UI 收尾、触发入口
 │       ├── Pulse.c/.h       # ★ 发波核心：7 模式 + 分频 + SYNC + 帧标记 + Burst + Fault + 急停
 │       ├── uart_comm.c/.h   # ★ 通信协议层：帧解析 + SCPI + 镜像推流 + 虚拟按键
-│       ├── usart.c/.h       # USART3 底层（波特率宏在 usart.h）
+│       ├── usart.c/.h       # USART3 底层（受 CubeMX 管辖，波特率在 .ioc 里，勿手改）
 │       ├── Preset.c/.h      # Flash 参数存储（末页 + CRC）
 │       ├── WouoUI_user.c    # UI 数据模型：各模式 Option 数组 + 页面回调
 │       ├── WouoUI*.c        # WouoUI 框架（菜单/动画/字体/绘图/窗口）
@@ -582,7 +674,14 @@ G474PulseGen/
 ├── cmake/stm32cubemx/       # CubeMX 生成的外设初始化
 ├── pc_host/                 # 上位机（镜像工具 + 自动化脚本 + 打包）
 ├── screenshots/             # 屏幕截图与示波器实测图（被 README 引用）
+├── cmake/
+│   ├── gcc-arm-none-eabi.cmake      # 工具链与编译选项
+│   └── check_regen_invariants.cmake # ★ CubeMX 重新生成防线（14 项，构建前置）
 ├── HARDWARE.md              # 硬件架构与引脚映射（单一事实源）
+├── CONTRIBUTING.md          # 贡献指南（含改动红线，动手前请读）
+├── LICENSE                  # MIT（本项目自有代码）
+├── LICENSE-MPL-2.0          # WouoUI 框架那 16 个文件的许可
+├── LICENSE-BSD-3-Clause     # ST HAL 与 startup 文件的许可
 └── CMakeLists.txt
 ```
 
@@ -592,12 +691,12 @@ G474PulseGen/
 
 ## 12. 已知限制
 
-> ⚠ **当前板卡是工程样板，不是可交付成品**；原理图与 PCB 源文件均未入库。
+> ⚠ **当前板卡是工程样板，不是可交付成品**；原理图、PCB 与 BOM **均未公开**。
 > 完整清单见 [`HARDWARE.md`](HARDWARE.md) §1.1。
 
 **硬件（样板阶段）**
 
-- **设计源文件未入库**：仓库里只有网表与 `HARDWARE.md`，无法据此复刻板卡。
+- **设计源文件与 BOM 均未入库**：仓库里只有网表与 `HARDWARE.md`，无法据此复刻板卡。**因此下文提到的电阻阻值都无法在仓库内核对**——那些是原理图标注值，不是实测值。
 - **U3 主稳压是替代件**：`NCV7805` 焊盘封装画错，样板临时以 `TLV76150`（5.0V 档）焊装，**输出电平与设计一致**。
 - **输出阻抗匹配未做好**：靠顶层极近距离包地补救，实测过冲很小，但不属正规匹配。
 - **OLED 只靠排针支撑**，屏体下方没有固定柱。
@@ -610,6 +709,7 @@ G474PulseGen/
 - **TIM5 长脉冲系列没有硬件故障保护**，只有软件急停。要硬保护得外部加互锁。
 - **PA15 原本在原理图上标的是 I2C1_SCL**，固件改成了 HRTIM_FLT2 故障输入。J6 的 I2C 功能因此停用，PCB 实际接线需要核对（见 `HARDWARE.md` §2 与 §5.3 的 ⚠ 标注）。
 - **USART2（RS232）和 I2C1 当前固件都没有使能。**
+- **Debug 构建也是 `-O3`，无法有效单步调试**：Debug 与 Release 只差 `-g3` / `-g0`，优化等级相同（见 §9.2）。变量会被优化掉、行号会漂移。这是既有的开发者体验问题，改动优化等级前请先读 §4.4 的 `NPULSE_INTERVAL_COMP_US` 说明——**那个补偿常量是在 `-O3` 下标定的，与优化等级耦合**。
 
 ---
 
