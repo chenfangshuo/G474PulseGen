@@ -1,0 +1,40 @@
+PULS:WIDTH:10.5      -> OK
+PULS:WIDTH:0.01      -> OK
+PULS:WIDTH:1500      -> OK
+PULS:WIDTH:ABC       -> OK
+PULS:WIDTH:          -> ERR VAL
+PULS:COUNT:5         -> OK
+PULS:COUNT:1         -> OK
+PULS:COUNT:100       -> OK
+PULS:COUNT:XYZ       -> OK
+PULS:COUNT:          -> ERR VAL
+PULS:INTV:20         -> OK
+PULS:INTV:1          -> OK
+PULS:INTV:1500       -> OK
+PULS:INTV:ERR        -> OK
+PULS:INTV:           -> ERR VAL
+DPULS:PW1:15         -> OK
+DPULS:PW1:1          -> OK
+DPULS:PW1:200        -> OK
+DPULS:PW1:BAD        -> OK
+DPULS:PW1:           -> ERR VAL
+PWM:PER:50           -> OK
+PWM:PER:1            -> OK
+PWM:PER:1500         -> OK
+PWM:PER:NAN          -> OK
+PWM:PER:             -> ERR VAL
+PWM:DUTY:50.0        -> OK
+PWM:DUTY:0           -> OK
+PWM:DUTY:100         -> OK
+PWM:DUTY:FOO         -> OK
+PWM:DUTY:            -> ERR VAL
+LPWM:PER:1.5         -> OK
+LPWM:PER:0.001       -> OK
+LPWM:PER:1000        -> OK
+LPWM:PER:INF         -> OK
+LPWM:PER:            -> ERR VAL
+BURST:1000           -> OK
+BURST:0              -> OK
+BURST:100000         -> OK
+BURST:STOP           -> OK
+BURST:               -> ERR ARG
