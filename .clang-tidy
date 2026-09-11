@@ -1,0 +1,85 @@
+---
+# =============================================================================
+# Clang-Tidy 配置 (工程根目录)
+#
+# 作用范围: CLion 的 Clang-Tidy 集成、命令行 clang-tidy、以及将来的 CI。
+#           存在本文件时 CLion **以它为准**, 不再使用内置默认检查集 —— 这正是
+#           它能实现"减少告警"的原因。
+#
+# 设计原则: 从 `-*` 全关开始, 只显式启用**能发现真实缺陷**的检查族;
+#           纯风格类 (命名风格、冗余括号、const/const 指针建议、冗余 cast 等)
+#           一律不启用。理由: 本工程由四股来源叠加而成 (CubeMX 生成 / WouoUI
+#           (MPL-2.0) / 江协科技库 / 自研), 它们有各自风格约定, 逐条改既无实质
+#           收益, 又会增加第三方库的上游合并成本。
+#
+# 本文件管不到的两件事:
+#   1) CLion **自身**的检查 (非 Clang-Tidy), 如"冗余的圆括号""形参可被设为
+#      常量""冗余 cast"。需在 Settings → Editor → Inspections 中按项开关,
+#      结果写入 .idea/inspectionProfiles/。
+#   2) 编译器告警 (-Wall -Wextra)。已由 CMakeLists.txt 的"第三方代码告警隔离"
+#      一节按目标/按文件降级处理。
+#
+# ⚠ 维护提示: `Checks` 用的是 YAML 折叠块标量 (>), 块内以 # 开头的行会被当作
+#   字面内容折进列表中, **不是注释**。所以说明文字一律写在这里, 不要写进
+#   Checks 块内。
+# =============================================================================
+
+# 从全关开始, 再逐族启用:
+#   clang-analyzer-*  空指针解引用/数组越界/死存储等 —— 对 Pulse.c 这类直接
+#                     操作寄存器的代码尤其有价值
+#   bugprone-*        常见错误用法
+#   cert-*            CERT C 编码规范
+#   performance-*     性能相关
+#   portability-*     可移植性
+#
+# 显式关闭的单项 (第三方库与嵌入式场景误报率高, 或本工程无法整改):
+#   bugprone-easily-swappable-parameters   同类型相邻形参即告警, 对 Pulse_*
+#                                          一族的 (period, duty, dt_rise, dt_fall)
+#                                          完全不适用
+#   bugprone-implicit-widening-of-multiplication-result   嵌入式常见且多为有意
+#   bugprone-suspicious-include            与 HAL 的包含方式冲突
+#   bugprone-reserved-identifier           syscalls.c/sysmem.c 的 newlib 桩
+#                                          按 libc 约定必须用保留名, 改不了
+#   cert-err33-c / cert-msc30/32/50/51     涉及 rand/时间/浮点环境, 无 libc 环境
+#                                          下不适用
+#   performance-no-int-to-ptr              寄存器地址宏是嵌入式固有写法
+#   clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+#                                          sprintf 等在本工程是有界使用
+#
+# 保留启用且**整改后不要关掉**的一项:
+#   bugprone-narrowing-conversions
+#     整数/浮点窄化是实现定义行为。本工程绘图 API 原本用 int16_t 形参, 导致
+#     约 90 处窄化; 方案批次 14 会把参数加宽为 int 一次性消除。整改后请保持
+#     本项启用, 用于拦截后续新增。
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  cert-*,
+  performance-*,
+  portability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-suspicious-include,
+  -bugprone-reserved-identifier,
+  -cert-err33-c,
+  -cert-msc30-c,
+  -cert-msc32-c,
+  -cert-msc50-c,
+  -cert-msc51-c,
+  -performance-no-int-to-ptr,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+
+# 头文件检查范围: 只看本工程自有头文件 Core/Inc, 不深入到 HAL/CMSIS 与第三方库。
+# 用 "任意路径分隔符 + Core/Inc + 任意路径" 的形式, 以兼容 clang-tidy 传入的
+# 绝对路径与 Windows 反斜杠 (锚定 ^Core/ 的写法在绝对路径下不匹配)。
+HeaderFilterRegex: '.*[/\\]Core[/\\]Inc[/\\].*'
+
+# 不把第三方 include 静默成 system 头 —— 保持可见, 便于发现真实问题。
+SystemHeaders: false
+
+# 明确不把警告升级为错误: 本工程是 -O3 -flto, 工具链小版本升级不应阻塞构建。
+WarningsAsErrors: ''
+
+# 诊断输出中包含所用检查名, 便于在 IDE 中定位与豁免。
+UseColor: false
