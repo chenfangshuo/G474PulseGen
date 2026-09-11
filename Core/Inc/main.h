@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>   /* g_12v_enable 等跨文件声明的 bool 类型依赖 */
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -69,6 +69,15 @@ void Error_Handler(void);
 /* 手动触发发波: 物理 TRG 按键与 SCPI TRIG 共用 (定义于 main.c, 含长脉冲 TIM5 触发) */
 void Trigger_Pulse(void);
 /* USER CODE END EFP */
+
+/* USER CODE BEGIN EFP_VAR */
+/* 12V_OUT 手动开关状态 (定义于 main.c)。
+ * 写入方: Setting 页 (WouoUI_user.c) 与 SCPI "12V:ON/OFF" (uart_comm.c);
+ * 读取方: main 循环的 12V 互锁 (LTC_IS_ANY_PWR_VALID() && g_12v_enable)。
+ * 跨文件且跨上下文, 必须保持 volatile; 不可加 static。
+ * 此前 WouoUI_user.c 与 uart_comm.c 各自手写了一份这个 extern, 现统一声明于此。 */
+extern volatile bool g_12v_enable;
+/* USER CODE END EFP_VAR */
 
 /* Private defines -----------------------------------------------------------*/
 

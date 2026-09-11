@@ -62,13 +62,8 @@ static volatile bool triggered = 0;
 volatile bool g_12v_enable = true;       /* 12V_OUT 手动开关状态 (Setting 页切换, 默认使能);
                                             被 uart_comm.c 与 WouoUI_user.c 引用, 不可加 static */
 
-extern Option n_pulse_option_array[];
-extern Option n_pulse_long_option_array[];
-extern Option double_pulse_option_array[];
-extern Option pwm_option_array[];
-extern Option pwm_long_option_array[];
-extern Option comp_pwm_option_array[];
-extern Option comp_pwm_long_option_array[];
+/* 注: 原此处有 7 条 UI Option[] 数组的 extern, 与 WouoUI_user.h 中的声明完全
+ * 重复 (本文件已 include WouoUI_user.h), 已删除。 */
 /* 计数器差分 (仅本文件使用) */
 static int32_t last_count = 0;
 static int32_t current_count = 0;

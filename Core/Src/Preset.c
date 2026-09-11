@@ -2,20 +2,11 @@
 #include "main.h"
 #include "Pulse.h"
 #include "WouoUI.h"
+#include "WouoUI_user.h"   /* UI 数据模型数组的唯一声明来源 */
 #include <string.h>
 
-/* ---------- 各模式 UI 参数数组 (定义于 WouoUI_user.c) ---------- */
-extern Option n_pulse_option_array[];
-extern Option n_pulse_long_option_array[];
-extern Option double_pulse_option_array[];
-extern Option pwm_option_array[];
-extern Option pwm_long_option_array[];
-extern Option comp_pwm_option_array[];
-extern Option comp_pwm_long_option_array[];
-
-extern String ch_sel_str_array[];
-extern String polarity_sel_str_array[];
-extern String comp_pair_sel_str_array[];
+/* 注: 原此处有 10 条 UI 数组的 extern (7 个 Option[] + 3 个 String[]),
+ * 与 WouoUI_user.h 中的声明重复且无单一来源, 已删除。 */
 
 /* ---------- Flash 布局 ----------
    使用最后一页 (2KB @ 0x0807F800), 代码区约 106KB, 距离远不冲突 */

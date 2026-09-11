@@ -6,10 +6,9 @@
 #include "hrtim.h"
 #include "Pulse.h"
 #include "Preset.h"
-
-extern volatile bool PULSE_OUT_ENABLED;
-extern volatile uint8_t PULSE_MODE;
-extern volatile bool g_12v_enable;
+/* 注: 原此处有 PULSE_OUT_ENABLED / PULSE_MODE / g_12v_enable 三条手写 extern。
+ * 前两条与 Pulse.h 中的声明重复 (本文件已 include Pulse.h), 第三条已在 main.h
+ * 中正式声明 (经 Pulse.h 传递包含), 均已删除。 */
 
 //--------定义页面对象
 // 全部页面对象仅本文件使用 (已核验无跨文件引用), 故加 static 收敛符号可见性。

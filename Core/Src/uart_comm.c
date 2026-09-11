@@ -29,6 +29,7 @@
 #include "Preset.h"
 #include "WouoUI.h"
 #include "WouoUI_user.h"
+#include "OLED_driver.h"   /* OLED_DisplayBuf */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -115,12 +116,10 @@ static volatile uint8_t s_last_stat_ch   = 0xFFu;
 #define UC_LINK_PUSH_PERIOD 500u    /* 每 500ms 补推一帧 */
 static volatile uint32_t s_link_push_until = 0u;
 
-/* 12V_OUT 手动开关状态 (定义于 main.c, 由 Setting 页与 SCPI 共同写) */
-extern volatile bool g_12v_enable;
-/* Setting 页选项数组 (同步 12V Output 复选框 val 用) */
-extern Option setting_option_array[];
-/* OLED 当前显存 (连接建立时直接推显存, 避免缓存被连接前清屏空白污染) */
-extern uint8_t OLED_DisplayBuf[16][128];
+/* 上面引用的三个外部符号现已统一由头文件声明, 不再手写 extern:
+ *   g_12v_enable         12V 手动开关   -> main.h        (经 Pulse.h 传递)
+ *   setting_option_array Setting 页选项 -> WouoUI_user.h
+ *   OLED_DisplayBuf      OLED 显存      -> OLED_driver.h (维度由定义侧唯一确定) */
 
 /* ---------------------------- 内部函数 ----------------------------------- */
 

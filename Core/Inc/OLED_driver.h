@@ -27,6 +27,14 @@
 #define OLED_CMD  0	//写命令
 #define OLED_DATA 1	//写数据
 
+/* OLED 显存 (定义于 OLED_driver.c)。
+ * 维度表达式与定义侧完全一致 (128/8 = 16 页 × 128 列 = 2048 字节)。
+ * 此前 uart_comm.c 手写了一份 extern 声明为 [16][128] —— 数值恰好相同,
+ * 但两处独立书写, 一旦屏尺寸调整就会变成静默的缓冲区越界, 故统一到此处。
+ * 注: 不用 OLED_WIDTH/OLED_HEIGHT 表达是因为它们定义在 OLED.h, 而 OLED.h
+ * 反过来包含了本文件, 引入会形成头文件循环。 */
+extern uint8_t OLED_DisplayBuf[128/8][128];
+
 // oled初始化函数
 void OLED_Init(void);
 
