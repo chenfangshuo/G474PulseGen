@@ -2,6 +2,8 @@
  * Copyright (c) Sheep118 (WouoUI-PageVersion)
  *           https://github.com/Sheep118/WouoUI-PageVersion
  * Copyright (c) 2025 chenfangshuo (modifications)
+ *   修改记录 (2026-09): 与 WouoUI_graph.c 同步, 把绘制调用中被传入的坐标实参
+ *     与相关形参统一为 int, 消除 int16_t 窄化转换。结构体成员未改动。
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -272,7 +274,7 @@ static void WouoUI_ListAuotCanvasDrawLineTailValTxt(Option *item, Canvas* p_canv
     else WouoUI_CanvasDrawStr(p_canvas_val, 0, 0, LIST_TEXT_FONT, (uint8_t *)val_buff);
 }
 
-static void WouoUI_ListDrawText_CheckBox(int16_t start_y, Option *item, uint8_t select_order)
+static void WouoUI_ListDrawText_CheckBox(int start_y, Option *item, uint8_t select_order)
 {
     Canvas canvas_txt={.start_x = LIST_TEXT_L_S,
                        .start_y = (int16_t)(start_y + LIST_TEXT_U_S),
@@ -567,7 +569,7 @@ void WouoUI_ListPageNextItem(ListPage* lp)
 }
 
 //--------WavePage相关方法和函数
-static int16_t _roundToNearestTen(int16_t value) {
+static int16_t _roundToNearestTen(int value) {
     int16_t abs_val = abs(value);
     int16_t result;
     if (abs_val % 10 <= 5)
@@ -842,7 +844,7 @@ void WouoUI_WavePageInit(
 }
 
 // wave页面给使用者的接口函数
-void WouoUI_WavePageUpdateVal(WavePage* wp, uint8_t wave_num, int16_t new_data) { // 更新波形数据
+void WouoUI_WavePageUpdateVal(WavePage* wp, uint8_t wave_num, int new_data) { // 更新波形数据
     if(wave_num >= wp->wave_data_num){WOUOUI_LOG_E("Valid wave_num, it is too large");return;}
     WaveData* wave_data = &(wp->wave_data_array[wave_num]);
     if(false == wave_data->stop_flag) //波形运动时才能更新数据

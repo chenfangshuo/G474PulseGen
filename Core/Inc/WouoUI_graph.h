@@ -94,25 +94,25 @@ void WouoUI_BuffSend(void);
     void WouoUI_GraphSetDynamicBuff(ScreenBuff* buff);
 #endif
 
-int16_t WouoUI_CanvasDrawASCII(Canvas *canvas, int16_t x, int16_t y, sFONT font, char c);
-void WouoUI_CanvasDrawStr(Canvas *canvas, int16_t x, int16_t y, sFONT font, uint8_t *str);
-void WouoUI_CanvasDrawSlideStr(SlideStr* ss, int16_t y, sFONT font);
+int16_t WouoUI_CanvasDrawASCII(Canvas *canvas, int x, int y, sFONT font, char c);
+void WouoUI_CanvasDrawStr(Canvas *canvas, int x, int y, sFONT font, uint8_t *str);
+void WouoUI_CanvasDrawSlideStr(SlideStr* ss, int y, sFONT font);
 void WouoUI_CanvasSlideStrReset(SlideStr* ss);
-void WouoUI_CanvasDrawStrWithNewline(Canvas *canvas, int16_t x, int16_t y, sFONT font, uint8_t *str, uint8_t lineSpacing);
-void WouoUI_CanvasDrawStrAutoNewline(Canvas *canvas, int16_t x, int16_t y, sFONT font, uint8_t *str);
+void WouoUI_CanvasDrawStrWithNewline(Canvas *canvas, int x, int y, sFONT font, uint8_t *str, uint8_t lineSpacing);
+void WouoUI_CanvasDrawStrAutoNewline(Canvas *canvas, int x, int y, sFONT font, uint8_t *str);
 uint16_t WouoUI_GetStrWidth(const char *str, sFONT font);
 uint16_t WouoUI_GetStrHeight(const char *str, sFONT font);
-uint16_t WouoUI_GetStrHeightAutoNewLine(int16_t canvas_w, const char* str, sFONT font);
-void WouoUI_CanvasDrawLine_V(Canvas *canvas, int16_t x, int16_t y_start, int16_t y_end);
-void WouoUI_CanvasDrawDashedLine_V(Canvas *canvas, int16_t x, int16_t y_start, int16_t y_end, uint8_t DashedStyle, uint8_t Unit_Length);
-void WouoUI_CanvasDrawLine_H(Canvas *canvas, int16_t x_start, int16_t x_end, int16_t y);
-void WouoUI_GraphDrawDashedLine_H(Canvas *canvas, int16_t x_start, int16_t x_end, int16_t y, uint8_t DashedStyle, uint8_t Unit_Length);
-void WouoUI_CanvasDrawRBox(Canvas *canvas, int16_t x_start, int16_t y_start, int16_t width, int16_t height, uint8_t r);
-void WouoUI_CanvasDrawRBoxEmpty(Canvas *canvas, int16_t x_start, int16_t y_start, int16_t width, int16_t height, uint8_t r);
-void WouoUI_CanvasDrawBoxRightAngle(Canvas *canvas, int16_t x_start, int16_t y_start, int16_t width, int16_t height, uint8_t r);
-void WouoUI_CanvasDrawBMP(Canvas *canvas, int16_t x, int16_t y, int16_t width, int16_t height, const uint8_t *BMP, uint8_t color);
-void WouoUI_CanvasDrawPoint(Canvas *canvas, int16_t x, int16_t y);
-void WouoUI_CanvasDrawLine(Canvas *canvas, int16_t x1, int16_t y1, int16_t x2, int16_t y2);
+uint16_t WouoUI_GetStrHeightAutoNewLine(int canvas_w, const char* str, sFONT font);
+void WouoUI_CanvasDrawLine_V(Canvas *canvas, int x, int y_start, int y_end);
+void WouoUI_CanvasDrawDashedLine_V(Canvas *canvas, int x, int y_start, int y_end, uint8_t DashedStyle, uint8_t Unit_Length);
+void WouoUI_CanvasDrawLine_H(Canvas *canvas, int x_start, int x_end, int y);
+void WouoUI_GraphDrawDashedLine_H(Canvas *canvas, int x_start, int x_end, int y, uint8_t DashedStyle, uint8_t Unit_Length);
+void WouoUI_CanvasDrawRBox(Canvas *canvas, int x_start, int y_start, int width, int height, uint8_t r);
+void WouoUI_CanvasDrawRBoxEmpty(Canvas *canvas, int x_start, int y_start, int width, int height, uint8_t r);
+void WouoUI_CanvasDrawBoxRightAngle(Canvas *canvas, int x_start, int y_start, int width, int height, uint8_t r);
+void WouoUI_CanvasDrawBMP(Canvas *canvas, int x, int y, int width, int height, const uint8_t *BMP, uint8_t color);
+void WouoUI_CanvasDrawPoint(Canvas *canvas, int x, int y);
+void WouoUI_CanvasDrawLine(Canvas *canvas, int x1, int y1, int x2, int y2);
 void WouoUI_BuffAllBlur(BLUR_DEGREE blur);
 
 #ifdef __cplusplus

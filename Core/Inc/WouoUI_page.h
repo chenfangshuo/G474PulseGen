@@ -375,7 +375,7 @@ void WouoUI_WavePageInit(WavePage *wp, uint8_t wave_num, WaveData * wave_data_ar
  * @param wave_num 波形编号
  * @param new_data 新的波形数据
  */
-void WouoUI_WavePageUpdateVal(WavePage* wp, uint8_t wave_num, int16_t new_data);
+void WouoUI_WavePageUpdateVal(WavePage* wp, uint8_t wave_num, int new_data);
 /**
  * @brief 显示波形数组中上一组波形数据
  * @param wp 波形页面控制器指针
