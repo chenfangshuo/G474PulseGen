@@ -795,7 +795,15 @@ bool Pulse_dPulse_SetPW(int32_t pw1, int32_t interval, int32_t pw2)
     HRTIM_TimeBaseCfgTypeDef ScalerCfg = {0};
     HRTIM_CompareCfgTypeDef CmpCfg = {0};
 
-    Pulse_CalcPrescalerAndCounts(ptotal, &prescaler_value, &current_hrtim_freq, NULL);
+    /* 必须检查返回值: Pulse_CalcPrescalerAndCounts() 在 time_us <= 0 时会
+     * **提前返回 false 且不写输出参数**, 忽略返回值会让下面两个变量保持未初始化
+     * (-Wmaybe-uninitialized 已实测报出)。
+     * 当前 pw1/interval/pw2 均已校验 >= 1, 故 ptotal >= 3, 实际走不到失败分支 ——
+     * 这个判断是为了防止将来放宽范围校验时静默产生错误占空比。 */
+    if (!Pulse_CalcPrescalerAndCounts(ptotal, &prescaler_value, &current_hrtim_freq, NULL))
+    {
+        return false;
+    }
 
     float pw1_s      = US_TO_S(pw1);
     float interval_s = US_TO_S(interval);

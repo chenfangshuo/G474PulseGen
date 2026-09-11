@@ -947,6 +947,7 @@ bool CompLPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
 }
 
 bool CompPairSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
+    (void)cur_page_addr;   /* 回调签名由 WouoUI 框架固定; 本页使用文件内全局页面对象, 该参数不用 */
     if (msg_click == msg)
     {
         uint8_t pair = (uint8_t)comp_pair_sel_page.sel_str_index;
@@ -1028,6 +1029,7 @@ bool About_CallBack(const Page *cur_page_addr, InputMsg msg) {
 
 bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 {
+    (void)cur_page_addr;   /* 回调签名由 WouoUI 框架固定; 本页使用文件内全局页面对象, 该参数不用 */
     if (msg_click == msg)
     {
         if (PULSE_MODE == PULSE_MODE_NPULSE) {
@@ -1125,6 +1127,7 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 }
 
 bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
+    (void)cur_page_addr;   /* 回调签名由 WouoUI 框架固定; 本页使用文件内全局页面对象, 该参数不用 */
     if (msg_click == msg)
     {
         Pulse_Select_Output((int)ch_sel_page.sel_str_index + 1);
@@ -1200,6 +1203,7 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
 }
 
 bool PolaritySelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
+    (void)cur_page_addr;   /* 回调签名由 WouoUI 框架固定; 本页使用文件内全局页面对象, 该参数不用 */
     if (msg_click == msg)
     {
         if ((int)polarity_sel_page.sel_str_index)
@@ -1256,6 +1260,7 @@ bool PolaritySelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
 
 bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 {
+    (void)cur_page_addr;   /* 回调签名由 WouoUI 框架固定; 本页使用文件内全局页面对象, 该参数不用 */
     if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
     {
         if (pw_spin_page.sel_flag) // 处于数字调节状态

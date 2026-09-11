@@ -52,6 +52,56 @@ add_executable(${CMAKE_PROJECT_NAME}
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+# ---------------------------------------------------------------------------
+# 第三方代码告警隔离 (配合 -Wall -Wextra)
+# 目的: 让 HAL/CMSIS 头与 ST 生成的桩文件不产生告警, 把告警面留给自有代码。
+# 注意: 这些设置放在根 CMakeLists 而非 cmake/stm32cubemx/ 下, 因为后者是
+#       CubeMX 会重新生成的文件。
+# ---------------------------------------------------------------------------
+
+# 1) HAL/CMSIS 头文件目录标记为 SYSTEM, 走 -isystem 而不产生第三方告警。
+#    自有代码目录 Core/Inc 保持非 SYSTEM, 其告警仍然可见。
+target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/STM32G4xx_HAL_Driver/Inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/STM32G4xx_HAL_Driver/Inc/Legacy
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32G4xx/Include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/Include
+)
+
+# 2) ST HAL 驱动源文件整体降级 (STM32_Drivers OBJECT 库含 HAL 与
+#    system_stm32g4xx.c)。它们是 ST 官方代码, 不在本项目维护范围内。
+if(TARGET STM32_Drivers)
+    target_compile_options(STM32_Drivers PRIVATE -w)
+endif()
+
+# 3) CubeMX/ST 模板桩文件逐个降级: syscalls.c / sysmem.c 是 newlib 桩,
+#    其保留标识符与签名由 libc 约定决定, 不可改名也不应产生告警。
+set_source_files_properties(
+    Core/Src/syscalls.c
+    Core/Src/sysmem.c
+    PROPERTIES COMPILE_OPTIONS "-w"
+)
+
+# 4) 第三方移植库文件: 只抑制三类**经人工逐条确认非缺陷**的告警, 其余保持可见。
+#    来源为 WouoUI-PageVersion (MPL-2.0) 与江协科技教学库, 不在本项目维护范围。
+#    -Wno-unused-parameter      框架回调签名固定, 参数未用属正常
+#    -Wno-empty-body            断言/日志宏关闭时展开为空语句 (已核对, 非缺陷)
+#    -Wno-implicit-fallthrough  switch 有意贯穿 (已核对, 但见 README 待确认项)
+#    注意: 自有代码 WouoUI_user.c 与 Key.c **刻意不在此列**, 其告警保持可见。
+set_source_files_properties(
+    Core/Src/WouoUI.c
+    Core/Src/WouoUI_anim.c
+    Core/Src/WouoUI_font.c
+    Core/Src/WouoUI_graph.c
+    Core/Src/WouoUI_msg.c
+    Core/Src/WouoUI_page.c
+    Core/Src/WouoUI_win.c
+    Core/Src/OLED.c
+    Core/Src/OLED_Fonts.c
+    Core/Src/OLED_driver.c
+    PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter;-Wno-empty-body;-Wno-implicit-fallthrough"
+)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths

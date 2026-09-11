@@ -34,7 +34,12 @@ set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp -MMD -MP")
 #   -ffp-contract=fast 启用 Cortex-M4F 融合乘加(FMA)，保持 IEEE 语义
 set(PERF_FLAGS "-O3 -flto -funroll-loops -ffp-contract=fast")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fdata-sections -ffunction-sections ${PERF_FLAGS}")
+# 告警等级: -Wall -Wextra。
+# 刻意**不用 -Werror** —— 本工程是 -O3 -flto, 加 -Werror 会让任何一次工具链
+# 小版本升级直接阻塞构建, 收益远小于代价。
+# 第三方代码 (ST HAL / CubeMX 模板) 的告警在 CMakeLists.txt 中按目标单独降级,
+# 不在此处全局关闭, 以保证自有代码的告警始终可见。
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -fdata-sections -ffunction-sections ${PERF_FLAGS}")
 
 # Debug 与 Release 均保持极致优化；仅调试符号不同
 set(CMAKE_C_FLAGS_DEBUG "-g3")
