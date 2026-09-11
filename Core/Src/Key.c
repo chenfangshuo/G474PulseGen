@@ -15,7 +15,9 @@
 #define KEY_TIME_LONG			50
 #define KEY_TIME_REPEAT			30
 
-volatile uint8_t Key_Flag[KEY_COUNT];
+/* 按键状态位图: 由 TIM7 ISR (Key_Tick) 写入, 主循环 Key_Check 读取,
+ * 同一编译单元内 static volatile 语义不变, 不可去掉 volatile */
+static volatile uint8_t Key_Flag[KEY_COUNT];
 
 void Key_Init(void)
 {

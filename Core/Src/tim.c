@@ -189,6 +189,11 @@ void MX_TIM7_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM7_Init 2 */
+  /* 此处覆盖上方 CubeMX 生成的 PSC=4 / ARR=33999 (那组会得到 1kHz)。
+   * 最终按键节拍 = 170MHz / (169+1) / 10000 = 100Hz, 即 **10ms/拍** ——
+   * 这正是 Key.c 中 KEY_TIME_LONG=50 (500ms) / KEY_TIME_REPEAT=30 (300ms)
+   * 的单位来源。
+   * 注意: 上方那段是 CubeMX 托管区, 不可删除; 本覆盖是唯一有效的配置。 */
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 169;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;

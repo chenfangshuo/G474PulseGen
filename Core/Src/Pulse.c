@@ -39,12 +39,13 @@ static volatile uint32_t s_npulse_count    = 1;
 /* Burst PRF 猝发重复频率 (Hz), 0 = 单次触发 */
 static volatile uint32_t s_burst_prf_hz    = 0;
 
-/* HRTIM 硬件配置结构体 */
-HRTIM_TimeBaseCfgTypeDef TimeBaseCfg = {0};
-HRTIM_TimerCtlTypeDef    TimerCtl    = {0};
-HRTIM_TimerCfgTypeDef    TimerCfg    = {0};
-HRTIM_CompareCfgTypeDef  CompareCfg  = {0};
-HRTIM_OutputCfgTypeDef   OutputCfg   = {0};
+/* HRTIM 硬件配置结构体 (仅本文件使用; 加 static 亦可避免与 hrtim.c 中
+ * 同名的 pTimeBaseCfg 等 CubeMX 生成符号混淆) */
+static HRTIM_TimeBaseCfgTypeDef TimeBaseCfg = {0};
+static HRTIM_TimerCtlTypeDef    TimerCtl    = {0};
+static HRTIM_TimerCfgTypeDef    TimerCfg    = {0};
+static HRTIM_CompareCfgTypeDef  CompareCfg  = {0};
+static HRTIM_OutputCfgTypeDef   OutputCfg   = {0};
 
 /* 私有函数：根据目标微秒时间计算最优 HRTIM 分频比与计数值 */
 static bool Pulse_CalcPrescalerAndCounts(float time_us, uint32_t *out_prescaler, float *out_freq, uint32_t *out_counts)

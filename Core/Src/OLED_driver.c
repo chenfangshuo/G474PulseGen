@@ -14,16 +14,19 @@
 #include "uart_comm.h"   /* PC 镜像推流: UartComm_MirrorFrame */
 
 uint8_t OLED_DisplayBuf[128/8][128];
-bool OLED_ColorMode = true;
+/* 注: 本变量当前**只写不读** (仅被 OLED_SetColorMode 赋值, 无任何读取点),
+ * 且 OLED_SetColorMode 全工程无调用 —— 即色彩模式功能目前实际未生效。
+ * 保留是因为 OLED_SetColorMode 仍在 OLED_driver.h 中作为公开 API 声明,
+ * 若确认不再需要, 可连同该函数一并删除。 */
+static bool OLED_ColorMode = true;
 
 /* 纯异步 DMA 传输控制变量 */
 static volatile bool s_oled_dma_busy = false;
 static volatile uint8_t s_oled_current_page = 0;
 static volatile bool s_oled_updating = false;
 
-/* 静态帧脏标记对比缓冲区与脏标记 */
+/* 静态帧对比缓冲区 (用于减少重复推流) */
 static uint8_t s_oled_last_frame[128/8][128] = {{0}};
-static volatile bool s_oled_dirty = true;
 
 /* SPI 阻塞发送命令与单字节配置（仅在初始化阶段使用） */
 static void OLED_Write_CMD_Blocking(uint8_t cmd)

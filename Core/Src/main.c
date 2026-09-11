@@ -53,10 +53,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile bool display_update_flag = 1;
-volatile bool waiting_for_trg_flag = 0;
-volatile bool triggered = 0;
-volatile bool g_12v_enable = true;       /* 12V_OUT 手动开关状态 (Setting 页切换, 默认使能) */
+/* 以下三个标志仅 main.c 内部使用 (定时器 ISR 与主循环同属一个编译单元),
+ * 加 static 不影响其 volatile 语义 —— volatile 保证不被缓存, static 只改变
+ * 链接可见性, 两者相互独立。 */
+static volatile bool display_update_flag = 1;
+static volatile bool waiting_for_trg_flag = 0;
+static volatile bool triggered = 0;
+volatile bool g_12v_enable = true;       /* 12V_OUT 手动开关状态 (Setting 页切换, 默认使能);
+                                            被 uart_comm.c 与 WouoUI_user.c 引用, 不可加 static */
 
 extern Option n_pulse_option_array[];
 extern Option n_pulse_long_option_array[];
@@ -65,9 +69,10 @@ extern Option pwm_option_array[];
 extern Option pwm_long_option_array[];
 extern Option comp_pwm_option_array[];
 extern Option comp_pwm_long_option_array[];
-int32_t last_count = 0;
-int32_t current_count = 0;
-int32_t diff = 0;
+/* 计数器差分 (仅本文件使用) */
+static int32_t last_count = 0;
+static int32_t current_count = 0;
+static int32_t diff = 0;
 // volatile bool OLED_UPDATE_DONE = true;
 /* USER CODE END PV */
 

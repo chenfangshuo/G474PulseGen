@@ -12,31 +12,34 @@ extern volatile uint8_t PULSE_MODE;
 extern volatile bool g_12v_enable;
 
 //--------定义页面对象
-TitlePage main_page;
-    ListPage n_pulse_page;
-    ListPage n_pulse_long_page;
-    ListPage double_pulse_page;
-    ListPage pwm_page;
-    ListPage pwm_long_page;
-    ListPage comp_pwm_page;
-    ListPage comp_pwm_long_page;
-        ListWin ch_sel_page;
-        ListWin polarity_sel_page;
-        ListWin comp_pair_sel_page;
-        SpinWin pw_spin_page;
-    ListPage setting_page;
-        MsgWin common_msg_page; //共用的消息弹窗
-        ValWin common_val_page; //共用的数值弹窗
-    ListPage about_page;
-        ListPage about_origin_page;
-            ListPage about_wououi_page;
-            ListPage about_version_page;
+// 全部页面对象仅本文件使用 (已核验无跨文件引用), 故加 static 收敛符号可见性。
+// 注意: 下方的 Option[]/String[] 数据数组被 Preset.c / uart_comm.c / main.c 引用,
+// 属对外契约, 不可加 static。
+static TitlePage main_page;
+    static ListPage n_pulse_page;
+    static ListPage n_pulse_long_page;
+    static ListPage double_pulse_page;
+    static ListPage pwm_page;
+    static ListPage pwm_long_page;
+    static ListPage comp_pwm_page;
+    static ListPage comp_pwm_long_page;
+        static ListWin ch_sel_page;
+        static ListWin polarity_sel_page;
+        static ListWin comp_pair_sel_page;
+        static SpinWin pw_spin_page;
+    static ListPage setting_page;
+        static MsgWin common_msg_page; //共用的消息弹窗
+        static ValWin common_val_page; //共用的数值弹窗
+    static ListPage about_page;
+        static ListPage about_origin_page;
+            static ListPage about_wououi_page;
+            static ListPage about_version_page;
 //--------定义每个页面需要的一些参数
 // 部分页面内选项个数
 #define MAIN_PAGE_NUM         9 //因为有两个数组所以做宏定义
 // 定义部分页面选项
 //********main页面的选项
-Option main_option_array[MAIN_PAGE_NUM] =
+static Option main_option_array[MAIN_PAGE_NUM] =
 {
         // {.text = (char *)"! WouoUI"},
         {.text = (char *)"+ Multi Pulse"},
@@ -52,7 +55,7 @@ Option main_option_array[MAIN_PAGE_NUM] =
         {.text = (char *)"! About"}
 };
 // main页面的图标
-Icon main_icon_array[MAIN_PAGE_NUM] =
+static Icon main_icon_array[MAIN_PAGE_NUM] =
     {
         // [0] = {0xFC, 0xFE, 0xFF, 0x3F, 0x1F, 0x0F, 0x07, 0x03, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
         //        0x01, 0x01, 0x01, 0x01, 0x01, 0x03, 0x07, 0x07, 0x0F, 0x1F, 0x3F, 0xFF, 0xFE, 0xFC, 0xFF, 0x01,
@@ -380,14 +383,14 @@ Option setting_option_array[] ={
 };
 
 // about页面的选项数组
-Option about_option_array[] ={
+static Option about_option_array[] ={
         {.text = (char *)"+ Radio box"},    // 原wououi的说明
         {.text = (char *)"+ About wouo"},   // 第一项只是说明
         {.text = (char *)"+ Page version"}, // Page version的说明
 };
 
 // about wououi页面的数组
-Option about_origin_array[] ={
+static Option about_origin_array[] ={
         {.text = (char *)"- Radio box"},
         {.text = (char *)"# test1", .val = 1,},
         {.text = (char *)"# test2", .val = 0,},
@@ -395,7 +398,7 @@ Option about_origin_array[] ={
         {.text = (char *)"@ test4", },
         {.text = (char *)"@ test5", },
 };
-Option about_wououi_array[] ={
+static Option about_wououi_array[] ={
         {.text = (char *)"- From WouoUI1.2"},
         {.text = (char *)"- Thanks for the "},
         {.text = (char *)"  original author"},
@@ -406,7 +409,7 @@ Option about_wououi_array[] ={
         {.text = (char *)"  github.com/"},
         {.text = (char *)"  RQNG/WouoUI"},
 };
-Option about_version_array[] ={
+static Option about_version_array[] ={
         {.text = (char *)"- Page Version"},
         {.text = (char *)"- MyBilili UID:"},
         {.text = (char *)"@ 679703519"},
