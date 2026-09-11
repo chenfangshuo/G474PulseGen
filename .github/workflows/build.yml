@@ -89,8 +89,14 @@ jobs:
           arm-none-eabi-size build/${{ matrix.preset }}/G474PulseGen.elf | tee size.txt
 
       - name: 上传固件与体积报告
-        # 同上, 避免 Node 20 弃用告警
-        uses: actions/upload-artifact@v5
+        # ⚠ 必须是 v6, 不能是 v5 —— 这里踩过一次, 记下来:
+        #   upload-artifact@v5 只是**初步**支持 Node 24, 默认仍跑在 Node 20,
+        #   所以 v5 照样会报 "Node.js 20 is deprecated"。v6 才把
+        #   runs.using 改成 node24 (v5.0.0 的说明里把这次改动标为 BREAKING,
+        #   实际只是运行时切换, 输入参数不变)。
+        #   注意这与 checkout 不同 —— checkout@v5 就已经是 Node 24 了。
+        #   v6 要求 Actions Runner >= 2.327.1, 只影响自建 runner。
+        uses: actions/upload-artifact@v6
         with:
           name: G474PulseGen-${{ matrix.preset }}
           path: |
