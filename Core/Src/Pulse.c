@@ -47,7 +47,32 @@ static HRTIM_TimerCfgTypeDef    TimerCfg    = {0};
 static HRTIM_CompareCfgTypeDef  CompareCfg  = {0};
 static HRTIM_OutputCfgTypeDef   OutputCfg   = {0};
 
-/* 私有函数：根据目标微秒时间计算最优 HRTIM 分频比与计数值 */
+/**
+ * @brief  根据目标时间选择最优 HRTIM 分频档并换算计数值
+ * @param  time_us        目标时间 [µs], 必须 > 0
+ * @param  out_prescaler  [out] HRTIM_PRESCALERRATIO_* 分频档 (可为 NULL)
+ * @param  out_freq       [out] 该档下的等效计数频率 [Hz] (可为 NULL)
+ * @param  out_counts     [out] 换算后的计数值 (可为 NULL)
+ * @retval true   成功
+ * @retval false  time_us <= 0
+ *
+ * @note   八档阈值 (fHRTIM = 170MHz, 由 SYSCLK 倍频回 170MHz):
+ *           MUL32 ≤ 11.8µs | MUL16 ≤ 23.8µs | MUL8 ≤ 47.9µs | MUL4 ≤ 96.0µs
+ *           MUL2  ≤ 192.4µs | DIV1 ≤ 385.1µs | DIV2 ≤ 770.4µs | DIV4 其余
+ *         阈值 ≈ 0xFFDF / 等效频率, 即保证 16bit 计数值刚好够用; 取"由快到慢"
+ *         的第一档, 使分辨率尽可能高。
+ *
+ * @note   计数值钳位到 [96, 0xFFDF]:
+ *         - 上限 0xFFDF (65503) 是 16bit 寄存器的安全上限, 留有余量;
+ *         - 下限 96 是**比较事件最小宽度**的绝对下限 —— 低于此值 Reset 事件可能
+ *           被硬件漏掉, 输出卡在有效电平, 等效 100% 占空比, 对功率级是危险状态。
+ *
+ * @warning 各档阈值与钳位值均为**实测标定**, 改动任一常量都会改变输出频率/占空比,
+ *          必须做全量程复测, 不能只抽查一两个点。
+ * @note   本函数只做换算、不写寄存器。
+ * @note   本函数的档位表与 Pulse_CalcNpulseTiming() 中的 tab[8] 是**两份独立
+ *         维护的等价表**, 改动其一必须同步另一处。
+ */
 static bool Pulse_CalcPrescalerAndCounts(float time_us, uint32_t *out_prescaler, float *out_freq, uint32_t *out_counts)
 {
     if (time_us <= 0.0f) return false;
@@ -111,7 +136,21 @@ static bool Pulse_CalcPrescalerAndCounts(float time_us, uint32_t *out_prescaler,
     return true;
 }
 
-/* 同步全局兼容变量到 g_pulse_ctrl */
+/**
+ * @brief  把 g_pulse_ctrl 的权威状态同步到对外兼容变量
+ *
+ * @note   HRTIM_TIMERINDEX_TIMER_X / HRTIM_TIMERID_TIMER_X / HRTIM_OUTPUT_TXX /
+ *         PULSE_OUT_ENABLED / PULSE_POLARITY 是早期版本遗留的"全局当前上下文",
+ *         供 UI 与 SCPI 读取; 权威状态始终在 g_pulse_ctrl。本函数负责把二者对齐。
+ *
+ * @warning 必须在 g_pulse_ctrl 各字段**都已更新之后**再调用, 否则会同步出中间态。
+ *          各 Pulse_*_Init / Pulse_Select_* 函数均在末尾调用它。
+ *
+ * @warning **刻意不同步 PULSE_MODE** (见函数内被注释掉的那一行, 且有明确警示)。
+ *          PULSE_MODE 是模式切换的"期望值", 由 UI/SCPI 写入; 而 g_pulse_ctrl.mode
+ *          在切换过程中会经过中间状态。若在此处回写, 会把中间态覆盖到用户的
+ *          选择上, 导致模式切换异常。**不要恢复这一行。**
+ */
 static void Pulse_SyncContext(void)
 {
     HRTIM_TIMERINDEX_TIMER_X = g_pulse_ctrl.timer_idx;
@@ -290,6 +329,23 @@ void Pulse_Enable_Output(void)
     }
 }
 
+/**
+ * @brief  关断当前输出的软件路径 (正常停机, 非紧急关断)
+ *
+ * @note   关断顺序有讲究, 不可调整:
+ *         1) 先清 is_enabled 并同步上下文 —— 让 ISR 立刻看到"已停机";
+ *         2) 中止短脉冲重触发链 (s_npulse_remain = 0) —— 否则 CMP4 中断仍会
+ *            继续重触发, 与关断动作竞争;
+ *         3) 停 PRF 猝发 + 帧标记拉低;
+ *         4) **先关闭 CMP4 周期结束中断, 再停波形输出** —— 反过来的话, 在
+ *            "输出已停、中断还开着"的窗口里 CMP4 仍可能触发一次重触发;
+ *         5) 停波形输出与计数; 互补模式需同时停 Tx1 与 Tx2 两路。
+ *
+ * @warning 本函数是**正常停机**路径, 只关 HRTIM 输出, **不切 12V**。
+ *          硬件故障/异常场景必须用 Pulse_EmergencyStop() —— 那才是切断 12V
+ *          并封锁全部通道的总闸。
+ * @note   调用前若输出本就未使能, 重复调用是安全的 (幂等)。
+ */
 void Pulse_Disable_Output(void)
 {
     g_pulse_ctrl.is_enabled = false;
@@ -428,13 +484,42 @@ void Pulse_SetPulsePolarity_Low(void)
 
 /* N 脉冲 (短脉冲) 相关函数 */
 
-/* 软件重触发方案的固定开销补偿: 每个脉冲间隙会多出中断响应 + TxRST 重触发的时间,
-   实测稳定约 0.9us, (补偿后最小可实现实际间隔 ≈ 0.9us, 即该开销本身) */
+/* 软件重触发方案的固定开销补偿。
+ * N 脉冲靠 CMP4 中断里软件重触发 (TxRST) 连发, 每个间隙会多出"中断响应 +
+ * 重触发"的时间, 实测稳定约 0.9µs。从用户设定间隔中扣掉该开销, 才能得到
+ * 期望的实际间隔。 */
 #define NPULSE_INTERVAL_COMP_US   0.9f
 #define NPULSE_INTERVAL_MIN_US    0.05f   /* 补偿后最小硬件间隔, 避免 tick 取整退化为 0 */
 
-/* 为 N 脉冲选择分频比并计算周期与比较值:
-   单周期 = PW + Interval, 需保证整周期能容纳在 16bit PER (0xFFDF) 内 */
+/**
+ * @warning NPULSE_INTERVAL_COMP_US 是 **-O3 下实测标定**的经验值 (README 记载它
+ *          曾从 2.0µs 调整为 0.9µs)。它补偿的是**中断响应延迟**, 而中断响应延迟
+ *          直接受优化等级与工具链版本影响 —— **改动编译优化等级、或升级
+ *          arm-none-eabi-gcc 后, 必须用示波器重测 N 脉冲间隔并重新标定该值**,
+ *          否则多脉冲模式的间隔会系统性偏移。
+ * @note    验证方法: 多脉冲模式下测相邻脉冲组的间隔, 与标定基线逐点对比。
+ */
+
+/**
+ * @brief  为 N 脉冲选择分频档, 计算周期值与 CMP2 比较值
+ * @param  pw_us       脉冲宽度 [µs]
+ * @param  interval_us 脉冲间隔 [µs] (调用方已扣除 NPULSE_INTERVAL_COMP_US 补偿)
+ * @param  out_psc     [out] 分频档
+ * @param  out_period  [out] 周期值 (写入 PER)
+ * @param  out_cmp2    [out] CMP2 比较值 (决定脉宽)
+ * @retval true/false  成功 / 整周期无法容纳在 16bit 内
+ *
+ * @note   单周期 = PW + Interval, 必须能容纳进 16bit PER (上限 0xFFDF)。
+ *         本函数按"由快到慢"遍历候选分频档, 取第一个能容纳整周期的档位,
+ *         以保证脉宽分辨率尽可能高。
+ *
+ * @note   tab[8] 与 Pulse_CalcPrescalerAndCounts() 中的八档表是**两份独立维护
+ *         的等价表** (后者按目标时间切档, 本函数按整周期容纳能力切档)。
+ *         **改动其中一处必须同步另一处**, 否则两种模式会得到不同的频率换算。
+ *
+ * @warning 本函数的返回值决定 N 脉冲能否发出; 返回 false 时调用方应放弃本次
+ *          配置而不是继续按越界值写寄存器。
+ */
 static bool Pulse_CalcNpulseTiming(float pw_us, float interval_us,
                                    uint32_t *out_psc, uint32_t *out_period, uint32_t *out_cmp2)
 {
@@ -643,7 +728,21 @@ void Pulse_nPulse_Init(void)
     Pulse_SetPulsePolarity_High();
 }
 
-/* 软件复位 HRTIM 当前定时器 (等价于外部触发 TxRST), 用于多脉冲重触发 */
+/**
+ * @brief  软件复位当前 HRTIM 定时器 (等价于外部触发 TxRST)
+ *
+ * @note   写入 CR2 的对应 TxRST 位, 使定时器在下个周期边界重新计数 ——
+ *         这是 N 脉冲"软件重触发"方案的核心动作: CMP4 中断里调用本函数,
+ *         即可连发下一个脉冲, 无需重新配置时基。
+ *
+ * @note   与 Pulse_TriggerFireAll() 的区别: 后者用**单次** CR2 写同时复位
+ *         波形定时器与 SYNC Timer C (保证 ns 级对齐), 本函数只复位单个
+ *         波形定时器。两者不可互相替代。
+ *
+ * @warning 本函数只对**单次模式 (SINGLESHOT / SINGLESHOT_RETRIGGERABLE)**
+ *          有意义。连续模式下写 TxRST 只是把计数器拉回 0, 不会产生"再发一个
+ *          脉冲"的效果。改动调用点时请确认当前定时器的 Mode 配置。
+ */
 static void Pulse_Hrtim_SoftwareReset(void)
 {
     switch (g_pulse_ctrl.timer_idx)
@@ -862,7 +961,28 @@ void Pulse_dPulse_Init(void)
     Pulse_SetPulsePolarity_High();
 }
 
-/* PWM 相关函数 */
+/**
+ * @brief  配置连续 PWM 的周期与占空比
+ * @param  period_us           周期 [µs], 合法范围 1.0 ~ 1500.0
+ * @param  duty_cycle_percent  占空比 [%], 合法范围 0 ~ 100 (整数)
+ * @retval true   配置成功
+ * @retval false  参数越界, 或周期换算后小于下限 96
+ *
+ * @note   周期值经 Pulse_CalcPrescalerAndCounts() 选择分频档后换算, 上限
+ *         0xFFDF、下限 96 (同该函数说明)。
+ *
+ * @note   must_realign 三条判据 (换分频档 / PER 收缩 / 停机态) 读的是**旧 PER**
+ *         而非当前 CNT。原因: CNT 在运行中持续变化, 用它会得到不确定结果。
+ *         需要重对齐时先关输出 -> 写时基 -> SoftwareUpdate + CNT=0 -> 再恢复输出,
+ *         否则 CNT 会冲向 0xFFFF, 产生一个畸变周期 (示波器上是一次可见的
+ *         异常宽脉冲)。
+ *
+ * @warning `cmp_min_tab` 的值随分频档变化 (RM0440: CK_PSC=0→0x60, 1→0x30,
+ *          2→0x18, 3→0x0C, 4→0x06, ≥5→0x03), 含义是**比较事件的最小宽度**。
+ *          低于该值时 Reset 事件可能被硬件漏掉, 输出卡在有效电平 = 等效 100%
+ *          占空比 —— 对功率级是危险状态, 该钳位不可去掉。
+ * @warning 本函数会被 UI/SCPI 在运行中调用, 不得移除 must_realign 门控。
+ */
 bool Pulse_PWM_SetPW(float period_us, int32_t duty_cycle_percent)
 {
     /* ---------- 1. 入参合法性 ---------- */

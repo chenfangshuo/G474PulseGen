@@ -334,6 +334,23 @@ void Trigger_Pulse(void)
     TIM16->CNT = 0;   /* 复位状态刷新定时器, 立即刷新触发状态文本 */
 }
 
+/**
+ * @brief  定时器更新中断统一回调 (4 个定时器的分支汇合点)
+ * @param  htim  触发本次更新的定时器句柄
+ *
+ * @note   四个分支的职责与节拍 (周期值均在 tim.c 中, 按 170MHz 定时器时钟换算):
+ *           TIM6  PSC=33 / ARR=55554   → ~90Hz     置 display_update_flag, 驱动 OLED 刷新节拍
+ *           TIM7  PSC=169 / ARR=9999   → 100Hz(10ms) 调用 Key_Tick(), 按键扫描状态机
+ *           TIM16 PSC=2719 / ARR=40000 → ~1.56Hz   刷新 N 脉冲页的状态文本
+ *                                                   (--BURST RUNNING-- / --OUTPUT DISABLED-- 等)
+ *           TIM5  PSC=0, ARR 由运行时设定 → 最长长脉冲的周期起点处理
+ *                                            (PWM_LONG / 互补 lPWM)
+ *
+ * @warning 本回调在**中断上下文**执行, 全部分支都不得加入阻塞调用、动态内存
+ *          或耗时绘制。OLED 实际绘制发生在主循环 (消费 display_update_flag),
+ *          这里只置标志。
+ * @note    HAL 回调签名由 HAL 库固定, 不可修改 (改动会导致 HAL 无法路由)。
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == TIM6) // 检查对应定时器

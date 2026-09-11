@@ -325,6 +325,20 @@ static void UcSyncUiEnableOutput(uint8_t enabled)
 
 /* ---- SCPI 解析与分发 ---- */
 
+/**
+ * @brief  执行一条 SCPI 文本命令
+ * @param  line  以 '\0' 结尾的命令串 (可含尾部 \r\n, 内部会截断)
+ *
+ * @note   解析流程: 复制到本地 buf 并**统一大写化** (故命令大小写不敏感),
+ *         去尾部 CR/LF, 再按 ':' 与空白切分出 token 逐级分发。
+ *         命令树形如 PULSE:MODE / PULSE:WIDTH / 12V:ON / TRIG 等 ——
+ *         完整命令表可用 SCPI "HELP" 命令从设备回读, 或查阅 README。
+ *
+ * @warning 参数解析使用 atoi/atof 系 (见文件内各分支), 它们**没有错误检测**:
+ *          非法输入返回 0 而非报错。即 "PULSE:WIDTH abc" 会被当作 0 处理,
+ *          随后由 Pulse_*_SetPW() 的范围校验决定是否拒绝。这是既有行为,
+ *          改动解析函数时必须保持一致 (见方案 7.4)。
+ */
 static void UcScpiExec(const char *line)
 {
     char buf[UC_CMD_MAX];

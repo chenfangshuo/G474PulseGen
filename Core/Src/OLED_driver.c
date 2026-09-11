@@ -108,6 +108,25 @@ void OLED_SetCursor(uint8_t Page, uint8_t X)
     OLED_CS_Set();
 }
 
+/**
+ * @brief  设置 OLED 显示坐标 (页地址 / 列地址), 供 DMA 分页流水线使用
+ * @param  page  页号 (0~15, 每页 8 行像素), 写入 0xB0|page
+ * @param  x     列号 (0~127), 拆成高 4 位 (0x10|高) 与低 4 位 (0x00|低) 两次发送
+ *
+ * @note   本函数**不使用 HAL 阻塞发送**, 而是直接轮询 SPI1 的 TXE/BSY 标志写 DR ——
+ *         因为它在 DMA 分页流水线的互锁流程中被调用, 必须在 DMA 下一次传输前
+ *         确定性地完成, 不能引入 HAL 的超时/中断开销。
+ *
+ * @note   两个超时上限 20000u 是**有界自旋保护**, 不是精确的时间常量:
+ *         SPI1 时钟下发送 3 字节远小于该循环次数, 正常路径永远走不到。
+ *         它存在的目的是"绝不死等"—— 一旦 SPI 外设异常 (时钟未使能、CS 被外部
+ *         拉低等), 宁可放弃本次发送并释放 CS, 也不能卡在 while 里让整个显示
+ *         流水线停摆。
+ *
+ * @warning abort 标签后的 OLED_CS_Set() 是**所有退出路径的唯一汇合点** ——
+ *          无论正常完成还是超时退出都必须走到, 否则 CS 会永久保持低电平,
+ *          导致后续所有 SPI 事务失效。修改本函数时务必保持这一点。
+ */
 static void OLED_SetCursor_ISR(uint8_t page, uint8_t x)
 {
     const uint8_t c[3] = {(uint8_t)(0xB0 | (page & 0x0F)),

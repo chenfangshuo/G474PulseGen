@@ -50,6 +50,28 @@ uint8_t Key_Check(uint8_t n, uint8_t Flag)
 	return ret;
 }
 
+/**
+ * @brief  按键扫描与状态机节拍 (由 TIM7 中断每 10ms 调用一次)
+ *
+ * @note   时基: TIM7 在 tim.c 中被覆写为 PSC=169 / ARR=9999, 即
+ *         170MHz ÷ (169+1) ÷ 10000 = 100Hz → **10ms/拍**。
+ *         故本文件顶部的时间常量单位都是"拍":
+ *           KEY_TIME_LONG   = 50 → 500ms (长按判定阈值)
+ *           KEY_TIME_REPEAT = 30 → 300ms (长按连发重复间隔)
+ *           KEY_TIME_DOUBLE = 0  → 松开后立即判定为单击 (双击窗口为 0 拍)
+ *
+ * @note   状态机 S[i] 的五个取值 (裸魔数, 建议后续换成 enum):
+ *           S=0 空闲          —— 等待按下
+ *           S=1 按下确认中    —— 按下后计时; 若中途松开转 S=2; 若超时转 S=4 并置 KEY_LONG
+ *           S=2 等待双击      —— 已松开, 等待二次按下; 二次按下则置 KEY_DOUBLE 转 S=3;
+ *                                超时则置 KEY_SINGLE 回 S=0
+ *           S=3 双击已完成    —— 等待松开后回 S=0
+ *           S=4 长按连发中    —— 每超时一次置 KEY_REPEAT (保持 S=4); 松开回 S=0
+ *
+ * @warning 本函数运行在 **TIM7 中断上下文**, 内部不得加入阻塞调用或耗时操作。
+ *          它写入的 Key_Flag[] 由主循环 Key_Check() 读取 —— Key_Flag 必须保持
+ *          volatile, 且当前为文件级 static。
+ */
 void Key_Tick(void)
 {
 	static uint8_t i;

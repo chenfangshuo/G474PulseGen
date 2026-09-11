@@ -4,6 +4,20 @@
 #include "main.h"
 #include <stdbool.h>
 
+/* ===================== 公共 API 的单位约定 =====================
+ * 本模块的 float 参数一律使用**物理单位**, 由调用方负责缩放:
+ *   - 时间: 短脉冲/HRTIM 路径用 **µs**; 超长路径用 **s**;
+ *           死区用 **ns** (HRTIM 硬件死区) 或 **ms** (TIM5 软件死区)
+ *   - 占空比: **百分数** (0~100 或 0.01~100), 不是 0~1 的小数
+ *
+ * UI 与 SCPI 侧传参前会做定点缩放, 而该缩放目前**分散在三处独立书写**:
+ *   WouoUI_user.c (UI 旋钮)   /100.0f、/1000.0f
+ *   uart_comm.c   (SCPI 文本) 同上
+ *   Preset.c      (Flash 存取) 同上
+ * 三处必须保持一致 —— 改动任一处的放大倍率都要同步其余两处, 否则会出现
+ * "屏幕显示正常但 SCPI 下发值差 10 倍"这类很难定位的问题。
+ * ============================================================= */
+
 /* 输出通道定义 (对齐 HARDWARE.md §5.1 输出映射) */
 #define CH_NONE                         0
 #define CH1                             1   /* HRTIM1_CHB2 (PA11 -> Y1) */
@@ -18,7 +32,7 @@
 #define SYNC_OUT_Pin                    GPIO_PIN_13   /* Y7 = HRTIM CHC2, SYNC OUT */
 #define FRAME_OUT_GPIO_Port             GPIOB
 #define FRAME_OUT_Pin                   GPIO_PIN_12   /* Y8 = 帧/猝发标记 (软件 GPIO) */
-#define SYNC_OUT_WIDTH_TICKS            1088U         /* SYNC 脉宽 200ns @ MUL32 (5.44GHz) */
+#define SYNC_OUT_WIDTH_TICKS            1088U         /* SYNC 脉宽 200ns: 1088 = 200ns × 5.44GHz, 其中 5.44GHz = 170MHz × 32 (MUL32 档) */
 #define BURST_PRF_MAX_HZ                100000U       /* PRF 猝发重复频率上限 */
 
 /* 发波模式定义 */
@@ -40,6 +54,7 @@
 #define PULSE_POLARITY_HIGH             0
 #define PULSE_POLARITY_LOW              1
 
+/* µs → s: 供 roundf(t_s × f_HRTIM) 做频率换算前消除量纲 */
 #define US_TO_S(us)         ((float)(us) / 1000000.0f)
 
 /* HRTIM 通道 GPIO 硬件语义宏 (严格遵循 HARDWARE.md §5.1) */

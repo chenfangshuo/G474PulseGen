@@ -61,6 +61,23 @@ static uint8_t Preset_PairIdx(String content)
 }
 
 /* ---------- CRC ---------- */
+/**
+ * @brief  计算参数结构的校验和
+ * @param  d  待计算的数据结构
+ * @return 校验值 (调用方同时写入 d->crc, 供下次 Load 比对)
+ *
+ * @note   算法是**自研的简单求和 + 版本异或**, 并非标准 CRC:
+ *           sum = Σ(w[3..n]) ^ version
+ *         跳过前 3 个 32 位字 (magic / version / crc 自身), 避免自引用。
+ *
+ * @warning 这不是强校验, 只能发现多数位翻转, 不能抵御蓄意构造。
+ *          它的目的是回答"Flash 读回的数据是否可信"。
+ *          **不要**单方面替换成"更标准"的 CRC —— version 参与异或,
+ *          换算法必须同步提升 PRESET_VERSION, 否则旧数据会被误判为有效。
+ * @note   按 32 位字遍历要求 PresetData_t 内部**无填充洞**且 4 字节对齐。
+ *          改动该结构体的成员类型/顺序时务必检查这一点, 否则会读到未初始化
+ *          字节, 导致校验随机失败 (表现为"保存正常但下次开机读不回来")。
+ */
 static uint32_t Preset_CalcCrc(const PresetData_t *d)
 {
     const uint32_t *w = (const uint32_t *)d;
@@ -71,6 +88,22 @@ static uint32_t Preset_CalcCrc(const PresetData_t *d)
 }
 
 /* ---------- Flash 底层 ---------- */
+/**
+ * @brief  擦除参数存储页 (最后一页 2KB @ 0x0807F800)
+ * @retval true  擦除成功
+ * @retval false HAL 返回非 HAL_OK
+ *
+ * @note   页号依 FLASH_OPTR 的 DBANK 选项位**运行时**判定:
+ *           DBANK=1 (双 bank): bank2 / page 127
+ *           DBANK=0 (单 bank): bank1 / page 255
+ *         两种配置下都落在 2KB 的最后一页, 与代码区 (约 106KB) 相距很远。
+ *
+ * @warning 若改动存储位置, 必须**同时**修改 PRESET_FLASH_ADDR 与本函数的
+ *          bank/page, 并确认所选页在链接脚本 STM32G474XX_FLASH.ld 的 FLASH
+ *          区域之外 —— 否则会擦掉程序代码。
+ * @note   擦除前清全部 Flash 错误标志, 避免上一次操作遗留的 ECC 错误
+ *          导致本次擦除直接失败。
+ */
 static bool Preset_ErasePage(void)
 {
     FLASH_EraseInitTypeDef e = {0};
@@ -101,6 +134,21 @@ static bool Preset_ErasePage(void)
     return (st == HAL_OK);
 }
 
+/**
+ * @brief  把参数结构逐双字写入 Flash
+ * @param  d  待写入的数据
+ * @retval true  全部双字写入成功
+ * @retval false 某个双字写入失败 (已加锁后返回)
+ *
+ * @note   必须按**双字 (64bit)** 编程 —— 这是 STM32G4 Flash 的最小写入粒度。
+ *         用 memcpy 逐 8 字节取数是为了规避未对齐访问: PresetData_t 内部
+ *         未必 8 字节对齐, 直接按 uint64_t* 解引用会触发 HardFault。
+ *
+ * @warning 写入前该页必须已擦除 (Flash 只能 1→0 单向写入)。本函数**不负责
+ *          擦除**, 由调用方 Preset_Save() 先调用 Preset_ErasePage()。
+ * @note   所有失败路径都先 HAL_FLASH_Lock() 再返回, 不要漏掉加锁 ——
+ *          未加锁会让后续任何代码都能误写 Flash。
+ */
 static bool Preset_ProgramPage(const PresetData_t *d)
 {
     const uint8_t *src = (const uint8_t *)d;
@@ -123,6 +171,23 @@ static bool Preset_ProgramPage(const PresetData_t *d)
 }
 
 /* ---------- 保存: UI 数组 -> PresetData_t -> Flash ---------- */
+/**
+ * @brief  保存当前全部 UI 参数到 Flash
+ * @retval true  保存成功
+ * @retval false 擦除或写入失败
+ *
+ * @note   数据来源是各模式的 `*_option_array[].val` / `.content` (UI 数据模型,
+ *         定义于 WouoUI_user.c) —— 即**保存的是 UI 上显示的值**, 而不是从
+ *         硬件寄存器回读的实际值。因此调用前应确保 UI 与硬件已同步。
+ * @note   下拉选项 (通道/极性/互补对) 存的是**索引**而非字符串, 由
+ *         Preset_ChannelIdx / Preset_PolarityIdx / Preset_PairIdx 做转换;
+ *         转换失败返回 0 (即默认选项), 这是有意的容错。
+ *
+ * @warning 结构体的成员顺序/类型变更等同于 Flash 布局变更, **必须同步提升
+ *          PRESET_VERSION** —— 否则新固件会把旧固件写的数据按错误布局解读,
+ *          且因 magic 相同而不会拒绝。
+ * @note   完整写入流程: 组装 -> 算 CRC -> 擦页 -> 逐双字编程。
+ */
 bool Preset_Save(void)
 {
     PresetData_t d;
