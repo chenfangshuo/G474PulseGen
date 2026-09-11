@@ -1,0 +1,89 @@
+name: 构建验证
+
+# 目的: 每次 push / PR 都验证「代码能编译、零告警、CubeMX 不变量未被破坏」。
+# 这是本工程对贡献者唯一的硬性门槛, 见 CONTRIBUTING.md 的 PR 自查清单。
+#
+# 注意: 本工程是嵌入式固件, CI 只能验证到「编译通过」为止 —— 波形是否正确、
+# 故障封锁是否生效, 必须在实机上用示波器验证, 无法在此覆盖。
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:        # 允许在 Actions 页面手动触发
+
+jobs:
+  build:
+    name: 编译 (${{ matrix.preset }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [Debug, Release]
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装工具链
+        run: |
+          sudo apt-get update
+          # Ninja 是 CMakePresets.json 里指定的生成器, 缺了会直接配置失败。
+          # gcc-arm-none-eabi 用发行版仓库的版本 —— 与 README §9.1 推荐的
+          # ST 官方 14.3.rel1 可能不同, 但本工程刻意不加 -Werror, 因此工具链
+          # 小版本差异不会卡死构建 (这正是当初不加 -Werror 的理由之一)。
+          sudo apt-get install -y --no-install-recommends \
+            gcc-arm-none-eabi ninja-build cmake
+          echo "--- 实际使用的工具链版本 ---"
+          arm-none-eabi-gcc --version | head -1
+          cmake --version | head -1
+          ninja --version
+
+      - name: 配置
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: 编译
+        id: build
+        run: |
+          set -o pipefail
+          cmake --build build/${{ matrix.preset }} 2>&1 | tee build.log
+
+      - name: 检查编译告警
+        # -Wall -Wextra 全开且要求零告警, 但本工程刻意不加 -Werror, 所以由
+        # 这一步兜底。
+        #
+        # ⚠ 不能简单 grep 'warning:' —— lto-wrapper 会输出
+        #     lto-wrapper.exe: warning: using serial compilation of 3 LTRANS jobs
+        #   这一行**含** "warning:" 但不是编译告警, 直接匹配会让本步骤在每次
+        #   构建都误报失败。可区分的特征是: 真实 GCC 告警形如
+        #     <路径>:<行>:<列>: warning: <消息> [-Wflag]
+        #   带行号列号前缀; lto-wrapper 那行没有。
+        #   因此先全量匹配, 再排除 lto-wrapper 开头的行。
+        run: |
+          grep -E 'warning:' build.log | grep -vE '^lto-wrapper(\.exe)?:' > warns.txt || true
+          if [ -s warns.txt ]; then
+            echo "::error::构建产生了编译告警, 请修复后重新提交 (见 CONTRIBUTING.md)"
+            cat warns.txt
+            exit 1
+          fi
+          echo "✓ 零编译告警"
+
+      - name: 确认产物存在
+        run: |
+          test -f build/${{ matrix.preset }}/G474PulseGen.elf
+          arm-none-eabi-size build/${{ matrix.preset }}/G474PulseGen.elf | tee size.txt
+
+      - name: 上传固件与体积报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: G474PulseGen-${{ matrix.preset }}
+          path: |
+            build/${{ matrix.preset }}/G474PulseGen.elf
+            size.txt
+          retention-days: 14
+
+# CubeMX 重新生成不变量检查 (14 项) 无需单独一步 —— 它已通过
+# CMakeLists.txt 的 add_custom_target(check_regen_invariants ALL) 挂在构建
+# 前置依赖上, FATAL 项不通过会直接让上面的「编译」步骤失败。

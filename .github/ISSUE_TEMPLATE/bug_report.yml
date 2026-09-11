@@ -1,0 +1,94 @@
+name: 缺陷报告
+description: 报告一个可复现的问题（波形不对、保护失效、编译失败等）
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。本项目是**工程样板的固件**，问题定位高度依赖现场信息——
+        请尽量把下面几项填全，尤其是波形与版本。
+
+        > ⚠ 涉及**上下桥直通、故障封锁失效、上电打出寄生脉冲**这类安全问题，
+        > 请直接在标题里写明「安全问题」，会优先处理。
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 问题类别
+      options:
+        - 波形不对（脉宽/间隔/极性/死区偏差）
+        - 安全逻辑（故障封锁、急停、12V 门控）
+        - 编译 / 构建
+        - 上位机工具（pc_host）
+        - 文档与实际不符
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 你做了什么、期望什么、实际发生了什么。
+      placeholder: |
+        例：N 脉冲模式设 1 µs 脉宽 / 4 µs 间隔，实测间隔是 5.2 µs 而不是 5.0 µs。
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: 固件版本
+      description: |
+        填入 commit hash，或 SCPI 的 `*IDN?` 响应。
+        改过代码的话，请填你基于哪个 commit 修改的。
+      placeholder: "例：655a29f 或 PulseGen,G474PulseGen,0001,1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: 板卡批次 / 硬件改动
+      description: |
+        当前板卡是工程样板。如果你改过硬件（换过 U3、补过匹配电阻等），
+        必须在这里说明——很多问题与样板偏差直接相关，见 README §12 / HARDWARE.md §1.1。
+      placeholder: "例：样板原样未改 / U3 已换回 NCV7805 / 输出串阻由 20Ω 改为 33Ω"
+    validations:
+      required: true
+
+  - type: textarea
+    id: waveform
+    attributes:
+      label: 示波器实测波形
+      description: |
+        **发波类问题必填。** 请附截图并注明测量条件：
+        探头倍率、输入阻抗、带宽限制、时基、测的是哪一路（Y1~Y8）。
+        只描述数值而不给测量条件，往往无法判断。
+      placeholder: |
+        探头 1× / 1 MΩ / 20 MHz 带宽限制，时基 2 µs/div
+        C1 = Y1 (CH1)，C2 = Y7 (SYNC OUT)
+        [在这里贴图]
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 越具体越好。如果是 SCPI 触发的，请贴出完整命令序列。
+      placeholder: |
+        1. 进 Double Pulse 页
+        2. 设 PW1=10 / INTV=5 / PW2=5
+        3. 勾 Enable Output，按触发键
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他信息
+      description: |
+        工具链版本、构建方式、是否改过代码、相关日志等。
+        构建失败请附 `cmake --preset Debug && cmake --build build/Debug` 的完整输出。
+    validations:
+      required: false
