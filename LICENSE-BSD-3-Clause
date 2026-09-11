@@ -1,0 +1,61 @@
+BSD 3-Clause License
+====================
+
+适用范围 / Scope
+----------------
+
+本文件收录 BSD-3-Clause 许可正文，适用于本仓库中下列由 STMicroelectronics
+发布的第三方组件：
+
+    Drivers/STM32G4xx_HAL_Driver/       STM32G4 HAL 驱动
+    startup_stm32g474xx.s               启动文件
+    Core/ 下由 STM32CubeMX 生成的 .c/.h 文件
+                                        （main.c / gpio.c / hrtim.c 等；
+                                         其中的 USER CODE 保护块内代码除外，
+                                         那部分属本项目自有，见根 LICENSE）
+
+依据 `Drivers/STM32G4xx_HAL_Driver/LICENSE.txt` 的说明：
+「applicable license terms are in the Package_license file. If you received
+this software component outside of a package or without applicable license
+terms, the terms of the BSD-3-Clause license shall apply.」
+
+本仓库只抽取了 `Drivers/` 子树，STM32Cube 包根部的 `Package_license` 文件
+不在其中，因此上述 fallback 条款生效 —— 即 BSD-3-Clause。
+
+**收录全文的缘由**：BSD-3-Clause 第 2 条要求再分发时复制「版权声明、条款列表
+与免责声明」三者。此前本仓库只有一句 URL 指向 opensource.org，条款正文与免责
+声明均未复制，技术上未满足该条要求。此文件即为补齐。
+
+本仓库作者不对上述组件主张任何权利。以下正文照录自 Open Source Initiative
+(https://opensource.org/license/bsd-3-clause)，未作改动。
+
+
+License Text
+------------
+
+Copyright (c) 2017 STMicroelectronics. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

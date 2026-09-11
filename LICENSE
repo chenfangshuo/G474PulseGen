@@ -33,8 +33,14 @@ SOFTWARE.
 
     Core/Src/Key.c、Core/Inc/Key.h 与 Core/Src/OLED*.c、Core/Inc/OLED*.h
         改编自 B 站「江协科技」公开的 STM32 教学库 (https://jiangxiekeji.com/)。
-        原作品公开发布供学习下载, 但未声明明确的开源许可, 此处保留署名以致谢
-        原作者; 本项目作者编写与修改的部分按上述 MIT 许可发布。
+        原作品公开发布供学习下载, 但未声明明确的开源许可。
+
+        ⚠ 这 8 个文件【整体上不是 MIT 许可的】。上述 MIT 许可仅覆盖本项目作者
+        自写与修改的部分; 其中源自上游的部分, 权利仍归原作者, 本仓库不主张
+        任何权利, 也无权代为授权。此处保留署名以致谢原作者。
+
+        需要将这些文件用于再分发或商业用途的, 请自行向原作者取得授权 ——
+        标上署名并不等于获得许可。
 
     Core/ 下由 CubeMX 生成的 .c/.h 文件中，位于 /* USER CODE BEGIN */ 与
         /* USER CODE END */ 保护块内由本项目作者编写的代码
@@ -49,16 +55,23 @@ SOFTWARE.
       Mozilla Public License 2.0 (MPL-2.0)
       源自 WouoUI-PageVersion, Copyright (c) Sheep118
       https://github.com/Sheep118/WouoUI-PageVersion
+      正文见 LICENSE-MPL-2.0
 
   Drivers/STM32G4xx_HAL_Driver/、startup_stm32g474xx.s
       BSD-3-Clause License, Copyright (c) STMicroelectronics
-      https://opensource.org/licenses/BSD-3-Clause
+      正文见 LICENSE-BSD-3-Clause
 
   Drivers/CMSIS/
       Apache License 2.0, Copyright (c) Arm Limited / STMicroelectronics
-      https://www.apache.org/licenses/LICENSE-2.0
+      正文见 Drivers/CMSIS/LICENSE.txt
 
   Core/ 下由 STM32CubeMX 生成的文件（main.c 等）
       Copyright (c) STMicroelectronics，条款同 STM32 HAL（BSD-3-Clause）
+
+  pc_host/ 所用 Python 依赖【不属于本仓库内容, 也不在 MIT 授权范围内】:
+      pyserial    BSD-3-Clause
+      pygame      GNU LGPL-2.1-or-later
+      pyinstaller GNU GPL-2.0-or-later（附启动器例外条款）
+      清单与版本要求见 pc_host/requirements.txt
 
 详见 README.md 的「许可证」一节。

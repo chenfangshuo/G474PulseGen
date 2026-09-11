@@ -615,9 +615,18 @@ G474PulseGen/
 
 ## 13. 开源组件与致谢
 
-- OLED 菜单框架基于 **[WouoUI-PageVersion](https://github.com/Sheep118/WouoUI-PageVersion)**（作者 Sheep118，MPL-2.0），提供列表 / 弹窗 / 数值编辑等交互控件；上游原始框架为 **[RQNG/WouoUI](https://github.com/RQNG/WouoUI)**。
+- OLED 菜单框架基于 **[WouoUI-PageVersion](https://github.com/Sheep118/WouoUI-PageVersion)**（作者 Sheep118，MPL-2.0），提供列表 / 弹窗 / 数值编辑等交互控件；上游原始框架为 **[RQNG/WouoUI](https://github.com/RQNG/WouoUI)**。许可正文见 [`LICENSE-MPL-2.0`](LICENSE-MPL-2.0)。
 - OLED 驱动、字库与按键扫描部分改编自 B 站 **「江协科技」**（<https://jiangxiekeji.com/>）公开的 STM32 教学库，详见文末致谢。
-- 底层依赖 **STM32G4 HAL 驱动**（STMicroelectronics，BSD-3-Clause）与 **Arm CMSIS**（Apache-2.0）。
+- 底层依赖 **STM32G4 HAL 驱动**（STMicroelectronics，BSD-3-Clause）与 **Arm CMSIS**（Apache-2.0）。BSD-3-Clause 正文见 [`LICENSE-BSD-3-Clause`](LICENSE-BSD-3-Clause)。
+- 上位机 `pc_host/` 依赖三个 Python 第三方包，**它们不属于本仓库内容，也不在 MIT 授权范围内**：
+
+  | 包 | 许可 | 用途 |
+  |:---|:---|:---|
+  | `pyserial` | BSD-3-Clause | 打开串口、枚举端口 |
+  | `pygame` | **LGPL-2.1-or-later** | GUI 窗口与绘图（惰性导入，`--demo` 与 TCP 模式不需要） |
+  | `pyinstaller` | GPL-2.0-or-later（附启动器例外） | 仅 `build.bat` 打包 exe 时用 |
+
+  版本要求见 [`pc_host/requirements.txt`](pc_host/requirements.txt)。
 
 ---
 
@@ -625,11 +634,17 @@ G474PulseGen/
 
 本项目采用 **MIT + MPL-2.0 混合许可**：
 
-- **[MIT](LICENSE)** —— 除下列 MPL 文件外的全部内容：`Pulse.c` / `uart_comm.c` / `Preset.c` / `Key.c` / `WouoUI_user.c` / `WouoUI_user.h` / `pc_host/` 等自有代码，以及 `README.md` / `HARDWARE.md`。
-- **[MPL-2.0](https://mozilla.org/MPL/2.0/)** —— `Core/Src/` 与 `Core/Inc/` 下的 **16 个 WouoUI 框架文件**（`WouoUI_user.c` / `WouoUI_user.h` 除外）。这部分源自 WouoUI-PageVersion（© Sheep118），按 MPL-2.0 §3.1 必须保持同一许可。
-- **第三方组件**（不在上述授权范围内，各自保留原声明）：STM32 HAL（BSD-3-Clause）、CMSIS（Apache-2.0）、STM32CubeMX 生成代码（STMicroelectronics）。
+- **[MIT](LICENSE)** —— 本项目作者自写的内容：`Pulse.c` / `uart_comm.c` / `Preset.c` / `WouoUI_user.c` / `WouoUI_user.h`、`pc_host/` 的**自有代码**（不含其 Python 依赖）、`README.md` / `HARDWARE.md`，以及 CubeMX 生成文件中位于 `USER CODE` 保护块内的部分。
+- **[MPL-2.0](LICENSE-MPL-2.0)** —— `Core/Src/` 与 `Core/Inc/` 下的 **16 个 WouoUI 框架文件**（`WouoUI_user.c` / `WouoUI_user.h` 除外）。这部分源自 WouoUI-PageVersion（© Sheep118）。MPL-2.0 是**文件级**弱著佐权：按 **§3.3 Larger Works**，把它与自有代码组成更大作品、整体按 MIT 发布是允许的，只要那 16 个文件本身仍按 MPL 提供 —— 本项目正是这么做的，每个文件头都保留了 MPL 声明。
+- **第三方组件**（不在上述授权范围内，各自保留原声明）：STM32 HAL 与 `startup_stm32g474xx.s`（BSD-3-Clause，正文见 [`LICENSE-BSD-3-Clause`](LICENSE-BSD-3-Clause)）、CMSIS（Apache-2.0）、STM32CubeMX 生成代码（STMicroelectronics）、`pc_host/` 的 Python 依赖（pyserial / pygame / pyinstaller，见 §13）。
 
-简单说：**自己的代码随你怎么用，WouoUI 框架那 16 个文件改了要开源。**
+> ⚠ **`Key.c` / `Key.h` / `OLED*.c` / `OLED*.h` 这 8 个文件不能被简单理解为「MIT」。**
+> 它们改编自「江协科技」教学库，而**上游未声明任何开源许可**（详见文末致谢）。
+> 上述 MIT 许可**只覆盖本项目作者自写与修改的部分**；源自上游的部分权利仍归原作者，
+> 本仓库不主张、也无权代为授权。需要再分发或商用的，请自行向原作者取得授权 ——
+> **署名不等于许可**。
+
+简单说：**自己的代码随你怎么用；WouoUI 框架那 16 个文件改了要开源；江协那 8 个文件属于灰色地带，别当成 MIT 用。**
 
 ---
 

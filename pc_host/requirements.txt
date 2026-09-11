@@ -1,0 +1,27 @@
+# G474PulseGen 上位机依赖
+#
+# 安装:
+#     pip install -r pc_host/requirements.txt
+# 打包 exe (可选, 仅 Windows):
+#     pc_host\build.bat
+#
+# 许可说明 (重要):
+#   这三者都是第三方组件, 不在本项目的 MIT 授权范围内, 各自适用其原有许可:
+#     pyserial    BSD-3-Clause
+#     pygame      LGPL-2.1-or-later
+#     pyinstaller GPL-2.0-or-later (附启动器例外条款)
+#   详见根目录 README.md §13/§14。
+
+# ---- 运行期依赖 (oled_mirror.py / demo_scripts.py) ----
+# oled_mirror.py 用 pyserial 打开串口; demo_scripts.py 只依赖标准库, 不需要任何
+# 第三方包 (它通过 TCP 5025 端口间接驱动板子)。
+pyserial>=3.5
+
+# pygame 仅在启动 GUI 时惰性导入 (oled_mirror.py 的 --demo 与 TCP 服务端模式
+# 不需要它)。用到的 API 只有 image.frombuffer / font.SysFont / Rect / Clock,
+# 都是 2.x 起就稳定的部分。
+pygame>=2.0
+
+# ---- 打包依赖 (仅 pc_host/build.bat 需要) ----
+# build.bat 用 --onefile --windowed 打成单体 exe。
+pyinstaller>=6.0
