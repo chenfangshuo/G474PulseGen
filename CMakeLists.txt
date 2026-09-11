@@ -58,24 +58,9 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add sources to executable
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
-    Core/Src/OLED.c
-    Core/Src/OLED_driver.c
-    Core/Src/OLED_Fonts.c
-    Core/Src/WouoUI.c
-    Core/Src/WouoUI_anim.c
-    Core/Src/WouoUI_font.c
-    Core/Src/WouoUI_graph.c
-    Core/Src/WouoUI_msg.c
-    Core/Src/WouoUI_page.c
-    Core/Src/WouoUI_user.c
-    Core/Src/WouoUI_win.c
-    Core/Src/Key.c
-    Core/Src/Pulse.c
-    Core/Src/Preset.c
-    Core/Src/uart_comm.c
-)
+# 用户源文件统一在上方 add_executable() 中声明。
+# 原此处有一份与之完全重复的 15 文件清单，改一处漏一处易出错，已合并删除。
+# 新增用户源文件请直接加到 add_executable() 的列表中。
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

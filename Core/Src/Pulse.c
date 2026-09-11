@@ -261,7 +261,7 @@ void Pulse_Enable_Output(void)
     if (PULSE_MODE == PULSE_MODE_PWM_LONG)
     {
         __HAL_TIM_SET_COUNTER(&htim5, 0);
-        if (lpwm_ccr > 0) { // 首周期立即输出有效电平，无需等待漫长的第一个溢出周期
+        if (lpwm_ccr > 0) { // 首周期立即输出有效电平 (高/低由 PULSE_POLARITY 决定), 无需等待漫长的第一个溢出周期
             if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
                 Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
             else
@@ -591,7 +591,7 @@ void Pulse_nPulse_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED; // 开启预装载防抖
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED; // 预装载"关闭": 写入立即生效, 对齐时机由 must_realign + SoftwareUpdate 显式控制
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
@@ -798,7 +798,7 @@ void Pulse_dPulse_Init(void)
     TimerCfg.StartOnSync = HRTIM_SYNCSTART_DISABLED;
     TimerCfg.ResetOnSync = HRTIM_SYNCRESET_DISABLED;
     TimerCfg.DACSynchro = HRTIM_DACSYNC_NONE;
-    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED; // 开启预装载防抖
+    TimerCfg.PreloadEnable = HRTIM_PRELOAD_DISABLED; // 预装载"关闭": 写入立即生效, 对齐时机由 must_realign + SoftwareUpdate 显式控制
     TimerCfg.UpdateGating = HRTIM_UPDATEGATING_INDEPENDENT;
     TimerCfg.BurstMode = HRTIM_TIMERBURSTMODE_MAINTAINCLOCK;
     TimerCfg.RepetitionUpdate = HRTIM_UPDATEONREPETITION_DISABLED;
@@ -1403,19 +1403,19 @@ void Pulse_Select_CompPair(uint8_t pair_idx)
 
     switch (pair_idx)
     {
-        case COMP_PAIR_CH1_CH2: /* Timer B: TB1(PA10,CH2)=主路, TB2(PA11,CH1)=互补 */
+        case COMP_PAIR_CH1_CH2: /* Timer B: 参考路 Tx1=TB1(PA10, 逻辑 CH2), 互补路 Tx2=TB2(PA11, 逻辑 CH1) */
             g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_B;
             g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_B;
             g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TB1;
             g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TB2;
             break;
-        case COMP_PAIR_CH3_CH4: /* Timer A: TA1(PA8,CH4)=主路, TA2(PA9,CH3)=互补 */
+        case COMP_PAIR_CH3_CH4: /* Timer A: 参考路 Tx1=TA1(PA8, 逻辑 CH4), 互补路 Tx2=TA2(PA9, 逻辑 CH3) */
             g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_A;
             g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_A;
             g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TA1;
             g_pulse_ctrl.output_ch2 = HRTIM_OUTPUT_TA2;
             break;
-        case COMP_PAIR_CH5_CH6: /* Timer D: TD1(PB14,CH6)=主路, TD2(PB15,CH5)=互补 */
+        case COMP_PAIR_CH5_CH6: /* Timer D: 参考路 Tx1=TD1(PB14, 逻辑 CH6), 互补路 Tx2=TD2(PB15, 逻辑 CH5) */
             g_pulse_ctrl.timer_idx  = HRTIM_TIMERINDEX_TIMER_D;
             g_pulse_ctrl.timer_id   = HRTIM_TIMERID_TIMER_D;
             g_pulse_ctrl.output_ch  = HRTIM_OUTPUT_TD1;
@@ -1960,7 +1960,8 @@ uint16_t Pulse_GetLongPulsePin(void)
 
 /* ==================== Y7 SYNC OUT / Y8 帧标记 / Burst PRF ==================== */
 
-/* Y7 帧/猝发标记电平控制 (软件 GPIO, BSRR 原子写) */
+/* Y8 帧/猝发标记电平控制 (软件 GPIO, BSRR 原子写)
+   注意: Y8 = PB12 = FRAME_OUT, 与 Y7 = PB13 = TC2 的硬件 SYNC OUT 是两条独立通路 —— 后者见 Pulse_Sync_Init() */
 void Pulse_Frame_SetActive(void)
 {
     FRAME_OUT_GPIO_Port->BSRR = FRAME_OUT_Pin;
