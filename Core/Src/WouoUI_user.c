@@ -6,7 +6,7 @@
 #include "hrtim.h"
 #include "Pulse.h"
 #include "Preset.h"
-/* 注: 原此处有 PULSE_OUT_ENABLED / PULSE_MODE / g_12v_enable 三条手写 extern。
+/* 注: 原此处有 g_pulse_out_enabled / g_pulse_mode / g_12v_enable 三条手写 extern。
  * 前两条与 Pulse.h 中的声明重复 (本文件已 include Pulse.h), 第三条已在 main.h
  * 中正式声明 (经 Pulse.h 传递包含), 均已删除。 */
 
@@ -428,37 +428,37 @@ bool MainPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         //     WouoUI_MsgWinPageSetContent(&common_msg_page, (char*)"BYD SEMI\n\nIPM\nLV Devices GRP");
         //     WouoUI_JumpToPage((PageAddr)cur_page_addr, &common_msg_page);}
         if (!strcmp(select_item->text, "+ Multi Pulse")) {
-            PULSE_MODE = PULSE_MODE_NPULSE;
+            g_pulse_mode = PULSE_MODE_NPULSE;
             n_pulse_option_array[8].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &n_pulse_page);
         } else if (!strcmp(select_item->text, "+ Multi Pulse Long")) {
-            PULSE_MODE = PULSE_MODE_NPULSE_LONG;
+            g_pulse_mode = PULSE_MODE_NPULSE_LONG;
             n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &n_pulse_long_page);
         } else if (!strcmp(select_item->text, "+ Double Pulse")) {
-            PULSE_MODE = PULSE_MODE_DPULSE;
+            g_pulse_mode = PULSE_MODE_DPULSE;
             double_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &double_pulse_page);
         } else if (!strcmp(select_item->text, "+ PWM")) {
-            PULSE_MODE = PULSE_MODE_PWM;
+            g_pulse_mode = PULSE_MODE_PWM;
             pwm_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &pwm_page);
         } else if (!strcmp(select_item->text, "+ PWM Long")) {
-            PULSE_MODE = PULSE_MODE_PWM_LONG;
+            g_pulse_mode = PULSE_MODE_PWM_LONG;
             pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &pwm_long_page);
         } else if (!strcmp(select_item->text, "+ Comp PWM")) {
-            PULSE_MODE = PULSE_MODE_COMP_PWM;
+            g_pulse_mode = PULSE_MODE_COMP_PWM;
             comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &comp_pwm_page);
         } else if (!strcmp(select_item->text, "+ Comp PWM Long")) {
-            PULSE_MODE = PULSE_MODE_COMP_PWM_LONG;
+            g_pulse_mode = PULSE_MODE_COMP_PWM_LONG;
             comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage((PageAddr)cur_page_addr, &comp_pwm_long_page);
@@ -480,7 +480,7 @@ bool NPulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     if(msg_return == msg) {
         // Pulse_Disable_Output();
         // select_item->val = 0;
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             n_pulse_page.select_item = n_pulse_page.item_num - 2;
             n_pulse_page.ind_y_tgt = (n_pulse_page.item_num - 2) * LIST_LINE_H;
@@ -491,7 +491,7 @@ bool NPulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){ //也可以靠选项的order顺序来识别item(以下顺序为其在数组中的下标)
@@ -533,12 +533,12 @@ bool NPulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -554,7 +554,7 @@ bool NPulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     if(msg_return == msg) {
         // Pulse_Disable_Output();
         // select_item->val = 0;
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             n_pulse_long_page.select_item = n_pulse_long_page.item_num - 2;
             n_pulse_long_page.ind_y_tgt = (n_pulse_long_page.item_num - 2) * LIST_LINE_H;
@@ -565,7 +565,7 @@ bool NPulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){ //也可以靠选项的order顺序来识别item(以下顺序为其在数组中的下标)
@@ -603,12 +603,12 @@ bool NPulseLongPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -624,7 +624,7 @@ bool DoublePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     if(msg_return == msg) {
         // Pulse_Disable_Output();
         // select_item->val = 0;
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             double_pulse_page.select_item = double_pulse_page.item_num - 2;
             double_pulse_page.ind_y_tgt = (double_pulse_page.item_num - 2) * LIST_LINE_H;
@@ -635,7 +635,7 @@ bool DoublePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){ //也可以靠选项的order顺序来识别item(以下顺序为其在数组中的下标)
@@ -673,12 +673,12 @@ bool DoublePulsePage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -694,7 +694,7 @@ bool PWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     if(msg_return == msg) {
         // Pulse_Disable_Output();
         // select_item->val = 0;
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             pwm_page.select_item = pwm_page.item_num - 2;
             pwm_page.ind_y_tgt = (pwm_page.item_num - 2) * LIST_LINE_H;
@@ -705,7 +705,7 @@ bool PWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){ //也可以靠选项的order顺序来识别item(以下顺序为其在数组中的下标)
@@ -739,12 +739,12 @@ bool PWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -760,7 +760,7 @@ bool lPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     if(msg_return == msg) {
         // Pulse_Disable_Output();
         // select_item->val = 0;
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             pwm_long_page.select_item = pwm_long_page.item_num - 2;
             pwm_long_page.ind_y_tgt = (pwm_long_page.item_num - 2) * LIST_LINE_H;
@@ -771,7 +771,7 @@ bool lPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){ //也可以靠选项的order顺序来识别item(以下顺序为其在数组中的下标)
@@ -805,12 +805,12 @@ bool lPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -823,7 +823,7 @@ bool lPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
 bool CompPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
     if(msg_return == msg) {
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             comp_pwm_page.select_item = comp_pwm_page.item_num - 2;
             comp_pwm_page.ind_y_tgt = (comp_pwm_page.item_num - 2) * LIST_LINE_H;
@@ -834,7 +834,7 @@ bool CompPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){
@@ -870,12 +870,12 @@ bool CompPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -888,7 +888,7 @@ bool CompPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
 bool CompLPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
     Option* select_item = WouoUI_ListTitlePageGetSelectOpt(cur_page_addr);
     if(msg_return == msg) {
-        if (PULSE_OUT_ENABLED == 1)
+        if (g_pulse_out_enabled == 1)
         {
             comp_pwm_long_page.select_item = comp_pwm_long_page.item_num - 2;
             comp_pwm_long_page.ind_y_tgt = (comp_pwm_long_page.item_num - 2) * LIST_LINE_H;
@@ -899,7 +899,7 @@ bool CompLPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
         {
             Pulse_Select_Output(CH1);
             Pulse_SetPulsePolarity_High();
-            PULSE_MODE = PULSE_MODE_NONE;
+            g_pulse_mode = PULSE_MODE_NONE;
         }
     }
     if(msg_click == msg){
@@ -931,12 +931,12 @@ bool CompLPWMPage_CallBack(const Page *cur_page_addr, InputMsg msg) {
                 if (!!(select_item->val))
                 {
                     Pulse_Enable_Output();
-                    PULSE_OUT_ENABLED = 1;
+                    g_pulse_out_enabled = 1;
                 }
                 else
                 {
                     Pulse_Disable_Output();
-                    PULSE_OUT_ENABLED = 0;
+                    g_pulse_out_enabled = 0;
                 }
                 break;
             default:
@@ -952,7 +952,7 @@ bool CompPairSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
     {
         uint8_t pair = (uint8_t)comp_pair_sel_page.sel_str_index;
         Pulse_Select_CompPair(pair);
-        if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+        if (g_pulse_mode == PULSE_MODE_COMP_PWM)
         {
             comp_pwm_option_array[1].content = comp_pair_sel_str_array[(int)comp_pair_sel_page.sel_str_index];
             comp_pwm_option_array[2].val = 1000;   // 周期 10.00 us
@@ -961,7 +961,7 @@ bool CompPairSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
             comp_pwm_option_array[5].val = 100;    // 下降沿死区 100 ns
             comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
         }
-        else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+        else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
         {
             comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[(int)comp_pair_sel_page.sel_str_index];
             comp_pwm_long_option_array[2].val = 1000;   // 周期 1.000 s
@@ -1032,18 +1032,18 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
     (void)cur_page_addr;   /* 回调签名由 WouoUI 框架固定; 本页使用文件内全局页面对象, 该参数不用 */
     if (msg_click == msg)
     {
-        if (PULSE_MODE == PULSE_MODE_NPULSE) {
+        if (g_pulse_mode == PULSE_MODE_NPULSE) {
             // N 脉冲个数: 同步保存并刷新
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_option_array[4].val = common_val_page.val;
             Pulse_nPulse_SetPW((float)n_pulse_option_array[3].val / 100.0f,
                                (float)n_pulse_option_array[5].val / 100.0f,
                                (uint32_t)n_pulse_option_array[4].val);
-        } else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG) {
+        } else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG) {
             // 长 N 脉冲个数: 仅保存, 计时由 PW + Interval 决定, 触发时读取
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_long_option_array[4].val = common_val_page.val;
-        } else if (PULSE_MODE == PULSE_MODE_DPULSE) {
+        } else if (g_pulse_mode == PULSE_MODE_DPULSE) {
             // 点击确认时同步保存并刷新双脉冲参数
             if (!strcmp(common_val_page.bg_opt->text, "~ 1nd PW(uS)"))
                 double_pulse_option_array[3].val = common_val_page.val;
@@ -1053,7 +1053,7 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                 double_pulse_option_array[5].val = common_val_page.val;
 
             Pulse_dPulse_SetPW(double_pulse_option_array[3].val, double_pulse_option_array[4].val, double_pulse_option_array[5].val);
-        } else if (PULSE_MODE == PULSE_MODE_COMP_PWM) {
+        } else if (g_pulse_mode == PULSE_MODE_COMP_PWM) {
             // 点击确认时同步保存并刷新互补 PWM 占空比 (死区改用 SpinWin, 见 PWSpinPage_CallBack)
             if (!strcmp(common_val_page.bg_opt->text, "~ Duty(%)"))
                 comp_pwm_option_array[3].val = common_val_page.val;
@@ -1062,7 +1062,7 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                                 (int32_t)comp_pwm_option_array[3].val,
                                 (uint32_t)comp_pwm_option_array[4].val,
                                 (uint32_t)comp_pwm_option_array[5].val);
-        } else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG) {
+        } else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG) {
             // 点击确认时同步保存并刷新互补长 PWM 死区
             if (!strcmp(common_val_page.bg_opt->text, "~ DT(ms)"))
                 comp_pwm_long_option_array[4].val = common_val_page.val;
@@ -1074,7 +1074,7 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
     }
     if (msg_left == msg || msg_up == msg || msg_right == msg || msg_down == msg)
     {
-        if (PULSE_MODE == PULSE_MODE_NPULSE)
+        if (g_pulse_mode == PULSE_MODE_NPULSE)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_option_array[4].val = common_val_page.val;
@@ -1082,12 +1082,12 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                                (float)n_pulse_option_array[5].val / 100.0f,
                                (uint32_t)n_pulse_option_array[4].val);
         }
-        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+        else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ Pulse Count"))
                 n_pulse_long_option_array[4].val = common_val_page.val;
         }
-        else if (PULSE_MODE == PULSE_MODE_DPULSE)
+        else if (g_pulse_mode == PULSE_MODE_DPULSE)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ 1nd PW(uS)"))
                 double_pulse_option_array[3].val = common_val_page.val;
@@ -1098,12 +1098,12 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 
             Pulse_dPulse_SetPW(double_pulse_option_array[3].val, double_pulse_option_array[4].val, double_pulse_option_array[5].val);
         }
-        else if (PULSE_MODE == PULSE_MODE_PWM)
+        else if (g_pulse_mode == PULSE_MODE_PWM)
         {
             pwm_option_array[4].val = common_val_page.val;
             Pulse_PWM_SetPW((float)pwm_option_array[3].val, pwm_option_array[4].val);
         }
-        else if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+        else if (g_pulse_mode == PULSE_MODE_COMP_PWM)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ Duty(%)"))
                 comp_pwm_option_array[3].val = common_val_page.val;
@@ -1113,7 +1113,7 @@ bool CommonValPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                                 (uint32_t)comp_pwm_option_array[4].val,
                                 (uint32_t)comp_pwm_option_array[5].val);
         }
-        else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+        else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
         {
             if (!strcmp(common_val_page.bg_opt->text, "~ DT(ms)"))
                 comp_pwm_long_option_array[4].val = common_val_page.val;
@@ -1131,7 +1131,7 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
     if (msg_click == msg)
     {
         Pulse_Select_Output((int)ch_sel_page.sel_str_index + 1);
-        if (PULSE_MODE == PULSE_MODE_NPULSE)
+        if (g_pulse_mode == PULSE_MODE_NPULSE)
         {
             n_pulse_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
             n_pulse_option_array[2].content = polarity_sel_str_array[0];
@@ -1139,7 +1139,7 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
             n_pulse_option_array[4].val = 1;
             n_pulse_option_array[5].val = 100;
         }
-        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+        else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
         {
             n_pulse_long_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
             n_pulse_long_option_array[2].content = polarity_sel_str_array[0];
@@ -1147,7 +1147,7 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
             n_pulse_long_option_array[4].val = 1;
             n_pulse_long_option_array[5].val = 1000;
         }
-        else if (PULSE_MODE == PULSE_MODE_DPULSE)
+        else if (g_pulse_mode == PULSE_MODE_DPULSE)
         {
             double_pulse_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
             double_pulse_option_array[2].content = polarity_sel_str_array[0];
@@ -1155,13 +1155,13 @@ bool ChSelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
             double_pulse_option_array[4].val = 5;
             double_pulse_option_array[5].val = 5;
         }
-        else if (PULSE_MODE == PULSE_MODE_PWM)
+        else if (g_pulse_mode == PULSE_MODE_PWM)
         {
             pwm_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
             pwm_option_array[2].content = polarity_sel_str_array[0];
             pwm_option_array[3].val = 1;
         }
-        else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+        else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
         {
             pwm_long_option_array[1].content = ch_sel_str_array[(int)ch_sel_page.sel_str_index];
             pwm_long_option_array[2].content = polarity_sel_str_array[0];
@@ -1210,15 +1210,15 @@ bool PolaritySelPage_CallBack(const Page *cur_page_addr, InputMsg msg){
             Pulse_SetPulsePolarity_Low();
         else
             Pulse_SetPulsePolarity_High();
-        if (PULSE_MODE == PULSE_MODE_NPULSE)
+        if (g_pulse_mode == PULSE_MODE_NPULSE)
             n_pulse_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
-        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+        else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
             n_pulse_long_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
-        else if (PULSE_MODE == PULSE_MODE_DPULSE)
+        else if (g_pulse_mode == PULSE_MODE_DPULSE)
             double_pulse_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
-        else if (PULSE_MODE == PULSE_MODE_PWM)
+        else if (g_pulse_mode == PULSE_MODE_PWM)
             pwm_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
-        else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+        else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
             pwm_long_option_array[2].content = polarity_sel_str_array[(int)polarity_sel_page.sel_str_index];
     }
     return false;
@@ -1265,7 +1265,7 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
     {
         if (pw_spin_page.sel_flag) // 处于数字调节状态
         {
-            if (PULSE_MODE == PULSE_MODE_NPULSE)
+            if (g_pulse_mode == PULSE_MODE_NPULSE)
             {
                 if (strstr(pw_spin_page.bg_opt->text, "Width"))
                 {
@@ -1289,7 +1289,7 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                     Pulse_BurstPRF_Set((uint32_t)pw_spin_page.val);
                 }
             }
-            else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+            else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
             {
                 if (strstr(pw_spin_page.bg_opt->text, "Width"))
                     n_pulse_long_option_array[3].val = pw_spin_page.val;
@@ -1300,12 +1300,12 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                 Pulse_nPulseLong_SetPW((float)n_pulse_long_option_array[3].val / 1000.0f,
                                        (float)n_pulse_long_option_array[5].val / 1000.0f);
             }
-            else if (PULSE_MODE == PULSE_MODE_PWM)
+            else if (g_pulse_mode == PULSE_MODE_PWM)
             {
                 pwm_option_array[3].val = pw_spin_page.val;
                 Pulse_PWM_SetPW((float)pwm_option_array[3].val, pwm_option_array[4].val);
             }
-            else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+            else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
             {
                 if (strstr(pw_spin_page.bg_opt->text, "Period"))
                     pwm_long_option_array[3].val = pw_spin_page.val;
@@ -1314,7 +1314,7 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
 
                 Pulse_lPWM_SetPW((pwm_long_option_array[3].val / 1000.0f), (pwm_long_option_array[4].val / 100.0f));
             }
-            else if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+            else if (g_pulse_mode == PULSE_MODE_COMP_PWM)
             {
                 if (strstr(pw_spin_page.bg_opt->text, "Period"))
                     comp_pwm_option_array[2].val = pw_spin_page.val;
@@ -1328,7 +1328,7 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
                                     (uint32_t)comp_pwm_option_array[4].val,
                                     (uint32_t)comp_pwm_option_array[5].val);
             }
-            else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+            else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
             {
                 if (strstr(pw_spin_page.bg_opt->text, "Period"))
                     comp_pwm_long_option_array[2].val = pw_spin_page.val;
@@ -1351,9 +1351,9 @@ bool PWSpinPage_CallBack(const Page *cur_page_addr, InputMsg msg)
    (由 main 循环在 g_fault_flag 置位后调用, 不在 ISR 内做 UI 操作) */
 void Pulse_Fault_HandleUI(void)
 {
-    PULSE_OUT_ENABLED = 0;
+    g_pulse_out_enabled = 0;
 
-    switch (PULSE_MODE)
+    switch (g_pulse_mode)
     {
         case PULSE_MODE_NPULSE:      n_pulse_option_array[7].val = 0; break;
         case PULSE_MODE_NPULSE_LONG: n_pulse_long_option_array[6].val = 0; break;
@@ -1450,50 +1450,50 @@ void TestUI_Init(void) {
 
 /* ============ SCPI 远程控制复用物理操作路径 (供 uart_comm.c 调用) ============ */
 
-/* 切模式: 与主菜单点击模式项完全一致 (设置 PULSE_MODE + 状态文本 + Preset + 页面跳转),
- * 避免 SCPI 只改 PULSE_MODE 导致屏幕停在旧页面、与硬件模式脱节 (严重 bug) */
+/* 切模式: 与主菜单点击模式项完全一致 (设置 g_pulse_mode + 状态文本 + Preset + 页面跳转),
+ * 避免 SCPI 只改 g_pulse_mode 导致屏幕停在旧页面、与硬件模式脱节 (严重 bug) */
 void UserUi_SwitchMode(uint8_t mode)
 {
     switch (mode)
     {
         case PULSE_MODE_NPULSE:
-            PULSE_MODE = PULSE_MODE_NPULSE;
+            g_pulse_mode = PULSE_MODE_NPULSE;
             n_pulse_option_array[8].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &n_pulse_page);
             break;
         case PULSE_MODE_NPULSE_LONG:
-            PULSE_MODE = PULSE_MODE_NPULSE_LONG;
+            g_pulse_mode = PULSE_MODE_NPULSE_LONG;
             n_pulse_long_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &n_pulse_long_page);
             break;
         case PULSE_MODE_DPULSE:
-            PULSE_MODE = PULSE_MODE_DPULSE;
+            g_pulse_mode = PULSE_MODE_DPULSE;
             double_pulse_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &double_pulse_page);
             break;
         case PULSE_MODE_PWM:
-            PULSE_MODE = PULSE_MODE_PWM;
+            g_pulse_mode = PULSE_MODE_PWM;
             pwm_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &pwm_page);
             break;
         case PULSE_MODE_PWM_LONG:
-            PULSE_MODE = PULSE_MODE_PWM_LONG;
+            g_pulse_mode = PULSE_MODE_PWM_LONG;
             pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &pwm_long_page);
             break;
         case PULSE_MODE_COMP_PWM:
-            PULSE_MODE = PULSE_MODE_COMP_PWM;
+            g_pulse_mode = PULSE_MODE_COMP_PWM;
             comp_pwm_option_array[7].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &comp_pwm_page);
             break;
         case PULSE_MODE_COMP_PWM_LONG:
-            PULSE_MODE = PULSE_MODE_COMP_PWM_LONG;
+            g_pulse_mode = PULSE_MODE_COMP_PWM_LONG;
             comp_pwm_long_option_array[6].text = (char *)"--OUTPUT DISABLED--";
             Preset_ApplyMode();
             WouoUI_JumpToPage(&main_page, &comp_pwm_long_page);
@@ -1508,11 +1508,11 @@ void UserUi_SetChannel(uint8_t ch)
 {
     if (ch < 1u || ch > 6u) return;
 
-    if (PULSE_MODE == PULSE_MODE_COMP_PWM || PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    if (g_pulse_mode == PULSE_MODE_COMP_PWM || g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
     {
         uint8_t pair = (uint8_t)(ch - 1u);
         Pulse_Select_CompPair(pair);
-        if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+        if (g_pulse_mode == PULSE_MODE_COMP_PWM)
             comp_pwm_option_array[1].content = comp_pair_sel_str_array[pair];
         else
             comp_pwm_long_option_array[1].content = comp_pair_sel_str_array[pair];
@@ -1521,15 +1521,15 @@ void UserUi_SetChannel(uint8_t ch)
     {
         uint8_t idx = (uint8_t)(ch - 1u);
         Pulse_Select_Output(ch);
-        if (PULSE_MODE == PULSE_MODE_NPULSE)
+        if (g_pulse_mode == PULSE_MODE_NPULSE)
             n_pulse_option_array[1].content = ch_sel_str_array[idx];
-        else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+        else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
             n_pulse_long_option_array[1].content = ch_sel_str_array[idx];
-        else if (PULSE_MODE == PULSE_MODE_DPULSE)
+        else if (g_pulse_mode == PULSE_MODE_DPULSE)
             double_pulse_option_array[1].content = ch_sel_str_array[idx];
-        else if (PULSE_MODE == PULSE_MODE_PWM)
+        else if (g_pulse_mode == PULSE_MODE_PWM)
             pwm_option_array[1].content = ch_sel_str_array[idx];
-        else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+        else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
             pwm_long_option_array[1].content = ch_sel_str_array[idx];
     }
 }
@@ -1543,14 +1543,14 @@ void UserUi_SetPolarity(uint8_t pol)
         Pulse_SetPulsePolarity_Low();
 
     String txt = polarity_sel_str_array[pol];
-    if (PULSE_MODE == PULSE_MODE_NPULSE)
+    if (g_pulse_mode == PULSE_MODE_NPULSE)
         n_pulse_option_array[2].content = txt;
-    else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+    else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
         n_pulse_long_option_array[2].content = txt;
-    else if (PULSE_MODE == PULSE_MODE_DPULSE)
+    else if (g_pulse_mode == PULSE_MODE_DPULSE)
         double_pulse_option_array[2].content = txt;
-    else if (PULSE_MODE == PULSE_MODE_PWM)
+    else if (g_pulse_mode == PULSE_MODE_PWM)
         pwm_option_array[2].content = txt;
-    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
         pwm_long_option_array[2].content = txt;
 }

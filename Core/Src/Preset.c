@@ -325,7 +325,7 @@ bool Preset_Load(void)
 /* ---------- 按当前模式从 UI 数组施加参数到硬件 ---------- */
 void Preset_ApplyMode(void)
 {
-    switch (PULSE_MODE)
+    switch (g_pulse_mode)
     {
         case PULSE_MODE_NPULSE:
         {

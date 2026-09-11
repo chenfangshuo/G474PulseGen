@@ -227,7 +227,7 @@ static void UcSendRespSoft(const char *txt)
 static void UcSendStat(bool critical)
 {
     const char *mode_name = "?";
-    switch (PULSE_MODE)
+    switch (g_pulse_mode)
     {
         case PULSE_MODE_NONE:           mode_name = "NONE";       break;
         case PULSE_MODE_NPULSE:         mode_name = "NPULSE";     break;
@@ -242,7 +242,7 @@ static void UcSendStat(bool critical)
     snprintf(s_rsp_buf, sizeof(s_rsp_buf),
              "MODE=%s;OUT=%s;12V=%u;CH=%u;FR=%lu;ST=%lu;OR=%lu;RX=%lu;LNK=%d",
              mode_name,
-             PULSE_OUT_ENABLED ? "ON" : "OFF",
+             g_pulse_out_enabled ? "ON" : "OFF",
              (unsigned)g_12v_enable,
              (unsigned)(g_pulse_ctrl.channel + 1u),
              (unsigned long)s_diag_frame_sent,   /* 已发送镜像帧数 */
@@ -306,11 +306,11 @@ static void UcHandlePing(void)
 }
 
 /* 同步当前模式的 @ Enable Output 复选框 val 到 UI。
- * SCPI OUTP:ON/OFF 只改了 PULSE_OUT_ENABLED(驱动 HRTIM), 但屏幕勾选框由
+ * SCPI OUTP:ON/OFF 只改了 g_pulse_out_enabled(驱动 HRTIM), 但屏幕勾选框由
  * option_array[x].val 决定, 若不在此同步, 上位机切输出时屏幕勾选框不跟随。 */
 static void UcSyncUiEnableOutput(uint8_t enabled)
 {
-    switch (PULSE_MODE)
+    switch (g_pulse_mode)
     {
         case PULSE_MODE_NPULSE:      n_pulse_option_array[7].val = enabled;      break;
         case PULSE_MODE_NPULSE_LONG: n_pulse_long_option_array[6].val = enabled; break;
@@ -471,7 +471,7 @@ static void UcScpiExec(const char *line)
         const char *vstr = strtok(NULL, ":");
         if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
         float v = (float)atof(vstr);
-        if (PULSE_MODE != PULSE_MODE_COMP_PWM) { UcSendResp("ERR MODE"); return; }
+        if (g_pulse_mode != PULSE_MODE_COMP_PWM) { UcSendResp("ERR MODE"); return; }
         if      (strcmp(sub, "PER") == 0) comp_pwm_option_array[2].val = (int32_t)(v * 100.0f);
         else if (strcmp(sub, "DUTY") == 0) comp_pwm_option_array[3].val = (int32_t)v;
         else if (strcmp(sub, "DTR") == 0)  comp_pwm_option_array[4].val = (int32_t)v;
@@ -568,9 +568,9 @@ static void UcDispatch(uint8_t type, const uint8_t *payload, uint16_t len)
         s_force_frame = true;    /* 连接刚建立: 立即推一帧当前画面, 消除 PC 端打开后纯色等待 */
         /* 连接建立即更新状态快照: 否则首帧与"状态变化推送的 STAT"在同一轮都触发,
          * 两者均为高优先级, 状态推送会覆盖 pending 中的首帧, 导致 PC 端收不到第一帧 */
-        s_last_stat_out  = PULSE_OUT_ENABLED ? 1u : 0u;
+        s_last_stat_out  = g_pulse_out_enabled ? 1u : 0u;
         s_last_stat_12v  = g_12v_enable ? 1u : 0u;
-        s_last_stat_mode = PULSE_MODE;
+        s_last_stat_mode = g_pulse_mode;
         s_last_stat_ch   = (uint8_t)g_pulse_ctrl.channel;
         s_link_push_until = HAL_GetTick() + UC_LINK_PUSH_MS;   /* 启动首帧兜底推帧窗口 */
     }
@@ -728,9 +728,9 @@ void UartComm_Proc(void)
      * 上位机 0 延迟同步 (无需轮询)。快照在断开后复位为 0xFF 以触发下次重同步 */
     if (s_link_state == UC_LINKED)
     {
-        uint8_t out  = PULSE_OUT_ENABLED ? 1u : 0u;
+        uint8_t out  = g_pulse_out_enabled ? 1u : 0u;
         uint8_t v12  = g_12v_enable ? 1u : 0u;
-        uint8_t mode = PULSE_MODE;
+        uint8_t mode = g_pulse_mode;
         uint8_t ch   = (uint8_t)g_pulse_ctrl.channel;
         if (out != s_last_stat_out || v12 != s_last_stat_12v ||
             mode != s_last_stat_mode || ch != s_last_stat_ch)

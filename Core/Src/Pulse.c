@@ -17,12 +17,12 @@ Pulse_Controller_t g_pulse_ctrl = {
 };
 
 /* 兼容性全局变量导出 (对齐 main.c 与 WouoUI_user.c) */
-volatile uint32_t HRTIM_TIMERINDEX_TIMER_X = HRTIM_TIMERINDEX_TIMER_B;
-volatile uint32_t HRTIM_TIMERID_TIMER_X    = HRTIM_TIMERID_TIMER_B;
-volatile uint32_t HRTIM_OUTPUT_TXX         = HRTIM_OUTPUT_TB2;
-volatile uint8_t  PULSE_MODE               = PULSE_MODE_NPULSE;
-volatile bool     PULSE_OUT_ENABLED        = false;
-volatile bool     PULSE_POLARITY           = PULSE_POLARITY_HIGH;
+volatile uint32_t g_hrtim_timer_index = HRTIM_TIMERINDEX_TIMER_B;
+volatile uint32_t g_hrtim_timer_id    = HRTIM_TIMERID_TIMER_B;
+volatile uint32_t g_hrtim_output         = HRTIM_OUTPUT_TB2;
+volatile uint8_t  g_pulse_mode               = PULSE_MODE_NPULSE;
+volatile bool     g_pulse_out_enabled        = false;
+volatile bool     g_pulse_polarity           = PULSE_POLARITY_HIGH;
 volatile uint32_t lpwm_arr                 = 0;
 volatile uint32_t lpwm_ccr                 = 0;
 volatile bool     g_fault_flag             = false;   /* Fault 发生标志 (ISR 置位, main 循环消费) */
@@ -139,26 +139,26 @@ static bool Pulse_CalcPrescalerAndCounts(float time_us, uint32_t *out_prescaler,
 /**
  * @brief  把 g_pulse_ctrl 的权威状态同步到对外兼容变量
  *
- * @note   HRTIM_TIMERINDEX_TIMER_X / HRTIM_TIMERID_TIMER_X / HRTIM_OUTPUT_TXX /
- *         PULSE_OUT_ENABLED / PULSE_POLARITY 是早期版本遗留的"全局当前上下文",
+ * @note   g_hrtim_timer_index / g_hrtim_timer_id / g_hrtim_output /
+ *         g_pulse_out_enabled / g_pulse_polarity 是早期版本遗留的"全局当前上下文",
  *         供 UI 与 SCPI 读取; 权威状态始终在 g_pulse_ctrl。本函数负责把二者对齐。
  *
  * @warning 必须在 g_pulse_ctrl 各字段**都已更新之后**再调用, 否则会同步出中间态。
  *          各 Pulse_*_Init / Pulse_Select_* 函数均在末尾调用它。
  *
- * @warning **刻意不同步 PULSE_MODE** (见函数内被注释掉的那一行, 且有明确警示)。
- *          PULSE_MODE 是模式切换的"期望值", 由 UI/SCPI 写入; 而 g_pulse_ctrl.mode
+ * @warning **刻意不同步 g_pulse_mode** (见函数内被注释掉的那一行, 且有明确警示)。
+ *          g_pulse_mode 是模式切换的"期望值", 由 UI/SCPI 写入; 而 g_pulse_ctrl.mode
  *          在切换过程中会经过中间状态。若在此处回写, 会把中间态覆盖到用户的
  *          选择上, 导致模式切换异常。**不要恢复这一行。**
  */
 static void Pulse_SyncContext(void)
 {
-    HRTIM_TIMERINDEX_TIMER_X = g_pulse_ctrl.timer_idx;
-    HRTIM_TIMERID_TIMER_X    = g_pulse_ctrl.timer_id;
-    HRTIM_OUTPUT_TXX         = g_pulse_ctrl.output_ch;
-    /* 彻底删除此行：PULSE_MODE = g_pulse_ctrl.mode; */
-    PULSE_OUT_ENABLED        = g_pulse_ctrl.is_enabled;
-    PULSE_POLARITY           = g_pulse_ctrl.polarity;
+    g_hrtim_timer_index = g_pulse_ctrl.timer_idx;
+    g_hrtim_timer_id    = g_pulse_ctrl.timer_id;
+    g_hrtim_output         = g_pulse_ctrl.output_ch;
+    /* 彻底删除此行：g_pulse_mode = g_pulse_ctrl.mode; */
+    g_pulse_out_enabled        = g_pulse_ctrl.is_enabled;
+    g_pulse_polarity           = g_pulse_ctrl.polarity;
 }
 
 /* 互补通道对 GPIO 映射 (严格遵循 HARDWARE.md §5.1:
@@ -213,7 +213,7 @@ void Pulse_Select_Output(uint8_t CHx)
     bool was_enabled = g_pulse_ctrl.is_enabled;
     if (was_enabled) Pulse_Disable_Output(); // 先关断旧通道，严禁打出寄生脉冲
 
-    g_pulse_ctrl.mode = PULSE_MODE; // 同步当前 UI 所选模式
+    g_pulse_ctrl.mode = g_pulse_mode; // 同步当前 UI 所选模式
 
     uint32_t _pm = __get_PRIMASK(); __disable_irq();
 
@@ -262,15 +262,15 @@ void Pulse_Select_Output(uint8_t CHx)
 
     __set_PRIMASK(_pm);
 
-    if (PULSE_MODE == PULSE_MODE_NPULSE)
+    if (g_pulse_mode == PULSE_MODE_NPULSE)
         Pulse_nPulse_Init();
-    else if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+    else if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
         Pulse_nPulseLong_Init();
-    else if (PULSE_MODE == PULSE_MODE_DPULSE)
+    else if (g_pulse_mode == PULSE_MODE_DPULSE)
         Pulse_dPulse_Init();
-    else if (PULSE_MODE == PULSE_MODE_PWM)
+    else if (g_pulse_mode == PULSE_MODE_PWM)
         Pulse_PWM_Init();
-    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
         Pulse_lPWM_Init();
 
     Pulse_SetPulsePolarity_High();
@@ -283,7 +283,7 @@ void Pulse_Enable_Output(void)
     g_pulse_ctrl.is_enabled = true;
     Pulse_SyncContext();
 
-    if (PULSE_MODE == PULSE_MODE_NPULSE)
+    if (g_pulse_mode == PULSE_MODE_NPULSE)
     {
         /* 使能 CMP4 周期结束中断 (短脉冲多脉冲软件重触发) */
         __HAL_HRTIM_TIMER_ENABLE_IT(&hhrtim1, g_pulse_ctrl.timer_idx, HRTIM_TIM_IT_CMP4);
@@ -292,17 +292,17 @@ void Pulse_Enable_Output(void)
     HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch);
     HAL_HRTIM_WaveformCountStart(&hhrtim1, g_pulse_ctrl.timer_id);
 
-    if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+    if (g_pulse_mode == PULSE_MODE_COMP_PWM)
     {
         /* 互补模式: 同时使能 Tx1(主路) 与 Tx2(互补) 两路输出 */
         HAL_HRTIM_WaveformOutputStart(&hhrtim1, g_pulse_ctrl.output_ch2);
     }
 
-    if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    if (g_pulse_mode == PULSE_MODE_PWM_LONG)
     {
         __HAL_TIM_SET_COUNTER(&htim5, 0);
-        if (lpwm_ccr > 0) { // 首周期立即输出有效电平 (高/低由 PULSE_POLARITY 决定), 无需等待漫长的第一个溢出周期
-            if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+        if (lpwm_ccr > 0) { // 首周期立即输出有效电平 (高/低由 g_pulse_polarity 决定), 无需等待漫长的第一个溢出周期
+            if (g_pulse_polarity == PULSE_POLARITY_HIGH)
                 Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
             else
                 Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
@@ -310,7 +310,7 @@ void Pulse_Enable_Output(void)
         HAL_TIM_Base_Start_IT(&htim5);
         HAL_TIM_OC_Start_IT(&htim5, TIM_CHANNEL_1);
     }
-    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
     {
         /* 超长互补: 两路均先拉低, 启动 TIM5 后由 CC3 死区点再开主路, 严禁直通 */
         __HAL_TIM_SET_COUNTER(&htim5, 0);
@@ -323,7 +323,7 @@ void Pulse_Enable_Output(void)
     }
 
     /* PRF 猝发重复: 频率 > 0 时立即发首帧并启动周期重发 (仅 N 脉冲模式) */
-    if (PULSE_MODE == PULSE_MODE_NPULSE)
+    if (g_pulse_mode == PULSE_MODE_NPULSE)
     {
         Pulse_BurstPRF_Start();
     }
@@ -360,26 +360,26 @@ void Pulse_Disable_Output(void)
     HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch);
     HAL_HRTIM_WaveformCountStop(&hhrtim1, g_pulse_ctrl.timer_id);
 
-    if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+    if (g_pulse_mode == PULSE_MODE_COMP_PWM)
     {
         /* 互补模式: 同时关断 Tx1 与 Tx2 两路输出 */
         HAL_HRTIM_WaveformOutputStop(&hhrtim1, g_pulse_ctrl.output_ch2);
     }
 
-    if (PULSE_MODE == PULSE_MODE_NPULSE_LONG)
+    if (g_pulse_mode == PULSE_MODE_NPULSE_LONG)
     {
         s_pulse_remain = 0;
         __HAL_TIM_DISABLE(&htim5);
         __HAL_TIM_DISABLE_IT(&htim5, TIM_IT_UPDATE | TIM_IT_CC1);
         Pulse_LongPin_SetInactive();
     }
-    else if (PULSE_MODE == PULSE_MODE_PWM_LONG)
+    else if (g_pulse_mode == PULSE_MODE_PWM_LONG)
     {
         HAL_TIM_Base_Stop_IT(&htim5);
         HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_1);
         Pulse_LongPin_SetInactive();
     }
-    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
     {
         HAL_TIM_Base_Stop_IT(&htim5);
         HAL_TIM_OC_Stop_IT(&htim5, TIM_CHANNEL_1);
@@ -401,7 +401,7 @@ void Pulse_SetPulsePolarity_High(void)
     Pulse_Disable_Output();
     HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-    if (PULSE_MODE == PULSE_MODE_NPULSE || PULSE_MODE == PULSE_MODE_PWM)
+    if (g_pulse_mode == PULSE_MODE_NPULSE || g_pulse_mode == PULSE_MODE_PWM)
     {
         OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
         OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
@@ -416,7 +416,7 @@ void Pulse_SetPulsePolarity_High(void)
             Error_Handler();
         }
     }
-    else if (PULSE_MODE == PULSE_MODE_DPULSE)
+    else if (g_pulse_mode == PULSE_MODE_DPULSE)
     {
         OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_HIGH;
         OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
@@ -447,7 +447,7 @@ void Pulse_SetPulsePolarity_Low(void)
     Pulse_Disable_Output();
     HAL_HRTIM_SoftwareUpdate(&hhrtim1, g_pulse_ctrl.timer_idx);
 
-    if (PULSE_MODE == PULSE_MODE_NPULSE || PULSE_MODE == PULSE_MODE_PWM)
+    if (g_pulse_mode == PULSE_MODE_NPULSE || g_pulse_mode == PULSE_MODE_PWM)
     {
         OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_LOW;
         OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1;
@@ -462,7 +462,7 @@ void Pulse_SetPulsePolarity_Low(void)
             Error_Handler();
         }
     }
-    else if (PULSE_MODE == PULSE_MODE_DPULSE)
+    else if (g_pulse_mode == PULSE_MODE_DPULSE)
     {
         OutCfg.Polarity = HRTIM_OUTPUTPOLARITY_LOW;
         OutCfg.SetSource = HRTIM_OUTPUTSET_TIMCMP1 | HRTIM_OUTPUTSET_TIMCMP3;
@@ -1256,7 +1256,7 @@ void Pulse_EmergencyStop(void)
 /* 拉高长脉冲引脚至有效电平 */
 void Pulse_LongPin_SetActive(void)
 {
-    if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+    if (g_pulse_polarity == PULSE_POLARITY_HIGH)
         Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
     else
         Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
@@ -1265,7 +1265,7 @@ void Pulse_LongPin_SetActive(void)
 /* 拉低长脉冲引脚至无效电平 */
 void Pulse_LongPin_SetInactive(void)
 {
-    if (PULSE_POLARITY == PULSE_POLARITY_HIGH)
+    if (g_pulse_polarity == PULSE_POLARITY_HIGH)
         Pulse_GetLongPulsePort()->BSRR = (uint32_t)Pulse_GetLongPulsePin() << 16U;
     else
         Pulse_GetLongPulsePort()->BSRR = Pulse_GetLongPulsePin();
@@ -1527,7 +1527,7 @@ void Pulse_Select_CompPair(uint8_t pair_idx)
     const bool was_enabled = g_pulse_ctrl.is_enabled;
     if (was_enabled) Pulse_Disable_Output();   /* 先关断旧通道对, 严禁打出寄生脉冲 */
 
-    g_pulse_ctrl.mode     = PULSE_MODE;
+    g_pulse_ctrl.mode     = g_pulse_mode;
     g_pulse_ctrl.pair_idx = pair_idx;
 
     switch (pair_idx)
@@ -1556,9 +1556,9 @@ void Pulse_Select_CompPair(uint8_t pair_idx)
 
     Pulse_SyncContext();
 
-    if (PULSE_MODE == PULSE_MODE_COMP_PWM)
+    if (g_pulse_mode == PULSE_MODE_COMP_PWM)
         Pulse_CompPWM_Init();
-    else if (PULSE_MODE == PULSE_MODE_COMP_PWM_LONG)
+    else if (g_pulse_mode == PULSE_MODE_COMP_PWM_LONG)
         Pulse_CompLPWM_Init();
 
     if (was_enabled) Pulse_Enable_Output();
@@ -2207,11 +2207,11 @@ void Pulse_Sync_Init(void)
  * @note   验证方式: 示波器双通道, CH1=Y7 (PB13/TC2), CH2=Y1 (PA11/TB2),
  *         测触发后两沿的相对抖动, 改动前后应逐点一致。
  *
- * @note   PULSE_OUT_ENABLED 为 false 时直接返回, 不发波。
+ * @note   g_pulse_out_enabled 为 false 时直接返回, 不发波。
  */
 void Pulse_TriggerFireAll(void)
 {
-    if (!PULSE_OUT_ENABLED) return;
+    if (!g_pulse_out_enabled) return;
 
     uint32_t cr2 = HRTIM_CR2_TCRST;   /* SYNC OUT: Timer C 同步复位 */
 
@@ -2268,7 +2268,7 @@ void Pulse_BurstPRF_Set(uint32_t prf_hz)
     TIM3->SR  = (uint32_t)~TIM_IT_UPDATE;
 
     /* 输出已使能且为 N 脉冲模式: 按新频率立即启动周期猝发 */
-    if (PULSE_OUT_ENABLED && PULSE_MODE == PULSE_MODE_NPULSE)
+    if (g_pulse_out_enabled && g_pulse_mode == PULSE_MODE_NPULSE)
     {
         Pulse_BurstPRF_Start();
     }
@@ -2293,8 +2293,8 @@ void Pulse_BurstPRF_Stop(void)
 /* TIM3 更新中断: 周期重发一帧猝发 (仅 N 脉冲模式) */
 void Pulse_BurstPRF_OnTick(void)
 {
-    if (!PULSE_OUT_ENABLED) return;
-    if (PULSE_MODE != PULSE_MODE_NPULSE) return;
+    if (!g_pulse_out_enabled) return;
+    if (g_pulse_mode != PULSE_MODE_NPULSE) return;
 
     Pulse_Frame_SetActive();
     Pulse_nPulse_OnTrigger(s_npulse_count);

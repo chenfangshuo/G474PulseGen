@@ -94,12 +94,15 @@ typedef struct {
 extern Pulse_Controller_t g_pulse_ctrl;
 
 /* 兼容性全局变量声明 (兼容既有 UI / main.c 模块) */
-extern volatile uint32_t HRTIM_TIMERINDEX_TIMER_X;
-extern volatile uint32_t HRTIM_TIMERID_TIMER_X;
-extern volatile uint32_t HRTIM_OUTPUT_TXX;
-extern volatile uint8_t  PULSE_MODE;
-extern volatile bool     PULSE_OUT_ENABLED;
-extern volatile bool     PULSE_POLARITY;
+/* 以下 6 个是**变量, 不是宏** —— 早期版本曾用全大写命名 (PULSE_MODE /
+ * HRTIM_TIMERINDEX_TIMER_X 等), 极易被误读为编译期常量, 故统一改为 g_ 前缀。
+ * 它们全部 volatile, 并在 ISR 中被异步读写 (见 Pulse_SyncContext 的同步点)。 */
+extern volatile uint32_t g_hrtim_timer_index;   /* 当前 HRTIM timer index */
+extern volatile uint32_t g_hrtim_timer_id;      /* 当前 HRTIM timer id (MCR 位) */
+extern volatile uint32_t g_hrtim_output;        /* 当前输出通道 (HRTIM_OUTPUT_Txx) */
+extern volatile uint8_t  g_pulse_mode;          /* 当前发波模式 (PULSE_MODE_*) */
+extern volatile bool     g_pulse_out_enabled;   /* 输出使能 */
+extern volatile bool     g_pulse_polarity;      /* 脉冲极性 (PULSE_POLARITY_*) */
 extern volatile uint32_t lpwm_arr;
 extern volatile uint32_t lpwm_ccr;
 
