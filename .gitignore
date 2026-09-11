@@ -68,7 +68,11 @@ __pycache__/
 pc_host/build/
 pc_host/dist/
 # 注: screenshots/ 已取消忽略 —— README.md 需要引用这些实拍图/波形图,
-# 推到 GitHub 后必须能正常渲染。代价是仓库会增大 (波形图单张约 7MB)。
+# 推到 GitHub 后必须能正常渲染。
+# 入库的图一律压成 8-bit 调色板 PNG (ffmpeg palettegen/paletteuse, dither=none):
+# 示波器截图颜色本就稀疏, 2048x1200 的余晖图可从 7.04 MB 压到约 25 KB 而无可见
+# 损失。2026-09 复核时发现两张 verification 余晖图漏压 (各 7 MB), 已补压,
+# screenshots/ 由 14.63 MiB 降至 0.59 MiB。新增截图请沿用同一手法。
 
 # ========================================================
 # 6. Claude Code 配置
@@ -85,3 +89,20 @@ pc_host/dist/
 # ========================================================
 repomix-core.txt
 tree.txt
+
+# ========================================================
+# 8. 未参与构建的 vendored 驱动 (体积裁剪, 2026-09)
+# ========================================================
+# CubeMX 生成工程时会把整个 CMSIS pack 拷进来, 其中 DSP 与 NN 两个子库
+# 本工程从未使用 —— 全仓对 arm_math.h / arm_nn 零引用, 根 CMakeLists.txt
+# 只把 HAL_Inc / HAL_Inc_Legacy / CMSIS_Device_Inc / CMSIS_Include 四个目录
+# 加进构建, 这两者不在其中。
+#
+# 它们此前被跟踪, 合计约 48 MiB, 占仓库总体积的一半以上 (其中仅 DSP/Lib 下
+# 的 6 个 .a + 4 个 .lib 预编译库就有约 32 MB)。已 git rm --cached 移出索引。
+#
+# 磁盘上刻意保留: CubeMX 重新生成时可能需要它们, 且保留可随时撤销本决定。
+# 经完整重新配置 + 全量重编译验证: 移除前后 RAM 28200 B / FLASH 137956 B
+# 逐字节一致, 对构建产物无任何影响。
+Drivers/CMSIS/DSP/
+Drivers/CMSIS/NN/
