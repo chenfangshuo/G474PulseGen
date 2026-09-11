@@ -9,8 +9,19 @@
  * 与 WouoUI_user.h 中的声明重复且无单一来源, 已删除。 */
 
 /* ---------- Flash 布局 ----------
-   使用最后一页 (2KB @ 0x0807F800), 代码区约 106KB, 距离远不冲突 */
-#define PRESET_FLASH_ADDR    0x0807F800UL
+ * 参数存在 Flash 的**最后一页** (本板 512KB 型号 -> 2KB @ 0x0807F800)。
+ * 代码区约 106KB, 距页首很远, 不冲突。
+ *
+ * 地址由「容量 − 页大小」推导, **不写死**:
+ *   FLASH_SIZE      由 HAL 从芯片出厂容量寄存器 (FLASHSIZE_BASE) 运行时读出,
+ *                   512KB 型号得到 0x80000, 256KB 得到 0x40000, 自动跟随;
+ *   FLASH_PAGE_SIZE 取自 HAL (G4 全系 2KB)。
+ * 因此换用 128KB / 256KB 的 G4 时地址自动正确, 无需改动本文件。
+ * (原实现写死 0x0807F800 —— 在非 512KB 型号上会落到非法地址。)
+ *
+ * ⚠ 换芯片后仍须确认链接脚本 STM32G474XX_FLASH.ld 的 FLASH LENGTH 与之匹配,
+ *   否则代码区可能与参数页重叠。完整移植清单见根目录 PORTING.md。 */
+#define PRESET_FLASH_ADDR    (FLASH_BASE + FLASH_SIZE - FLASH_PAGE_SIZE)
 #define PRESET_MAGIC         0x50525354UL   /* "PRST" */
 #define PRESET_VERSION       1U
 #define PRESET_CH_NUM        6U
@@ -89,18 +100,24 @@ static uint32_t Preset_CalcCrc(const PresetData_t *d)
 
 /* ---------- Flash 底层 ---------- */
 /**
- * @brief  擦除参数存储页 (最后一页 2KB @ 0x0807F800)
+ * @brief  擦除参数存储页 (Flash 最后一页, 本板 2KB @ 0x0807F800)
  * @retval true  擦除成功
  * @retval false HAL 返回非 HAL_OK
  *
- * @note   页号依 FLASH_OPTR 的 DBANK 选项位**运行时**判定:
- *           DBANK=1 (双 bank): bank2 / page 127
- *           DBANK=0 (单 bank): bank1 / page 255
- *         两种配置下都落在 2KB 的最后一页, 与代码区 (约 106KB) 相距很远。
+ * @note   目标 bank 依 FLASH_OPTR 的 DBANK 选项位**运行时**判定:
+ *           DBANK=1 (双 bank): bank2 —— 最后一页在该 bank 内
+ *           DBANK=0 (单 bank): bank1
  *
- * @warning 若改动存储位置, 必须**同时**修改 PRESET_FLASH_ADDR 与本函数的
- *          bank/page, 并确认所选页在链接脚本 STM32G474XX_FLASH.ld 的 FLASH
- *          区域之外 —— 否则会擦掉程序代码。
+ * @note   页号取 FLASH_PAGE_NB - 1, **不写死**。FLASH_PAGE_NB 由 HAL 依
+ *          容量与 DBANK 自动分支 (双 bank 时是"每 bank 页数", 单 bank 时是
+ *          "总页数"), 因此 512KB/256KB/128KB 都能得到正确的末页号。
+ *          对应关系: 512KB 双 bank -> 127, 512KB 单 bank -> 255,
+ *                    256KB 双 bank -> 63,  256KB 单 bank -> 127
+ *          (原实现写死 127/255 —— 只对 512KB 成立, 换容量会擦到错误的页。)
+ *
+ * @warning 若改动存储位置, 必须**同时**修改 PRESET_FLASH_ADDR 与本函数,
+ *          并确认所选页在链接脚本 STM32G474XX_FLASH.ld 的 FLASH 区域之外
+ *          —— 否则会擦掉程序代码。移植时见根目录 PORTING.md。
  * @note   擦除前清全部 Flash 错误标志, 避免上一次操作遗留的 ECC 错误
  *          导致本次擦除直接失败。
  */
@@ -109,16 +126,29 @@ static bool Preset_ErasePage(void)
     FLASH_EraseInitTypeDef e = {0};
     uint32_t page, bank;
 
-    /* 依据 DBANK 选项位确定最后一页的 bank/page */
+    /* 最后一页所在的 bank; 页号统一取该 bank 的末页 */
     if (READ_BIT(FLASH->OPTR, FLASH_OPTR_DBANK) != 0U)
     {
         bank = FLASH_BANK_2;   /* 双 bank: 最后一页在 bank2 */
-        page = 127U;
     }
     else
     {
-        bank = FLASH_BANK_1;   /* 单 bank: 最后一页 */
-        page = 255U;
+        bank = FLASH_BANK_1;   /* 单 bank */
+    }
+    page = FLASH_PAGE_NB - 1U;
+
+    /* 合理性护栏: 推导出的地址必须页对齐且**确实落在 Flash 区内**, 否则拒绝擦除。
+     *
+     * 这道检查是随"地址由运行时求值"一起加的: PRESET_FLASH_ADDR 依赖 HAL 从
+     * 芯片容量寄存器读出的 FLASH_SIZE, 而该值不再由编译器保证。假如它读到 0,
+     * FLASH_PAGE_NB 会落到最后那个 else 分支 (32 或 64), 求出的页号将指向
+     * **代码区** —— 擦掉即不可恢复。宁可存储功能失败, 也不能擦错页。
+     * (正常芯片上此检查恒为真, 不产生额外开销。) */
+    if ((PRESET_FLASH_ADDR & (FLASH_PAGE_SIZE - 1U)) != 0U ||
+        (PRESET_FLASH_ADDR < FLASH_BASE) ||
+        (PRESET_FLASH_ADDR >= (FLASH_BASE + FLASH_SIZE)))
+    {
+        return false;
     }
 
     e.TypeErase = FLASH_TYPEERASE_PAGES;

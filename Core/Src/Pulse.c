@@ -83,42 +83,42 @@ static bool Pulse_CalcPrescalerAndCounts(float time_us, uint32_t *out_prescaler,
     if (time_us <= 11.8f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_MUL32;
-        current_hrtim_freq = 170000000.0f * 32.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F * 32.0f;
     }
     else if (time_us <= 23.8f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_MUL16;
-        current_hrtim_freq = 170000000.0f * 16.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F * 16.0f;
     }
     else if (time_us <= 47.9f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_MUL8;
-        current_hrtim_freq = 170000000.0f * 8.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F * 8.0f;
     }
     else if (time_us <= 96.0f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_MUL4;
-        current_hrtim_freq = 170000000.0f * 4.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F * 4.0f;
     }
     else if (time_us <= 192.4f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_MUL2;
-        current_hrtim_freq = 170000000.0f * 2.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F * 2.0f;
     }
     else if (time_us <= 385.1f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_DIV1;
-        current_hrtim_freq = 170000000.0f * 1.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F * 1.0f;
     }
     else if (time_us <= 770.4f)
     {
         prescaler_value = HRTIM_PRESCALERRATIO_DIV2;
-        current_hrtim_freq = 170000000.0f / 2.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F / 2.0f;
     }
     else
     {
         prescaler_value = HRTIM_PRESCALERRATIO_DIV4;
-        current_hrtim_freq = 170000000.0f / 4.0f;
+        current_hrtim_freq = PULSE_HRTIM_CLK_HZ_F / 4.0f;
     }
 
     if (out_prescaler) *out_prescaler = prescaler_value;
@@ -171,11 +171,11 @@ typedef struct {
 
 static const Pulse_CompPinMap_t s_comp_pin_map[3] = {
     /* pair0: CH1&CH2 -> Timer B: TB1(PA10,CH2)=主路, TB2(PA11,CH1)=互补 */
-    { GPIOA, HRT_CHB1_Pin, HRT_CHB2_Pin },
+    { HRT_CHB1_GPIO_Port, HRT_CHB1_Pin, HRT_CHB2_Pin },
     /* pair1: CH3&CH4 -> Timer A: TA1(PA8,CH4)=主路, TA2(PA9,CH3)=互补 */
-    { GPIOA, HRT_CHA1_Pin, HRT_CHA2_Pin },
+    { HRT_CHA1_GPIO_Port, HRT_CHA1_Pin, HRT_CHA2_Pin },
     /* pair2: CH5&CH6 -> Timer D: TD1(PB14,CH6)=主路, TD2(PB15,CH5)=互补 */
-    { GPIOB, HRT_CHD1_Pin, HRT_CHD2_Pin },
+    { HRT_CHD1_GPIO_Port, HRT_CHD1_Pin, HRT_CHD2_Pin },
 };
 
 static const Pulse_CompPinMap_t *Pulse_CompPinGet(void)
@@ -558,14 +558,14 @@ static bool Pulse_CalcNpulseTiming(float pw_us, float interval_us,
     /* 候选分频档: 由快到慢 (快 = 更高分辨率) */
     static const struct { uint32_t psc; float freq; } tab[8] =
     {
-        { HRTIM_PRESCALERRATIO_MUL32, 170000000.0f * 32.0f },
-        { HRTIM_PRESCALERRATIO_MUL16, 170000000.0f * 16.0f },
-        { HRTIM_PRESCALERRATIO_MUL8,  170000000.0f * 8.0f  },
-        { HRTIM_PRESCALERRATIO_MUL4,  170000000.0f * 4.0f  },
-        { HRTIM_PRESCALERRATIO_MUL2,  170000000.0f * 2.0f  },
-        { HRTIM_PRESCALERRATIO_DIV1,  170000000.0f * 1.0f  },
-        { HRTIM_PRESCALERRATIO_DIV2,  170000000.0f / 2.0f  },
-        { HRTIM_PRESCALERRATIO_DIV4,  170000000.0f / 4.0f  },
+        { HRTIM_PRESCALERRATIO_MUL32, PULSE_HRTIM_CLK_HZ_F * 32.0f },
+        { HRTIM_PRESCALERRATIO_MUL16, PULSE_HRTIM_CLK_HZ_F * 16.0f },
+        { HRTIM_PRESCALERRATIO_MUL8,  PULSE_HRTIM_CLK_HZ_F * 8.0f  },
+        { HRTIM_PRESCALERRATIO_MUL4,  PULSE_HRTIM_CLK_HZ_F * 4.0f  },
+        { HRTIM_PRESCALERRATIO_MUL2,  PULSE_HRTIM_CLK_HZ_F * 2.0f  },
+        { HRTIM_PRESCALERRATIO_DIV1,  PULSE_HRTIM_CLK_HZ_F * 1.0f  },
+        { HRTIM_PRESCALERRATIO_DIV2,  PULSE_HRTIM_CLK_HZ_F / 2.0f  },
+        { HRTIM_PRESCALERRATIO_DIV4,  PULSE_HRTIM_CLK_HZ_F / 4.0f  },
     };
 
     /* 优先选最快的、且整周期与 PW 均能被正确表达的分频档 */
@@ -584,7 +584,7 @@ static bool Pulse_CalcNpulseTiming(float pw_us, float interval_us,
 
     /* 兜底: 最慢分频档, 周期截断到 16bit 上限 (超出部分说明总周期已超 HRTIM 硬件极限) */
     {
-        const float freq = 170000000.0f / 4.0f;
+        const float freq = PULSE_HRTIM_CLK_HZ_F / 4.0f;
         uint32_t cmp2 = (uint32_t)roundf(US_TO_S(pw_us) * freq);
         if (cmp2 > 0xFFDFU) cmp2 = 0xFFDFU;
         else if (cmp2 < 96U) cmp2 = 96U;
@@ -1306,7 +1306,7 @@ void Pulse_nPulseLong_SetPW(float pw, float interval_s)
     if (pw <= 0.0f) pw = 0.001f;
     if (interval_s <= 0.0f) interval_s = 0.001f;
 
-    const uint32_t f_clk = 170000000UL;
+    const uint32_t f_clk = PULSE_HRTIM_CLK_HZ;
     const float period_s = pw + interval_s;
     uint32_t target_psc;
     uint32_t target_arr;    /* ARR = target_arr - 1, 单周期 = PW + Interval */
@@ -1388,21 +1388,21 @@ void Pulse_nPulseLong_Init(void)
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
 
     /* 将 6 路 HRTIM 输出引脚配置为推挽输出 (Timer C 已剥离为 SYNC/帧标记) */
-    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin);
-    HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
+    HAL_GPIO_DeInit(HRT_CHD1_GPIO_Port, HRT_CHD1_Pin | HRT_CHD2_Pin);
+    HAL_GPIO_DeInit(HRT_CHA1_GPIO_Port, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(HRT_CHD1_GPIO_Port, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    HAL_GPIO_Init(HRT_CHA1_GPIO_Port, &GPIO_InitStruct);
 
     Pulse_nPulseLong_SetPW(1.0f, 1.0f);
     Pulse_SetPulsePolarity_High();
@@ -1453,7 +1453,7 @@ void Pulse_lPWM_SetPW(float period_s, float duty_cycle_percent)
     if (duty_cycle_percent < 0.0f) duty_cycle_percent = 0.0f;
     if (duty_cycle_percent > 100.0f) duty_cycle_percent = 100.0f;
 
-    const uint32_t f_clk = 170000000;
+    const uint32_t f_clk = PULSE_HRTIM_CLK_HZ;
     uint32_t psc;
 
     if (period_s <= 20.0f)
@@ -1528,21 +1528,21 @@ void Pulse_lPWM_Init(void)
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_1);
 
     /* 将 6 路 HRTIM 输出引脚配置为推挽输出 (Timer C 已剥离为 SYNC/帧标记) */
-    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin);
-    HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
+    HAL_GPIO_DeInit(HRT_CHD1_GPIO_Port, HRT_CHD1_Pin | HRT_CHD2_Pin);
+    HAL_GPIO_DeInit(HRT_CHA1_GPIO_Port, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(HRT_CHD1_GPIO_Port, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    HAL_GPIO_Init(HRT_CHA1_GPIO_Port, &GPIO_InitStruct);
 
     Pulse_lPWM_SetPW(1.0f, 50.0f);
     Pulse_SetPulsePolarity_High();
@@ -1911,7 +1911,7 @@ bool Pulse_CompLPWM_SetPW(float period_s, float duty_percent, uint32_t dt_ms)
     if (duty_percent < 0.01f || duty_percent > 100.0f) return false;
     if (dt_ms < 1U || dt_ms > 5000U) return false;
 
-    const uint32_t f_clk = 170000000UL;
+    const uint32_t f_clk = PULSE_HRTIM_CLK_HZ;
     uint32_t psc;
     uint32_t period_ticks;
 
@@ -2022,21 +2022,21 @@ void Pulse_CompLPWM_Init(void)
     __HAL_TIM_ENABLE_OCxPRELOAD(&htim5, TIM_CHANNEL_3);
 
     /* 将 6 路 HRTIM 输出引脚配置为推挽输出 (软件翻转互补电平) */
-    HAL_GPIO_DeInit(GPIOB, HRT_CHD1_Pin | HRT_CHD2_Pin);
-    HAL_GPIO_DeInit(GPIOA, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
+    HAL_GPIO_DeInit(HRT_CHD1_GPIO_Port, HRT_CHD1_Pin | HRT_CHD2_Pin);
+    HAL_GPIO_DeInit(HRT_CHA1_GPIO_Port, HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Pin = HRT_CHD1_Pin | HRT_CHD2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(HRT_CHD1_GPIO_Port, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = HRT_CHA1_Pin | HRT_CHA2_Pin | HRT_CHB1_Pin | HRT_CHB2_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    HAL_GPIO_Init(HRT_CHA1_GPIO_Port, &GPIO_InitStruct);
 
     /* 初始电平: 主路与互补路均无效, 严禁直通 */
     Pulse_CompPinMainSetInactive();
@@ -2078,16 +2078,18 @@ GPIO_TypeDef *Pulse_GetLongPulsePort(void)
         case HRTIM_OUTPUT_TB1:
         case HRTIM_OUTPUT_TA2:
         case HRTIM_OUTPUT_TA1:
-            return GPIOA;
+            return HRT_CHA1_GPIO_Port;
 
         case HRTIM_OUTPUT_TD2:
         case HRTIM_OUTPUT_TD1:
+            return HRT_CHD1_GPIO_Port;
+
         case HRTIM_OUTPUT_TC2:
         case HRTIM_OUTPUT_TC1:
-            return GPIOB;
+            return HRT_CHC1_GPIO_Port;
 
         default:
-            return GPIOA;
+            return HRT_CHA1_GPIO_Port;
     }
 }
 
@@ -2285,7 +2287,7 @@ void Pulse_BurstPRF_Set(uint32_t prf_hz)
     if (prf_hz > BURST_PRF_MAX_HZ) prf_hz = BURST_PRF_MAX_HZ;
 
     /* TIM3 计数时钟 = 170MHz (APB1 分频 1); 16bit ARR 需按频率选择预分频 */
-    uint32_t ticks = 170000000UL / prf_hz;
+    uint32_t ticks = PULSE_HRTIM_CLK_HZ / prf_hz;
     uint32_t psc   = ticks / 65536UL;
     uint32_t arr   = ticks / (psc + 1UL);
     if (arr == 0UL)   arr = 1UL;
@@ -2381,12 +2383,12 @@ void Pulse_Fault_Init(void)
 
     /* PA15 -> HRTIM1_FLT2 (AF13), 内部上拉: 未连接/正常时高电平, 拉低触发故障 */
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    gpio.Pin        = GPIO_PIN_15;
+    gpio.Pin        = HRTIM_FLT2_Pin;
     gpio.Mode       = GPIO_MODE_AF_PP;
     gpio.Pull       = GPIO_PULLUP;
     gpio.Speed      = GPIO_SPEED_FREQ_VERY_HIGH;
     gpio.Alternate  = GPIO_AF13_HRTIM1;
-    HAL_GPIO_Init(GPIOA, &gpio);
+    HAL_GPIO_Init(HRTIM_FLT2_GPIO_Port, &gpio);
 
     /* FLT2: 数字输入引脚, 低有效, 轻度滤波防毛刺, 配置可读写 */
     fcfg.Source   = HRTIM_FAULTSOURCE_DIGITALINPUT;

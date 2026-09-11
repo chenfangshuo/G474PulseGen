@@ -18,6 +18,21 @@
  * "屏幕显示正常但 SCPI 下发值差 10 倍"这类很难定位的问题。
  * ============================================================= */
 
+/* ===================== 计数时钟基准 =====================
+ * HRTIM 的 fHRTIM 直接取 SYSCLK, 不再经额外分频, 因此该值 = 系统主频。
+ * 本工程全部时间换算 (分频选档、死区、SYNC 脉宽、PRF 猝发、多脉冲补偿)
+ * 都从这一个值派生 —— 改时钟树只需改这里。
+ *
+ * ⚠ 必须与 SystemClock_Config() 的 PLL 实际输出保持一致。
+ *   改了时钟树却漏改这里, **编译不会报错**, 只会让所有档位的频率与计数值
+ *   系统性偏移 —— 表现为"波形整体偏差一个固定比例", 很难定位。
+ *   换芯片/改主频的完整清单见根目录 PORTING.md。
+ *
+ * 整型与浮点两种形态都由整型基准派生, 避免两处字面量各改一半。
+ * ======================================================== */
+#define PULSE_HRTIM_CLK_HZ      170000000UL
+#define PULSE_HRTIM_CLK_HZ_F    ((float)PULSE_HRTIM_CLK_HZ)
+
 /* 输出通道定义 (对齐 HARDWARE.md §5.1 输出映射) */
 #define CH_NONE                         0
 #define CH1                             1   /* HRTIM1_CHB2 (PA11 -> Y1) */
@@ -34,6 +49,13 @@
 #define FRAME_OUT_Pin                   GPIO_PIN_12   /* Y8 = 帧/猝发标记 (软件 GPIO) */
 #define SYNC_OUT_WIDTH_TICKS            1088U         /* SYNC 脉宽 200ns: 1088 = 200ns × 5.44GHz, 其中 5.44GHz = 170MHz × 32 (MUL32 档) */
 #define BURST_PRF_MAX_HZ                100000U       /* PRF 猝发重复频率上限 */
+
+/* 硬件故障封锁输入 PA15 = HRTIM1_FLT2 (AF13, 内部上拉, **低有效**)。
+ * 这是三层保护里的第一层: 拉低后 HRTIM 在硬件层面把输出扣到无效电平,
+ * 完全不经过软件。极性/滤波档位与 HARDWARE.md §5.3 严格对应, 不得改动。
+ * ⚠ 原理图上该脚原标为 I2C1_SCL, 固件改作故障输入 —— 见 HARDWARE.md §2 的 ⚠。 */
+#define HRTIM_FLT2_GPIO_Port            GPIOA
+#define HRTIM_FLT2_Pin                  GPIO_PIN_15   /* PA15 */
 
 /* 发波模式定义 */
 #define PULSE_MODE_NPULSE               1   /* N 脉冲 (HRTIM 短脉冲) */

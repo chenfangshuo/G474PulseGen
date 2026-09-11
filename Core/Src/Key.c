@@ -27,13 +27,13 @@ uint8_t Key_GetState(uint8_t n)
 {
 	switch (n)
 	{
-		case K_UP:    return !(GPIOC->IDR & GPIO_PIN_13);
-		case K_DOWN:  return !(GPIOA->IDR & GPIO_PIN_4);
-		case K_LEFT:  return !(GPIOA->IDR & GPIO_PIN_5);
-		case K_RIGHT: return !(GPIOA->IDR & GPIO_PIN_6);
-		case K_PRESS: return !(GPIOA->IDR & GPIO_PIN_7);
-		case K_ENC:   return !(GPIOB->IDR & GPIO_PIN_0);
-		case K_TRG:   return !(GPIOB->IDR & GPIO_PIN_1);
+		case K_UP:    return !(KEY_UP_GPIO_Port->IDR & KEY_UP_Pin);
+		case K_DOWN:  return !(KEY_DOWN_GPIO_Port->IDR & KEY_DOWN_Pin);
+		case K_LEFT:  return !(KEY_LEFT_GPIO_Port->IDR & KEY_LEFT_Pin);
+		case K_RIGHT: return !(KEY_RIGHT_GPIO_Port->IDR & KEY_RIGHT_Pin);
+		case K_PRESS: return !(KEY_CENTER_GPIO_Port->IDR & KEY_CENTER_Pin);
+		case K_ENC:   return !(KEY_ENC_GPIO_Port->IDR & KEY_ENC_Pin);
+		case K_TRG:   return !(KEY_TRG_GPIO_Port->IDR & KEY_TRG_Pin);
 		default:      return KEY_UNPRESSED;
 	}
 }
