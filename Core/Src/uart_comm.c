@@ -334,10 +334,13 @@ static void UcSyncUiEnableOutput(uint8_t enabled)
  *         命令树形如 PULSE:MODE / PULSE:WIDTH / 12V:ON / TRIG 等 ——
  *         完整命令表可用 SCPI "HELP" 命令从设备回读, 或查阅 README。
  *
- * @warning 参数解析使用 atoi/atof 系 (见文件内各分支), 它们**没有错误检测**:
- *          非法输入返回 0 而非报错。即 "PULSE:WIDTH abc" 会被当作 0 处理,
- *          随后由 Pulse_*_SetPW() 的范围校验决定是否拒绝。这是既有行为,
- *          改动解析函数时必须保持一致 (见方案 7.4)。
+ * @warning 参数解析使用 strtol/strtod, 且**刻意不检查 errno 与 endptr** ——
+ *          这与原先的 atoi/atof 完全等价 (newlib 的 atoi 就是
+ *          (int)strtol(s, NULL, 10) 的包装, atof 即 strtod(s, NULL)),
+ *          因此"非法输入返回 0"的语义被原样保留。即 "PULSE:WIDTH abc" 会被
+ *          当作 0 处理, 随后由 Pulse_*_SetPW() 的范围校验决定是否拒绝。
+ *          **这是既有的容错契约**: 改动解析函数时必须保持一致, 不要顺手加上
+ *          参数拒绝逻辑 —— 那会改变上位机对畸形输入的既有体验。
  */
 static void UcScpiExec(const char *line)
 {
@@ -396,7 +399,11 @@ static void UcScpiExec(const char *line)
     {
         sub = strtok(NULL, ":");
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
-        int ch = atoi(sub);
+        /* 用 strtol 替代 atoi —— 本工具链是 newlib, 其 atoi 就是
+         * (int)strtol(str, NULL, 10), 故为**实现等价**而非行为相近。
+         * 刻意不检查 errno/endptr: 保持"非法输入返回 0"的既有语义,
+         * 参数合法性由下一行范围校验负责 (见本函数 @warning)。 */
+        int ch = (int)strtol(sub, NULL, 10);
         if (ch < 1 || ch > 6) { UcSendResp("ERR CH"); return; }
         UserUi_SetChannel((uint8_t)ch);               /* 同步硬件 + 屏幕 content 显示 */
         UcSendResp("OK");
@@ -408,7 +415,7 @@ static void UcScpiExec(const char *line)
     {
         sub = strtok(NULL, ":");
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
-        int pol = atoi(sub);
+        int pol = (int)strtol(sub, NULL, 10);
         if (pol != 0 && pol != 1) { UcSendResp("ERR POL"); return; }
         UserUi_SetPolarity((uint8_t)pol);             /* 同步硬件 + 屏幕 content 显示 */
         UcSendResp("OK");
@@ -422,7 +429,7 @@ static void UcScpiExec(const char *line)
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         const char *vstr = strtok(NULL, ":");
         if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
-        float v = (float)atof(vstr);
+        float v = (float)strtod(vstr, NULL);
         if      (strcmp(sub, "WIDTH") == 0)  n_pulse_option_array[3].val = (int32_t)(v * 100.0f);
         else if (strcmp(sub, "COUNT") == 0)  n_pulse_option_array[4].val = (int32_t)v;
         else if (strcmp(sub, "INTV") == 0)   n_pulse_option_array[5].val = (int32_t)(v * 100.0f);
@@ -439,7 +446,7 @@ static void UcScpiExec(const char *line)
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         const char *vstr = strtok(NULL, ":");
         if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
-        int v = atoi(vstr);
+        int v = (int)strtol(vstr, NULL, 10);
         if      (strcmp(sub, "PW1") == 0)  double_pulse_option_array[3].val = v;
         else if (strcmp(sub, "INTV") == 0) double_pulse_option_array[4].val = v;
         else if (strcmp(sub, "PW2") == 0)  double_pulse_option_array[5].val = v;
@@ -456,7 +463,7 @@ static void UcScpiExec(const char *line)
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         const char *vstr = strtok(NULL, ":");
         if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
-        float v = (float)atof(vstr);
+        float v = (float)strtod(vstr, NULL);
         if      (strcmp(sub, "PER") == 0)  pwm_option_array[3].val = (int32_t)(v /** 1.0f*/);
         else if (strcmp(sub, "DUTY") == 0) pwm_option_array[4].val = (int32_t)(v /** 1.0f*/);
         else { UcSendResp("ERR SUB"); return; }
@@ -470,7 +477,7 @@ static void UcScpiExec(const char *line)
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         const char *vstr = strtok(NULL, ":");
         if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
-        float v = (float)atof(vstr);
+        float v = (float)strtod(vstr, NULL);
         if (g_pulse_mode != PULSE_MODE_COMP_PWM) { UcSendResp("ERR MODE"); return; }
         if      (strcmp(sub, "PER") == 0) comp_pwm_option_array[2].val = (int32_t)(v * 100.0f);
         else if (strcmp(sub, "DUTY") == 0) comp_pwm_option_array[3].val = (int32_t)v;
@@ -490,7 +497,7 @@ static void UcScpiExec(const char *line)
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
         const char *vstr = strtok(NULL, ":");
         if (vstr == NULL) { UcSendResp("ERR VAL"); return; }
-        float v = (float)atof(vstr);
+        float v = (float)strtod(vstr, NULL);
         if      (strcmp(sub, "PER") == 0)  pwm_long_option_array[3].val = (int32_t)(v * 1000.0f);
         else if (strcmp(sub, "DUTY") == 0) pwm_long_option_array[4].val = (int32_t)(v * 100.0f);
         else { UcSendResp("ERR SUB"); return; }
@@ -547,7 +554,7 @@ static void UcScpiExec(const char *line)
     {
         sub = strtok(NULL, ":");
         if (sub == NULL) { UcSendResp("ERR ARG"); return; }
-        UcInjectKey((uint8_t)atoi(sub));
+        UcInjectKey((uint8_t)strtol(sub, NULL, 10));
         UcSendResp("OK");
         return;
     }
