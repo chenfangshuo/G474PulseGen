@@ -8,8 +8,14 @@
 
 | 代号 | 来源 | 说明 |
 |:--|:--|:--|
-| `baseline_4fdba09` | master `4fdba09` | 改动前的原始固件 |
+| `baseline_fbbc384` | master `fbbc384` | 改动前的原始固件 |
 | `after_code-hygiene` | 分支 `code-hygiene` | 20 次提交之后 |
+
+> **关于基线 commit hash**：这份记录采集时基线是 `4fdba09`。2026-09 为开源发布
+> 做了一次历史清理（清除 `OLED_Fonts.c` 字库注释里的本机绝对路径、并移除三个
+> 已删的原理图 PDF 抽取文本），全部 commit hash 因此被重写，该提交现为
+> **`fbbc384`**。**提交内容未变**，仅 hash 变化——本目录同步改名与更新引用。
+> 若你手上的旧记录写着 `4fdba09`，它与 `fbbc384` 是同一个提交。
 
 ## 目录结构与清单项对应
 
@@ -17,11 +23,11 @@
 
 | 文件 / 目录 | 清单项 | 内容 |
 |:--|:--|:--|
-| `baseline_4fdba09/0-1_sync_jitter.png` | 0-1 / 1-1 | SYNC 对齐抖动（示波器余晖截图） |
+| `baseline_fbbc384/0-1_sync_jitter.png` | 0-1 / 1-1 | SYNC 对齐抖动（示波器余晖截图） |
 | `after_code-hygiene/1-1_sync_jitter.png` | | |
-| `baseline_4fdba09/0-4_oled_pages/` | 0-4 / 1-3 | OLED 逐页镜像抓图（13 张） |
+| `baseline_fbbc384/0-4_oled_pages/` | 0-4 / 1-3 | OLED 逐页镜像抓图（13 张） |
 | `after_code-hygiene/1-3_oled_pages/` | | |
-| `baseline_4fdba09/0-5_scpi_responses.txt` | 0-5 / 2-1 | SCPI 命令响应原文（40 条） |
+| `baseline_fbbc384/0-5_scpi_responses.txt` | 0-5 / 2-1 | SCPI 命令响应原文（40 条） |
 | `after_code-hygiene/2-1_scpi_responses.txt` | | |
 
 OLED 抓图的文件名格式为 `日期_时刻_页型_序号.png`，由上位机的镜像推流工具生成，
@@ -102,7 +108,7 @@ OLED 抓图的文件名格式为 `日期_时刻_页型_序号.png`，由上位�
 ## 如何复现
 
 ```bash
-git checkout 4fdba09          # 采基线
+git checkout fbbc384          # 采基线
 cmake --build build/Debug     # 烧录后按上述条件采集
 
 git checkout code-hygiene     # 采改后
@@ -113,11 +119,11 @@ cmake --build build/Debug
 
 ```bash
 # SCPI: 直接比字节
-cmp baseline_4fdba09/0-5_scpi_responses.txt after_code-hygiene/2-1_scpi_responses.txt
+cmp baseline_fbbc384/0-5_scpi_responses.txt after_code-hygiene/2-1_scpi_responses.txt
 
 # OLED: 按页面序号配对后比字节
 for i in $(seq -w 002 013); do
-  cmp baseline_4fdba09/0-4_oled_pages/*_${i}.png \
+  cmp baseline_fbbc384/0-4_oled_pages/*_${i}.png \
       after_code-hygiene/1-3_oled_pages/*_${i}.png && echo "$i 一致"
 done
 ```

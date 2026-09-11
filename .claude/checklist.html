@@ -274,7 +274,7 @@ footer{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule);
   <p class="sub">
     逐项核验代码改动是否影响波形、保护与交互。分支
     <span class="branch">code-hygiene</span>，
-    基线固件 <span class="branch">4fdba09</span>。
+    基线固件 <span class="branch">fbbc384</span>。
   </p>
 </header>
 
@@ -299,7 +299,7 @@ footer{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule);
     <div class="step-body">
       <span class="step-id">00</span><span class="step-title">切到原始固件并烧录</span>
       <pre><span class="c"># 工作区已是干净的，checkout 不会再被拦</span>
-git checkout 4fdba09
+git checkout fbbc384
 cmake --build build/Debug
 <span class="c"># 用惯用方式烧录（CLion Run / STM32CubeProgrammer）</span></pre>
     </div>
@@ -593,7 +593,7 @@ git bisect start code-hygiene master</pre>
 </section>
 
 <footer>
-  code-hygiene · 18 次提交 · 基线 4fdba09 · 状态保存在本机浏览器
+  code-hygiene · 18 次提交 · 基线 fbbc384 · 状态保存在本机浏览器
 </footer>
 
 </div>
