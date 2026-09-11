@@ -52,6 +52,43 @@ macro(require_match FILEPATH PATTERN LABEL WHY)
     endif()
 endmacro()
 
+# ---- FATAL 反查: 匹配成功 = 异常 -------------------------------------------
+# 用于"某个东西不应该存在"的检查 (例如某宏不得被定义)。
+macro(require_not_match FILEPATH PATTERN LABEL WHY)
+    if(EXISTS "${PROJECT_ROOT}/${FILEPATH}")
+        file(READ "${PROJECT_ROOT}/${FILEPATH}" _content)
+        string(REGEX MATCH "${PATTERN}" _hit "${_content}")
+        if(_hit)
+            message(STATUS "  [FAIL] ${LABEL}")
+            message(STATUS "         ${WHY}")
+            set(_failed 1)
+        else()
+            message(STATUS "  [OK]   ${LABEL}")
+        endif()
+    else()
+        message(STATUS "  [FAIL] ${LABEL}  -- 文件不存在: ${FILEPATH}")
+        set(_failed 1)
+    endif()
+endmacro()
+
+# ---- ADVISORY 反查: 匹配成功只提示 -----------------------------------------
+macro(advise_not_match FILEPATH PATTERN LABEL TODO)
+    if(EXISTS "${PROJECT_ROOT}/${FILEPATH}")
+        file(READ "${PROJECT_ROOT}/${FILEPATH}" _content)
+        string(REGEX MATCH "${PATTERN}" _hit "${_content}")
+        if(_hit)
+            message(STATUS "  [待办] ${LABEL}")
+            message(STATUS "         ${TODO}")
+            set(_advisory 1)
+        else()
+            message(STATUS "  [OK]   ${LABEL}")
+        endif()
+    else()
+        message(STATUS "  [待办] ${LABEL}  -- 文件不存在: ${FILEPATH}")
+        set(_advisory 1)
+    endif()
+endmacro()
+
 # ---- ADVISORY 检查: 未匹配只提示 -------------------------------------------
 macro(advise_match FILEPATH PATTERN LABEL TODO)
     if(EXISTS "${PROJECT_ROOT}/${FILEPATH}")
@@ -115,6 +152,12 @@ require_match("Core/Src/stm32g4xx_it.c"
     "DMA1_Channel2_IRQHandler 存在"
     "USART3_TX 的 DMA 完成中断。缺失会导致发送链停摆。")
 
+# USART3 不得开启 Overrun Disable —— 与 TICK_INT_PRIORITY 同类的静默行为回退
+require_not_match("Core/Src/usart.c"
+    "UART_ADVFEATURE_OVERRUN_DISABLE"
+    "USART3 未开启 Overrun Disable"
+    "开启后 ORE 标志永不置位, uart_comm.c 中基于 ORE 的风暴保护 (使能 UART_IT_ORE / UartComm_OreEvent 计数 / 风暴时同关 RXNE+ORE) 与 SCPI STAT 的 ORE 诊断全部失效, 且溢出时数据静默丢失。请在 CubeMX 的 USART3 -> Advanced Features 中取消勾选 Overrun Disable 与 DMA Disable on RX error。")
+
 message(STATUS "--- ADVISORY: .ioc 侧待办 (不阻断构建) ---")
 
 # USART3 必须在 .ioc 中 —— 这是治本项
@@ -139,6 +182,19 @@ advise_match("G474PulseGen.ioc"
     "NVIC.DMA1_Channel2_IRQn=true"
     ".ioc 中使能了 DMA1_Channel2 全局中断"
     "USART3_TX 的 DMA 完成中断, 未使能则发送链不工作。")
+
+# .ioc 侧不得残留 Overrun Disable / DMA Disable on RX error
+# 用 advise_not_match 而非 require_not_match: 若代码侧已是干净的、只是 .ioc 还勾着,
+# 当前构建其实没问题 (要下次重新生成才会出问题), 此时只提示即可。
+advise_not_match("G474PulseGen.ioc"
+    "USART3.OverrunDisableParam"
+    ".ioc 中未勾选 USART3 Overrun Disable"
+    "与上一条配套: .ioc 里勾着, 重新生成就会再次打开 OVRDIS。请在 CubeMX 的 USART3 -> Advanced Features 中取消勾选。")
+
+advise_not_match("G474PulseGen.ioc"
+    "USART3.DMADisableonRxErrorParam"
+    ".ioc 中未勾选 DMA Disable on RX error"
+    "本工程接收不走 DMA, 该项无实际作用, 但保持与 Overrun Disable 一致的关闭状态以免混淆。")
 
 message(STATUS "")
 
