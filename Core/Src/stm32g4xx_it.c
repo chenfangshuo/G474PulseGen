@@ -59,13 +59,13 @@
 /* External variables --------------------------------------------------------*/
 extern HRTIM_HandleTypeDef hhrtim1;
 extern DMA_HandleTypeDef hdma_spi1_tx;
-extern DMA_HandleTypeDef hdma_usart3_tx;
 extern SPI_HandleTypeDef hspi1;
-extern UART_HandleTypeDef huart3;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim6;
 extern TIM_HandleTypeDef htim7;
 extern TIM_HandleTypeDef htim16;
+extern DMA_HandleTypeDef hdma_usart3_tx;
+extern UART_HandleTypeDef huart3;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -246,6 +246,20 @@ void DMA1_Channel1_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 channel2 global interrupt.
+  */
+void DMA1_Channel2_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel2_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel2_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart3_tx);
+  /* USER CODE BEGIN DMA1_Channel2_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel2_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM1 update interrupt and TIM16 global interrupt.
   */
 void TIM1_UP_TIM16_IRQHandler(void)
@@ -271,6 +285,54 @@ void SPI1_IRQHandler(void)
   /* USER CODE BEGIN SPI1_IRQn 1 */
 
   /* USER CODE END SPI1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART3 global interrupt / USART3 wake-up interrupt through EXTI line 28.
+  */
+void USART3_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART3_IRQn 0 */
+  /* 自研实现: **刻意绕过 HAL 的接收路径**。理由:
+   *   1) 接收走 RXNE 中断 + 自建环形缓冲 (uart_comm), 从未调用 HAL_UART_Receive_IT,
+   *      故 huart3.RxState 恒为 READY, HAL 不会碰接收 —— 不会重复消费;
+   *   2) HAL 只在使能 UART_IT_ERR 时才清 FE/NE/PE, 且不处理本工程需要的全部标志。
+   *      实测: 错误标志未清干净会形成中断风暴饿死主循环 (表现为屏幕 1 分钟才动一次、
+   *      SCPI STAT 无回应), 故此处显式清全部。
+   * 下方 CubeMX 生成的那行 HAL_UART_IRQHandler(&huart3) 此时已无事可做 (RXNE 与全部
+   * 错误标志都已被本段清掉), 保留它只为兜住 TC 的收尾路径, 无副作用。 */
+  {
+    uint32_t isr = USART3->ISR;
+
+    /* 接收: 读 RDR 清 RXNE 及该帧的 FE/NE/PE */
+    if (isr & USART_ISR_RXNE)
+      UartComm_RxByte((uint8_t)USART3->RDR);   /* 读 RDR 清除 RXNE, 入环形缓冲 */
+
+    /* 清所有遗留错误标志 (ORE/FE/NE/PE)。EIE 使能后这些都会触发中断, 若任一未清
+     * 将形成中断风暴饿死主循环。CH340 开串口瞬间的噪声常产生 FE(帧错误)/NE(噪声),
+     * 必须显式写 ICR 清除, 不能只清 ORE。 */
+    {
+      uint32_t icr = 0u;
+      if (isr & USART_ISR_ORE) { icr |= USART_ICR_ORECF; UartComm_OreEvent(); }
+      if (isr & USART_ISR_FE)  icr |= USART_ICR_FECF;
+      if (isr & USART_ISR_NE)  icr |= USART_ICR_NECF;
+      if (isr & USART_ISR_PE)  icr |= USART_ICR_PECF;
+      if (icr) USART3->ICR = icr;
+    }
+
+    /* TX 发送完成收尾: HAL 的 DMA 发送完成后会置 TCIE 并等 TC 标志, 若不在此处
+     * 交给 HAL 结束发送 (UART_EndTransmit_IT), 则 gState 永远 BUSY_TX 且 TC 标志
+     * 持续触发 USART3 中断 -> 中断风暴饿死主循环。 */
+    if ((isr & USART_ISR_TC) && (USART3->CR1 & USART_CR1_TCIE))
+    {
+      HAL_UART_IRQHandler(&huart3);            /* 结束发送, 恢复 gState=READY 并回调 TxCpltCallback */
+    }
+  }
+  /* USER CODE END USART3_IRQn 0 */
+  HAL_UART_IRQHandler(&huart3);
+  /* USER CODE BEGIN USART3_IRQn 1 */
+
+  /* USER CODE END USART3_IRQn 1 */
 }
 
 /**
@@ -358,41 +420,5 @@ void TIM3_IRQHandler(void)
 void HRTIM1_FLT_IRQHandler(void)
 {
   HAL_HRTIM_IRQHandler(&hhrtim1, HRTIM_TIMERINDEX_COMMON);
-}
-
-/* USART3 中断: 读 ISR 一次, 处理接收 + 清全部错误标志 + TX 发送完成收尾 */
-void USART3_IRQHandler(void)
-{
-  uint32_t isr = USART3->ISR;
-
-  /* 接收: 读 RDR 清 RXNE 及该帧的 FE/NE/PE */
-  if (isr & USART_ISR_RXNE)
-    UartComm_RxByte((uint8_t)USART3->RDR);   /* 读 RDR 清除 RXNE, 入环形缓冲 */
-
-  /* 清所有遗留错误标志 (ORE/FE/NE/PE)。EIE 使能后这些都会触发中断, 若任一未清
-   * 将形成中断风暴饿死主循环 (屏幕 1min 动一次 + STAT 无回应)。CH340 开串口瞬间的
-   * 噪声常产生 FE(帧错误)/NE(噪声), 必须显式写 ICR 清除, 不能只清 ORE。 */
-  {
-    uint32_t icr = 0u;
-    if (isr & USART_ISR_ORE) { icr |= USART_ICR_ORECF; UartComm_OreEvent(); }
-    if (isr & USART_ISR_FE)  icr |= USART_ICR_FECF;
-    if (isr & USART_ISR_NE)  icr |= USART_ICR_NECF;
-    if (isr & USART_ISR_PE)  icr |= USART_ICR_PECF;
-    if (icr) USART3->ICR = icr;
-  }
-
-  /* TX 发送完成收尾: HAL 的 DMA 发送完成后会置 TCIE 并等 TC 标志, 若不在 ISR 里
-   * 交给 HAL 结束发送 (UART_EndTransmit_IT), 则 gState 永远 BUSY_TX 且 TC 标志持续
-   * 触发 USART3 中断 -> 中断风暴饿死主循环 */
-  if ((isr & USART_ISR_TC) && (USART3->CR1 & USART_CR1_TCIE))
-  {
-    HAL_UART_IRQHandler(&huart3);            /* 结束发送, 恢复 gState=READY 并回调 TxCpltCallback */
-  }
-}
-
-/* DMA1 通道2 (USART3_TX) 发送完成中断 */
-void DMA1_Channel2_IRQHandler(void)
-{
-  HAL_DMA_IRQHandler(&hdma_usart3_tx);
 }
 /* USER CODE END 1 */

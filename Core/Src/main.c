@@ -22,6 +22,7 @@
 #include "hrtim.h"
 #include "spi.h"
 #include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -112,7 +113,6 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_USART3_UART_Init();
   MX_HRTIM1_Init();
   MX_TIM2_Init();
   MX_SPI1_Init();
@@ -120,6 +120,7 @@ int main(void)
   MX_TIM7_Init();
   MX_TIM16_Init();
   MX_TIM5_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_Base_Start_IT(&htim6); //打开为屏幕定时刷新的定时器中断
@@ -154,6 +155,7 @@ int main(void)
   // 默认保持 12V 负载开关关断，待供电稳定后再开启
   LOADSW_DISABLE();
   /* USER CODE END 2 */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
