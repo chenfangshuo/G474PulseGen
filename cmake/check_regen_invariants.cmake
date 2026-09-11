@@ -108,6 +108,47 @@ macro(advise_match FILEPATH PATTERN LABEL TODO)
 endmacro()
 
 message(STATUS "")
+# ---- FATAL 数值比对: 两个文件里提取出的数值必须相等 ------------------------
+# 用于"同一个事实被两处独立维护"的场景。与上面四个宏的区别是它做的是**数值
+# 比对**而非模式匹配 —— 模式匹配只能回答"某个东西在不在", 回答不了"两处的值
+# 是否一致"。
+#
+# 两侧任一提取失败也判失败: 提取不到说明文件结构变了, 检查规则本身已失效,
+# 不能让构建悄悄通过 —— 否则这道防线会静默作废, 比没有检查更危险。
+macro(require_equal_values FILE_A PATTERN_A LABEL_A FILE_B PATTERN_B LABEL_B WHY)
+    set(_va "")
+    set(_vb "")
+    if(EXISTS "${PROJECT_ROOT}/${FILE_A}")
+        file(READ "${PROJECT_ROOT}/${FILE_A}" _ca)
+        string(REGEX MATCH "${PATTERN_A}" _ma "${_ca}")
+        if(CMAKE_MATCH_1)
+            set(_va "${CMAKE_MATCH_1}")
+        endif()
+    endif()
+    if(EXISTS "${PROJECT_ROOT}/${FILE_B}")
+        file(READ "${PROJECT_ROOT}/${FILE_B}" _cb)
+        string(REGEX MATCH "${PATTERN_B}" _mb "${_cb}")
+        if(CMAKE_MATCH_1)
+            set(_vb "${CMAKE_MATCH_1}")
+        endif()
+    endif()
+
+    if(_va STREQUAL "" OR _vb STREQUAL "")
+        message(STATUS "  [FAIL] ${LABEL_A} 与 ${LABEL_B} 一致")
+        message(STATUS "         提取失败: ${FILE_A} -> '${_va}' / ${FILE_B} -> '${_vb}'")
+        message(STATUS "         文件结构可能已变, 请更新 check_regen_invariants.cmake 里的正则。")
+        set(_failed 1)
+    elseif(NOT _va STREQUAL _vb)
+        message(STATUS "  [FAIL] ${LABEL_A} 与 ${LABEL_B} 一致")
+        message(STATUS "         ${LABEL_A} = ${_va}   (${FILE_A})")
+        message(STATUS "         ${LABEL_B} = ${_vb}   (${FILE_B})")
+        message(STATUS "         ${WHY}")
+        set(_failed 1)
+    else()
+        message(STATUS "  [OK]   ${LABEL_A} 与 ${LABEL_B} 一致 (${_va})")
+    endif()
+endmacro()
+
 message(STATUS "=== CubeMX 重新生成不变量检查 ===")
 message(STATUS "--- FATAL: 出现即说明重新生成已破坏工程 ---")
 
@@ -157,6 +198,24 @@ require_not_match("Core/Src/usart.c"
     "UART_ADVFEATURE_OVERRUN_DISABLE"
     "USART3 未开启 Overrun Disable"
     "开启后 ORE 标志永不置位, uart_comm.c 中基于 ORE 的风暴保护 (使能 UART_IT_ORE / UartComm_OreEvent 计数 / 风暴时同关 RXNE+ORE) 与 SCPI STAT 的 ORE 诊断全部失效, 且溢出时数据静默丢失。请在 CubeMX 的 USART3 -> Advanced Features 中取消勾选 Overrun Disable 与 DMA Disable on RX error。")
+
+# ---- HRTIM 计数时钟基准: .ioc 的权威值 必须等于 源码宏 ----------------------
+#
+# PULSE_HRTIM_CLK_HZ 是固件**全部**时间换算的基准 (分频选档 / 死区 / SYNC 脉宽 /
+# PRF 猝发 / 多脉冲补偿), 它必须等于 HRTIM 的实际时钟。G4 的 HRTIM 时钟源不可选
+# (HAL 里没有 RCC_HRTIM1CLK_* 选项), 它跟着 APB2 定时器时钟走; .ioc 里的
+# RCC.APB2TimFreq_Value 就是 CubeMX 按时钟树算好的那个值。
+#
+# 为什么必须是 FATAL: 两者不一致时**编译通过、运行正常**, 只是所有输出时间按
+# 两者之比整体偏移 —— 属"改了不报错"那一类, 只能靠示波器发现。参见 PORTING.md §3.1。
+require_equal_values(
+    "G474PulseGen.ioc"
+    "RCC.APB2TimFreq_Value=([0-9]+)"
+    ".ioc 的 APB2 定时器时钟 (= CK_HRTIM)"
+    "Core/Inc/Pulse.h"
+    "#define[ \t]+PULSE_HRTIM_CLK_HZ[ \t]+([0-9]+)UL"
+    "Pulse.h 的 PULSE_HRTIM_CLK_HZ"
+    "改时钟树或改 APB2 分频后, 必须同步修改 Core/Inc/Pulse.h 的 PULSE_HRTIM_CLK_HZ。两者不等时编译不会报错, 但所有输出时间会按两者之比整体偏移。")
 
 message(STATUS "--- ADVISORY: .ioc 侧待办 (不阻断构建) ---")
 
