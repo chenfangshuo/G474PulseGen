@@ -84,6 +84,12 @@ pc_host/dist/
 # settings.json / settings.local.json 是本机配置, 保持忽略。
 !.claude/checklist.html
 
+# AI 工具的本机配置 (2026-09 移出仓库): 它们绑定个人工作流, 对克隆者无意义。
+# 而且 .claudeignore 把 .ioc / 链接脚本 / startup 都列为"别读" —— 对想用 AI
+# 辅助移植的人反而是障碍。CLAUDE.md 保留入库: 它沉淀的是工程约定而非个人偏好。
+.claudeignore
+.kilocodeignore
+
 # ========================================================
 # 7. 代码库分析临时快照 (repomix / tree 导出)
 # ========================================================

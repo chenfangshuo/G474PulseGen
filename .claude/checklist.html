@@ -269,11 +269,12 @@ footer{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule);
 <div class="wrap">
 
 <header class="masthead">
-  <div class="eyebrow">Core 代码卫生方案 · 18 次提交已就绪</div>
+  <div class="eyebrow">Core 代码卫生改动 · 实机验收记录</div>
   <h1>G474PulseGen 实机验收</h1>
   <p class="sub">
-    逐项核验代码改动是否影响波形、保护与交互。分支
-    <span class="branch">code-hygiene</span>，
+    逐项核验一批代码改动是否影响波形、保护与交互。
+    这是 2026-09 那次 Core 代码卫生优化留下的记录 ——
+    可作为自己动手时的模板：先采基线，再逐项对比，最后跑全回归。
     基线固件 <span class="branch">fbbc384</span>。
   </p>
 </header>
@@ -380,10 +381,10 @@ cmake --build build/Debug
 <section class="phase">
   <div class="phase-head">
     <span class="phase-num">01</span>
-    <h2>最高优先级 · 改了运行代码的两批</h2>
+    <h2>最高优先级 · 两处动了运行代码的改动</h2>
   </div>
   <p class="phase-note">
-    批次 7 与 14 是唯一改动了运行代码的提交，先验它们。其余批次要么是纯注释，要么已被证明是二进制等价的。
+    这批改动里只有两处动了运行代码：开启 <code>-Wall -Wextra</code>、绘图 API 形参加宽。其余要么是纯注释，要么已被证明二进制等价（证据见 <code>screenshots/verification_2026-09/</code>）。先验这两处。
   </p>
 
   <div class="step">
@@ -425,7 +426,7 @@ cmake --build build/Debug
       <span class="step-id">1-3</span><span class="step-title">OLED 逐页比对<span class="tag must">改了代码</span></span>
       <p class="step-do">对照 0-4 的照片逐页看。</p>
       <p class="crit">
-        <b>判据</b> 像素级一致。这是批次 14 唯一的验收手段 —— 绘图 API 形参由
+        <b>判据</b> 像素级一致。这是绘图 API 形参加宽唯一的验收手段 —— 绘图 API 形参由
         <code>int16_t</code> 加宽为 <code>int</code>，消除了原本的隐式截断。屏幕坐标远小于上限，
         理论上无差异，但必须目视确认。
       </p>
@@ -454,7 +455,7 @@ cmake --build build/Debug
       <p class="step-do">重发 0-5 的全部输入，逐条对响应。</p>
       <p class="crit">
         <b>判据</b> 响应<b>逐字节一致</b>，特别是非法输入仍返回 0 而不是报错 ——
-        批次 15 把 <code>atoi/atof</code> 换成了 <code>strtol/strtod</code>，刻意保留了原有的容错语义。
+        <code>atoi/atof</code> 换成了 <code>strtol/strtod</code>，刻意保留了原有的容错语义。
       </p>
     </div>
     <div class="fields">
@@ -492,7 +493,7 @@ cmake --build build/Debug
       <span class="step-id">2-4</span><span class="step-title">串口链路</span>
       <p class="step-do">上位机连续推流 OLED 镜像 ＋ SCPI 命令。</p>
       <p class="crit">
-        <b>判据</b> 无丢帧、ORE 计数不增长 —— 验证批次 5 的 extern 集中化没有破坏
+        <b>判据</b> 无丢帧、ORE 计数不增长 —— 验证 extern 集中化没有破坏
         <code>uart_comm.c</code> 的跨文件契约。
       </p>
     </div>
@@ -505,7 +506,7 @@ cmake --build build/Debug
       <span class="step-id">2-5</span><span class="step-title">按键与 OLED</span>
       <p class="step-do">按键长短按、双击，页面切换刷新。</p>
       <p class="crit">
-        <b>判据</b> 与改动前一致 —— 验证批次 3 的 <code>static</code> 化没有影响
+        <b>判据</b> 与改动前一致 —— 验证 <code>static</code> 化没有影响
         <code>Key.c</code> 与 <code>OLED_driver.c</code> 的中断通信。
       </p>
     </div>
@@ -554,7 +555,7 @@ cmake --build build/Debug
   </div>
 
   <div class="note">
-    <h3>批次 14 让 FLASH 增加 1640 字节</h3>
+    <h3>绘图 API 形参加宽让 FLASH 增加 1640 字节</h3>
     <p>
       136028 → 137668 字节（占用 26.26%）。原因是 <code>int16_t</code> 形参让 GCC 能证明取值范围、
       消除部分冗余边界检查；加宽后这些检查保留，且 <code>-funroll-loops</code> 下寄存器压力上升。
@@ -564,7 +565,7 @@ cmake --build build/Debug
   </div>
 
   <div class="note">
-    <h3>批次 7 让 FLASH 增加 48 字节</h3>
+    <h3>开启 <code>-Wall -Wextra</code> 让 FLASH 增加 48 字节</h3>
     <p>
       来自 <code>Pulse_dPulse_SetPW</code> 的防御性返回值检查。修的是一个当前不可达、
       但将来放宽参数校验后会静默算出错误占空比的潜在缺陷。
@@ -573,9 +574,9 @@ cmake --build build/Debug
   </div>
 
   <div class="note">
-    <h3>本清单未覆盖批次 13</h3>
+    <h3>本清单未覆盖 CLion 风格类检查</h3>
     <p>
-      批次 13 列出的"冗余圆括号 / 形参可设 const / 冗余 cast"等，<strong>全部是 CLion 自带的检查</strong>，
+      那批改动里列出的"冗余圆括号 / 形参可设 const / 冗余 cast"等，<strong>全部是 CLion 自带的检查</strong>，
       既不是编译器告警也不是 Clang-Tidy —— <code>-Wall -Wextra</code> 对它们本来就是零输出。
     </p>
     <p>
@@ -586,14 +587,16 @@ cmake --build build/Debug
 
   <div class="note">
     <h3>出问题时二分定位</h3>
-    <p>13 个提交，每一批都可独立回退：</p>
-<pre>git log --oneline master..code-hygiene
-git bisect start code-hygiene master</pre>
+    <p>改动是逐项独立提交的，每一项都可单独回退，也便于二分定位：</p>
+<pre># 代码卫生分支已合并进 master 并删除，用提交信息检索相关改动:
+git log --oneline --grep="refactor:"
+# 定位到可疑的一项后单独回退:
+git revert &lt;commit&gt;</pre>
   </div>
 </section>
 
 <footer>
-  code-hygiene · 18 次提交 · 基线 fbbc384 · 状态保存在本机浏览器
+  Core 代码卫生改动 · 基线 fbbc384 · 状态保存在本机浏览器
 </footer>
 
 </div>
