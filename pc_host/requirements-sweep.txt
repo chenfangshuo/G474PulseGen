@@ -1,0 +1,13 @@
+# DPT 扫描脚本（dpt_sweep.py）的依赖
+#
+# dpt_sweep.py 会 import 博客文章里的 dpt_analyzer.py；
+# dpt_analyzer 需要 numpy / pandas / scipy / matplotlib。
+# 上位机本身仍只需要 pc_host/requirements.txt 里的 pyserial / pygame。
+#
+# 安装：
+#     pip install -r pc_host/requirements-sweep.txt
+#
+numpy>=1.26
+pandas>=2.0
+scipy>=1.6
+matplotlib>=3.7
